@@ -1,0 +1,100 @@
+<template>
+  <div class="row g-0 auth-wrapper flex-row-reverse">
+    <div class="col-lg-6 auth-brand-section d-none d-lg-flex bg-primary">
+      <i class="bi bi-trophy-fill text-white" style="font-size: 5rem;"></i>
+      <h1 class="fw-bold mt-4 mb-3">Join FitBuddy</h1>
+      <p class="lead text-light opacity-75">Start your personalized fitness adventure today.</p>
+    </div>
+    
+    <div class="col-lg-6 auth-form-section">
+      <div class="auth-form-card shadow-sm p-4 p-md-5 rounded-4">
+        <div class="text-center mb-4 d-lg-none">
+          <i class="bi bi-activity text-primary fs-1"></i>
+          <h2 class="fw-bold mt-2">FitBuddy</h2>
+        </div>
+        
+        <h3 class="fw-bold mb-4 text-center">Create an Account</h3>
+        
+        <div v-if="errorMsg" class="alert alert-danger alert-dismissible fade show" role="alert">
+          {{ errorMsg }}
+          <button type="button" class="btn-close" @click="errorMsg = ''"></button>
+        </div>
+
+        <form @submit.prevent="handleSignup">
+          <div class="form-floating mb-3">
+            <input type="text" class="form-control" id="name" v-model="form.name" placeholder="John Doe" required>
+            <label for="name">Full Name</label>
+          </div>
+          
+          <div class="form-floating mb-3">
+            <input type="email" class="form-control" id="email" v-model="form.email" placeholder="name@example.com" required>
+            <label for="email">Email address</label>
+          </div>
+          
+          <div class="form-floating mb-3">
+            <input type="password" class="form-control" id="password" v-model="form.password" placeholder="Password" required minlength="8">
+            <label for="password">Password (min 8 chars)</label>
+          </div>
+          
+          <div class="form-floating mb-3">
+            <input type="password" class="form-control" :class="{'is-invalid': passwordMismatch}" id="confirmPassword" v-model="form.confirmPassword" placeholder="Confirm Password" required>
+            <label for="confirmPassword">Confirm Password</label>
+            <div class="invalid-feedback">Passwords do not match.</div>
+          </div>
+          
+          <div class="form-check mb-4">
+            <input class="form-check-input" type="checkbox" id="terms" v-model="form.terms" required>
+            <label class="form-check-label text-muted small" for="terms">
+              I agree to the <a href="#" class="text-primary">Terms & Conditions</a>
+            </label>
+          </div>
+          
+          <button type="submit" class="btn btn-primary w-100 py-3 rounded-pill mb-4" :disabled="loading || passwordMismatch">
+            <span v-if="loading" class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+            {{ loading ? 'Creating Account...' : 'Sign Up' }}
+          </button>
+          
+          <p class="text-center text-muted mb-0">
+            Already have an account? <router-link to="/login" class="text-primary fw-semibold text-decoration-none">Log in</router-link>
+          </p>
+        </form>
+      </div>
+    </div>
+  </div>
+</template>
+
+<script setup>
+import { ref, reactive, computed } from 'vue'
+import { useRouter } from 'vue-router'
+import { authService } from '../services/authService'
+
+const router = useRouter()
+const form = reactive({
+  name: '',
+  email: '',
+  password: '',
+  confirmPassword: '',
+  terms: false
+})
+const loading = ref(false)
+const errorMsg = ref('')
+
+const passwordMismatch = computed(() => {
+  return form.password && form.confirmPassword && form.password !== form.confirmPassword
+})
+
+const handleSignup = async () => {
+  if (passwordMismatch.value) return
+  errorMsg.value = ''
+  loading.value = true
+  try {
+    await authService.signup({ name: form.name, email: form.email, password: form.password })
+    router.push({ name: 'login', query: { registered: 'true' } })
+  } catch (err) {
+    errorMsg.value = err.response?.data?.message || 'An error occurred during signup.'
+  } finally {
+    loading.value = false
+  }
+}
+</script>
+

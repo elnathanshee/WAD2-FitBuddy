@@ -1,0 +1,85 @@
+/* Custom Styles for FitBuddy */
+:root {
+  --fb-primary: #198754; /* Success green/teal */
+  --fb-primary-dark: #146c43;
+  --fb-bg: #f8f9fa;
+  --fb-dark: #212529;
+}
+
+body {
+  background-color: var(--fb-bg);
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  color: var(--fb-dark);
+}
+
+.text-primary {
+  color: var(--fb-primary) !important;
+}
+
+.bg-primary {
+  background-color: var(--fb-primary) !important;
+}
+
+.btn-primary {
+  background-color: var(--fb-primary);
+  border-color: var(--fb-primary);
+  transition: all 0.3s ease;
+}
+
+.btn-primary:hover {
+  background-color: var(--fb-primary-dark);
+  border-color: var(--fb-primary-dark);
+  transform: translateY(-1px);
+}
+
+.page-transition {
+  animation: fadeIn 0.3s ease-in-out;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(5px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* Auth Pages Split Layout */
+.auth-wrapper {
+  min-height: calc(100vh - 56px); /* subtract navbar height */
+}
+
+.auth-brand-section {
+  background: linear-gradient(135deg, var(--fb-dark), #1a1e21);
+  color: white;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  padding: 3rem;
+  text-align: center;
+}
+
+.auth-form-section {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem;
+  background-color: white;
+}
+
+.auth-form-card {
+  width: 100%;
+  max-width: 400px;
+}
+
+.password-toggle {
+  cursor: pointer;
+  border-left: none;
+}
+
+.password-toggle i {
+  color: #6c757d;
+}
+
+.form-control:focus {
+  border-color: var(--fb-primary);
+  box-shadow: 0 0 0 0.25rem rgba(25, 135, 84, 0.25);
+}

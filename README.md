@@ -1,2 +1,0 @@
-# WAD2-FitBuddy
-WAD2 G8 T5

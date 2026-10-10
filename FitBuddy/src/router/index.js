@@ -3,6 +3,7 @@ import { authService } from '../services/authService'
 import LoginPage from '../components/LoginPage.vue'
 import SignupPage from '../components/SignupPage.vue'
 import Dashboard from '../views/Dashboard.vue'
+import Leaderboard from '../views/Leaderboard.vue'
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -15,7 +16,10 @@ const router = createRouter({
       name: 'dashboard', 
       component: Dashboard,
       meta: { requiresAuth: true }
-    }
+    },
+    // Gamification (Angus). Intentionally public for now so the feature can be
+    // demoed before the real authentication work is merged.
+    { path: '/leaderboard', name: 'leaderboard', component: Leaderboard }
   ]
 })
 

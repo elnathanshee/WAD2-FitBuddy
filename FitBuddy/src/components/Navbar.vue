@@ -12,6 +12,11 @@
       
       <div class="collapse navbar-collapse" id="navbarNav">
         <ul class="navbar-nav ms-auto align-items-center">
+          <li class="nav-item">
+            <router-link class="nav-link" to="/leaderboard">
+              <i class="bi bi-trophy me-1"></i>Leaderboard
+            </router-link>
+          </li>
           <template v-if="!isAuthenticated">
             <li class="nav-item">
               <router-link class="nav-link" to="/login">Login</router-link>

@@ -15,3 +15,11 @@ export function addDays(dateKey, n) {
   const [y, m, d] = dateKey.split('-').map(Number)
   return toDateKey(new Date(y, m - 1, d + n, 12))
 }
+
+// The Monday that starts the week containing dateKey (weeks run Monday–Sunday).
+// ('2026-10-11', a Sunday) → '2026-10-05'
+export function weekStart(dateKey) {
+  const [y, m, d] = dateKey.split('-').map(Number)
+  const daysSinceMonday = (new Date(y, m - 1, d, 12).getDay() + 6) % 7 // getDay(): 0 = Sunday
+  return addDays(dateKey, -daysSinceMonday)
+}

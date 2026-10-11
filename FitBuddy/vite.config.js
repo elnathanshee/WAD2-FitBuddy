@@ -7,7 +7,12 @@ import vueDevTools from 'vite-plugin-vue-devtools'
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [
-    vue(),
+    vue({
+      template: {
+        // <emoji-picker> is a web component (emoji-picker-element), not a Vue component
+        compilerOptions: { isCustomElement: (tag) => tag === 'emoji-picker' },
+      },
+    }),
     vueDevTools(),
   ],
   resolve: {

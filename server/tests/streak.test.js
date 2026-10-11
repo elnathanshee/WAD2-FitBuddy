@@ -3,6 +3,7 @@
 import { describe, test } from 'node:test'
 import assert from 'node:assert/strict'
 import { calculateStreak } from '../utils/streak.js'
+import { weekStart } from '../utils/dates.js'
 
 const TODAY = '2026-10-15'
 
@@ -76,5 +77,34 @@ describe('calculateStreak — messy input', () => {
   test('dates after today are ignored', () => {
     const dates = ['2026-10-15', '2026-10-16', '2026-10-17']
     assert.deepEqual(calculateStreak(dates, TODAY), { current: 1, longest: 1 })
+  })
+})
+
+describe('calculateStreak — weekly habits (step of 7 days)', () => {
+  // Weeks are identified by their Monday. 2026-10-12 is a Monday.
+  const THIS_WEEK = '2026-10-12'
+
+  test('three completed weeks in a row, including this one → 3', () => {
+    const weeks = ['2026-09-28', '2026-10-05', '2026-10-12']
+    assert.equal(calculateStreak(weeks, THIS_WEEK, 7).current, 3)
+  })
+
+  test('grace rule: this week not done yet, but last week was → streak continues', () => {
+    const weeks = ['2026-09-28', '2026-10-05']
+    assert.equal(calculateStreak(weeks, THIS_WEEK, 7).current, 2)
+  })
+
+  test('a missed week breaks the streak; longest is kept', () => {
+    const weeks = ['2026-08-31', '2026-09-07', '2026-09-14', '2026-10-05']
+    assert.deepEqual(calculateStreak(weeks, THIS_WEEK, 7), { current: 1, longest: 3 })
+  })
+})
+
+describe('weekStart', () => {
+  test('returns the Monday of the week (weeks run Monday–Sunday)', () => {
+    assert.equal(weekStart('2026-10-12'), '2026-10-12') // Monday → itself
+    assert.equal(weekStart('2026-10-15'), '2026-10-12') // Thursday
+    assert.equal(weekStart('2026-10-18'), '2026-10-12') // Sunday → previous Monday
+    assert.equal(weekStart('2026-03-01'), '2026-02-23') // across a month boundary
   })
 })

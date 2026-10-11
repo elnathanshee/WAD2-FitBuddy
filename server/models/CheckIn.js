@@ -21,8 +21,9 @@ const checkInSchema = new mongoose.Schema(
       required: true,
       match: [/^\d{4}-\d{2}-\d{2}$/, 'Date must be in YYYY-MM-DD format'],
     },
-    // Progress logged that day, e.g. 5 (glasses). The day counts as
-    // "completed" when count >= the habit's target.amount.
+    // Progress logged that day, e.g. 5 (glasses) or 1.5 (km), rounded to 2
+    // decimal places. The day counts as "completed" when count >= the habit's
+    // target.amount.
     count: { type: Number, min: 0, default: 1 },
   },
   { timestamps: true }

@@ -3,7 +3,7 @@
     <div class="container">
       <router-link class="navbar-brand d-flex align-items-center" to="/">
         <i class="bi bi-activity text-primary fs-3 me-2"></i>
-        <span class="fw-bold fs-4">FitBuddy</span>
+        <span class="fw-bold fs-4">HabitBuddy</span>
       </router-link>
       
       <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
@@ -21,6 +21,14 @@
             </li>
           </template>
           <template v-else>
+            <li class="nav-item">
+              <router-link class="nav-link" to="/dashboard">Dashboard</router-link>
+            </li>
+            <li class="nav-item me-lg-3">
+              <router-link class="nav-link" to="/habits">
+                <i class="bi bi-check2-square me-1"></i>Habits
+              </router-link>
+            </li>
             <li class="nav-item me-3 text-light d-none d-lg-block">
               Hi, {{ currentUser?.name || 'Athlete' }}
             </li>

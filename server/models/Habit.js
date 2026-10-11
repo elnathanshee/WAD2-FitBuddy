@@ -1,5 +1,7 @@
 import mongoose from 'mongoose'
 
+// Suggested categories shown in the form. Users can also type their own
+// (choosing "Other" in the form), so the category is not limited to these.
 export const HABIT_CATEGORIES = ['exercise', 'water', 'sleep', 'study', 'other']
 export const HABIT_FREQUENCIES = ['daily', 'weekly']
 
@@ -16,25 +18,37 @@ const habitSchema = new mongoose.Schema(
       maxlength: [50, 'Habit name must be 50 characters or fewer'],
     },
 
-    category: { type: String, enum: HABIT_CATEGORIES, default: 'other' },
+    category: {
+      type: String,
+      trim: true,
+      maxlength: [30, 'Category must be 30 characters or fewer'],
+      default: 'other',
+    },
 
-    // 'daily'  → aim to complete every day
-    // 'weekly' → aim to complete `timesPerWeek` days per week (ignored for daily habits)
+    // 'daily'  → target.amount is per day,  e.g. 8 glasses a day
+    // 'weekly' → target.amount is per week (Monday–Sunday), e.g. 150 minutes a week
     frequency: { type: String, enum: HABIT_FREQUENCIES, default: 'daily' },
-    timesPerWeek: { type: Number, min: 1, max: 7, default: 7 },
 
-    // What "done for the day" means, e.g. { amount: 8, unit: 'glasses' }
+    // What "done" means for one day (daily) or one week (weekly), e.g.
+    // { amount: 8, unit: 'glasses' } or { amount: 2.5, unit: 'km' }.
+    // Decimals are rounded to 2 places.
     target: {
-      amount: { type: Number, min: [1, 'Target must be at least 1'], default: 1 },
+      amount: {
+        type: Number,
+        min: [0.01, 'Target must be more than 0'],
+        max: [100000, 'Target must be 100,000 or less'],
+        set: (value) => (typeof value === 'number' ? Math.round(value * 100) / 100 : value),
+        default: 1,
+      },
       unit: { type: String, trim: true, maxlength: 20, default: 'times' },
     },
 
-    // Bootstrap Icons class name, e.g. 'bi-droplet'
-    icon: { type: String, default: 'bi-check-circle' },
-    colour: {
+    // An emoji, e.g. '💧'. maxlength allows multi-part emojis like '🧑‍💻'.
+    icon: {
       type: String,
-      match: [/^#[0-9a-fA-F]{6}$/, 'Colour must be a hex code like #0d6efd'],
-      default: '#0d6efd',
+      trim: true,
+      maxlength: [16, 'Icon must be a single emoji'],
+      default: '✅',
     },
   },
   { timestamps: true }

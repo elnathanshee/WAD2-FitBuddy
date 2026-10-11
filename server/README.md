@@ -53,12 +53,13 @@ frontend adds it for you.
 
 | Method | URL | Body | Success |
 |---|---|---|---|
-| GET | `/api/habits` | | 200 list |
+| GET | `/api/habits?today` | | 200 list (each with `todayCount` and `streak`) |
 | POST | `/api/habits` | habit fields | 201 habit |
 | GET | `/api/habits/:id` | | 200 habit |
 | PUT | `/api/habits/:id` | fields to change | 200 habit |
 | DELETE | `/api/habits/:id` | | 204 |
-| POST | `/api/habits/:id/checkins` | `{ date, count? }` | 200/201 check-in |
+| POST | `/api/habits/:id/checkins` | `{ date, count? }` (adds to the day's total) | 200/201 check-in |
+| PUT | `/api/habits/:id/checkins/:date` | `{ count }` (replaces the total; 0 clears it) | 200 check-in / 204 |
 | DELETE | `/api/habits/:id/checkins/:date` | | 204 |
 | GET | `/api/habits/:id/history?from&to&today` | | 200 `{ habit, checkIns, streak }` |
 

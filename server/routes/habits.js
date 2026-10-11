@@ -6,6 +6,7 @@ import {
   updateHabit,
   deleteHabit,
   checkIn,
+  setCheckIn,
   undoCheckIn,
   getHistory,
 } from '../controllers/habitController.js'
@@ -23,6 +24,7 @@ router.delete('/:id', deleteHabit)
 
 // Daily check-ins
 router.post('/:id/checkins', checkIn)
+router.put('/:id/checkins/:date', setCheckIn)
 router.delete('/:id/checkins/:date', undoCheckIn)
 
 // Completion history + streaks

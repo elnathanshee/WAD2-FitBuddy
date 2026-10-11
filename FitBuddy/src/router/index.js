@@ -3,6 +3,7 @@ import { authService } from '../services/authService'
 import LoginPage from '../components/LoginPage.vue'
 import SignupPage from '../components/SignupPage.vue'
 import Dashboard from '../views/Dashboard.vue'
+import HabitsPage from '../views/HabitsPage.vue'
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -14,6 +15,12 @@ const router = createRouter({
       path: '/dashboard', 
       name: 'dashboard', 
       component: Dashboard,
+      meta: { requiresAuth: true }
+    },
+    {
+      path: '/habits',
+      name: 'habits',
+      component: HabitsPage,
       meta: { requiresAuth: true }
     }
   ]

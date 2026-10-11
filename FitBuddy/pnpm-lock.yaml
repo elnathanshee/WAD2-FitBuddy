@@ -17,6 +17,15 @@ importers:
       bootstrap-icons:
         specifier: ^1.13.1
         version: 1.13.1
+      canvas-confetti:
+        specifier: ^1.9.4
+        version: 1.9.4
+      emoji-picker-element:
+        specifier: ^1.29.1
+        version: 1.29.1
+      emoji-picker-element-data:
+        specifier: ^1.8.0
+        version: 1.8.0
       vue:
         specifier: ^3.5.42
         version: 3.5.43
@@ -467,6 +476,9 @@ packages:
   caniuse-lite@1.0.30001815:
     resolution: {integrity: sha512-uDybUEyfgbyJJ93J1vikTylBX31AkdVYeVPeffMQpf8XN7hSfr0oZOn4VFOIMNvtU5+rHvC5Udg2TgtJKHm23Q==}
 
+  canvas-confetti@1.9.4:
+    resolution: {integrity: sha512-yxQbJkAVrFXWNbTUjPqjF7G+g6pDotOUHGbkZq2NELZUMDpiJ85rIEazVb8GTaAptNW2miJAXbs1BtioA251Pw==}
+
   chokidar@5.0.0:
     resolution: {integrity: sha512-TQMmc3w+5AxjpL8iIiwebF73dRDF4fBIieAqGn9RGCWaEVwQ6Fb2cGe31Yns0RRIzii5goJ1Y7xbMwo1TxMplw==}
     engines: {node: '>= 20.19.0'}
@@ -522,6 +534,12 @@ packages:
 
   electron-to-chromium@1.5.451:
     resolution: {integrity: sha512-vUNKPrUzw8ByEMOxloq0a71iD/mPuPxVkbDm3G5YhnxTzOw/I6qAg2MUS0cYj/c267lWmw26yW4Vv7foxTxPLg==}
+
+  emoji-picker-element-data@1.8.0:
+    resolution: {integrity: sha512-VfRuRJNEDLS1JKlNS4olaqhjX5S1nnZ+ZHG73b/dV8QeZyi0yPruTPEE72EmF6XO3k/9hj3lybMIYMOYXb/57A==}
+
+  emoji-picker-element@1.29.1:
+    resolution: {integrity: sha512-TOiHzu9Dqib3x4MwcAi3wi3RdyT4SoeB4b15AvH1ks4SBwTl7DeebhZ0d3x6dNi4XfNU7IGRZ7NBQllj0RqwrQ==}
 
   entities@7.0.1:
     resolution: {integrity: sha512-TWrgLOFUQTH994YUyl1yT4uyavY5nNB5muff+RtWaqNVCAK408b5ZnnbNAUEWLTCpum9w6arT70i1XdQ4UeOPA==}
@@ -1509,6 +1527,8 @@ snapshots:
 
   caniuse-lite@1.0.30001815: {}
 
+  canvas-confetti@1.9.4: {}
+
   chokidar@5.0.0:
     dependencies:
       readdirp: 5.1.1
@@ -1549,6 +1569,10 @@ snapshots:
       gopd: 1.2.0
 
   electron-to-chromium@1.5.451: {}
+
+  emoji-picker-element-data@1.8.0: {}
+
+  emoji-picker-element@1.29.1: {}
 
   entities@7.0.1: {}
 

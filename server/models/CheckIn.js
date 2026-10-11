@@ -1,20 +1,35 @@
-const mongoose = require('mongoose')
+import mongoose from 'mongoose'
 
-// A check-in is an append-only event: "this habit was completed on this date".
-// Storing completions as their own documents (rather than a boolean on Habit)
-// is what makes streaks, history and the weekly leaderboard computable at all —
-// a boolean can only say "done now", it can't say what happened last Tuesday.
-const checkInSchema = new mongoose.Schema({
-  habitId: { type: mongoose.Schema.Types.ObjectId, ref: 'Habit', required: true, index: true },
-  userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true, index: true },
-  // Stored as a date-only string "YYYY-MM-DD" so "did they check in today" never
-  // depends on what time of day it is, or on the server's timezone.
-  date: { type: String, required: true, match: /^\d{4}-\d{2}-\d{2}$/ },
-}, { timestamps: true })
+// One document per habit per calendar day.
+//
+// Why a separate collection instead of an array inside Habit?
+//  - Completion history grows forever; keeping it out of the Habit document
+//    keeps habit reads small.
+//  - It makes date-range queries easy (history for the last 7/30 days),
+//    which the analytics dashboard will also need.
+//
+// Why store the date as a 'YYYY-MM-DD' string instead of a Date?
+//  - A check-in belongs to the user's *local* calendar day. A JS Date is a
+//    moment in UTC, so 11pm in Singapore would be saved as the previous
+//    day in UTC. A plain string avoids that whole class of bug.
+const checkInSchema = new mongoose.Schema(
+  {
+    userId: { type: String, required: true, index: true },
+    habitId: { type: mongoose.Schema.Types.ObjectId, ref: 'Habit', required: true },
+    date: {
+      type: String,
+      required: true,
+      match: [/^\d{4}-\d{2}-\d{2}$/, 'Date must be in YYYY-MM-DD format'],
+    },
+    // Progress logged that day, e.g. 5 (glasses) or 1.5 (km), rounded to 2
+    // decimal places. The day counts as "completed" when count >= the habit's
+    // target.amount.
+    count: { type: Number, min: 0, default: 1 },
+  },
+  { timestamps: true }
+)
 
-// Database-level guarantee that the same habit cannot be checked in twice on the
-// same day. This is a second line of defence: the service layer checks first, but
-// two simultaneous requests could both pass that check, and this index stops them.
+// A habit can only have one check-in document per day.
 checkInSchema.index({ habitId: 1, date: 1 }, { unique: true })
 
-module.exports = mongoose.model('CheckIn', checkInSchema)
+export default mongoose.model('CheckIn', checkInSchema)

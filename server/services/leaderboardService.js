@@ -1,75 +1,88 @@
-const User = require('../models/User')
-const { mondayOf, todayStr, addDays } = require('./dateUtils')
+import Habit from '../models/Habit.js'
+import User from '../models/User.js'
+import { addDays, weekStart } from '../utils/dates.js'
+import { completedPeriodsByHabit, historyRange, loadProgressRows, scoreWeek } from './pointsService.js'
 
 /**
- * Builds the weekly leaderboard with a single MongoDB aggregation pipeline.
+ * Builds the weekly leaderboard.
  *
- * Why it's built this way:
+ * Why points are DERIVED from check-ins rather than banked in a ledger table:
+ * the check-ins are already the record of what happened, so recomputing from
+ * them means a score can never drift out of step with the habits it came from,
+ * and no part of the habit code has to remember to award anything. The weekly
+ * "reset" is just which week we score — nothing is ever deleted, so last
+ * week's board (or an all-time view) stays computable.
  *
- * 1. It starts from User, not from the points ledger. If it started from the
- *    ledger, anyone who hasn't scored yet this week would vanish from the board
- *    entirely — exactly the people a leaderboard is supposed to motivate. The
- *    $lookup pulls each user's points in, and $ifNull turns "no rows" into 0.
- *
- * 2. The sub-pipeline inside $lookup filters by weekStart *before* grouping, so
- *    Mongo only sums the current week's rows instead of pulling a user's whole
- *    history into memory and filtering afterwards.
- *
- * 3. $setWindowFields with $rank assigns positions inside the database rather
- *    than counting up in JavaScript afterwards, which also gives correct tie
- *    handling for free (two users on 90 points are both rank 1, next is 3).
- *    Requires MongoDB 5.0+; Atlas free tier is well past that.
+ * `today` comes from the browser so the week is the user's local week, the
+ * same convention the habit endpoints already use.
  */
-async function getWeeklyLeaderboard({ forDate = todayStr(), currentUserId = null } = {}) {
-  const weekStart = mondayOf(forDate)
+export async function getWeeklyLeaderboard({ today, currentUserId = null }) {
+  const weekStartKey = weekStart(today)
+  const weekEndKey = addDays(weekStartKey, 6)
+  const { from, to } = historyRange(weekStartKey)
 
-  const rows = await User.aggregate([
-    {
-      $lookup: {
-        from: 'pointtransactions',
-        let: { uid: '$_id' },
-        pipeline: [
-          { $match: { $expr: { $and: [{ $eq: ['$userId', '$$uid'] }, { $eq: ['$weekStart', weekStart] }] } } },
-          { $group: { _id: null, total: { $sum: '$points' }, entries: { $sum: 1 } } },
-        ],
-        as: 'weekly',
-      },
-    },
-    {
-      $addFields: {
-        weeklyPoints: { $ifNull: [{ $arrayElemAt: ['$weekly.total', 0] }, 0] },
-        awardCount: { $ifNull: [{ $arrayElemAt: ['$weekly.entries', 0] }, 0] },
-      },
-    },
-    {
-      $setWindowFields: {
-        sortBy: { weeklyPoints: -1 },
-        output: { rank: { $rank: {} } },
-      },
-    },
-    { $sort: { weeklyPoints: -1, displayName: 1 } },
-    {
-      $project: {
-        _id: 0,
-        userId: '$_id',
-        displayName: 1,
-        avatarColor: 1,
-        weeklyPoints: 1,
-        awardCount: 1,
-        rank: 1,
-      },
-    },
+  const [rows, habits, profiles] = await Promise.all([
+    loadProgressRows({ from, to }),
+    Habit.find().select('userId frequency').lean(),
+    User.find().lean(),
   ])
 
-  return {
-    weekStart,
-    weekEnd: addDays(weekStart, 6),
-    rows: rows.map((r) => ({
-      ...r,
-      userId: String(r.userId),
-      isCurrentUser: currentUserId ? String(r.userId) === String(currentUserId) : false,
-    })),
-  }
-}
+  // Everyone we know about: anyone with a profile, a habit, or a check-in.
+  // Starting from the people rather than from the scores means someone on zero
+  // points this week still appears on the board — they are exactly who a
+  // leaderboard is meant to nudge.
+  const userIds = new Set([
+    ...profiles.map((p) => p.userId),
+    ...habits.map((h) => h.userId),
+    ...rows.map((r) => r.userId),
+  ])
 
-module.exports = { getWeeklyLeaderboard }
+  const rowsByUser = new Map()
+  for (const row of rows) {
+    if (!rowsByUser.has(row.userId)) rowsByUser.set(row.userId, [])
+    rowsByUser.get(row.userId).push(row)
+  }
+
+  const dailyHabitsByUser = new Map()
+  for (const habit of habits) {
+    if (habit.frequency === 'weekly') continue
+    if (!dailyHabitsByUser.has(habit.userId)) dailyHabitsByUser.set(habit.userId, [])
+    dailyHabitsByUser.get(habit.userId).push(String(habit._id))
+  }
+
+  const profileByUser = new Map(profiles.map((p) => [p.userId, p]))
+
+  const scored = [...userIds].map((userId) => {
+    const byHabit = completedPeriodsByHabit(rowsByUser.get(userId) ?? [])
+    const breakdown = scoreWeek({
+      byHabit,
+      weekStartKey,
+      dailyHabitIds: dailyHabitsByUser.get(userId) ?? [],
+    })
+    const profile = profileByUser.get(userId)
+    return {
+      userId,
+      displayName: profile?.displayName ?? `User ${userId}`,
+      avatarColor: profile?.avatarColor ?? '#7FA3D1',
+      points: breakdown.total,
+      breakdown,
+      isCurrentUser: currentUserId != null && String(userId) === String(currentUserId),
+    }
+  })
+
+  // Highest first; ties broken by name so the order is stable between reloads.
+  scored.sort((a, b) => b.points - a.points || a.displayName.localeCompare(b.displayName))
+
+  // Competition ranking: two users on 90 are both 1st, the next is 3rd.
+  let rank = 0
+  let previousPoints = null
+  const entries = scored.map((entry, index) => {
+    if (entry.points !== previousPoints) {
+      rank = index + 1
+      previousPoints = entry.points
+    }
+    return { ...entry, rank }
+  })
+
+  return { weekStart: weekStartKey, weekEnd: weekEndKey, entries }
+}

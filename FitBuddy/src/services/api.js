@@ -1,32 +1,21 @@
 import axios from 'axios'
+import { authService } from './authService'
 
-/**
- * Shared axios instance for all backend calls.
- *
- * The x-user-id header is a temporary stand-in for authentication: until the
- * auth work is merged, the app identifies the current user this way. When real
- * login lands, this interceptor swaps the header for the JWT and nothing else
- * in the app has to change.
- */
-const api = axios.create({
-  baseURL: import.meta.env.VITE_API_BASE_URL || 'http://localhost:4000/api',
-  timeout: 10000,
-})
+// Shared axios instance for calling the Express API.
+// In development, Vite proxies /api to http://localhost:3000 (see vite.config.js).
+//
+// Usage:  import api from '@/services/api'
+//         const { data } = await api.get('/habits')
+const api = axios.create({ baseURL: '/api' })
 
+// Attach the logged-in user's id to every request. Temporary until real
+// auth exists — then this becomes an "Authorization: Bearer <token>" header.
 api.interceptors.request.use((config) => {
-  const demoUserId = localStorage.getItem('fitbuddy_demo_user_id')
-  if (demoUserId) config.headers['x-user-id'] = demoUserId
+  const user = authService.getCurrentUser()
+  if (user) {
+    config.headers['x-user-id'] = String(user.id)
+  }
   return config
 })
-
-api.interceptors.response.use(
-  (res) => res,
-  (err) => {
-    if (!err.response) {
-      return Promise.reject({ message: 'Cannot reach the server. Is the backend running on port 4000?' })
-    }
-    return Promise.reject(err.response.data || { message: 'Something went wrong.' })
-  },
-)
 
 export default api

@@ -1,22 +1,10 @@
-require('dotenv').config()
-const mongoose = require('mongoose')
-const app = require('./app')
+import app from './app.js'
+import { connectDB } from './config/db.js'
 
-const PORT = process.env.PORT || 4000
-const MONGODB_URI = process.env.MONGODB_URI
+const PORT = process.env.PORT || 3000
 
-if (!MONGODB_URI) {
-  console.error('\n  MONGODB_URI is not set. Copy .env.example to .env and add your Atlas connection string.\n')
-  process.exit(1)
-}
+await connectDB(process.env.MONGODB_URI)
 
-mongoose
-  .connect(MONGODB_URI)
-  .then(() => {
-    console.log('Connected to MongoDB')
-    app.listen(PORT, () => console.log(`FitBuddy API listening on http://localhost:${PORT}`))
-  })
-  .catch((err) => {
-    console.error('Could not connect to MongoDB:', err.message)
-    process.exit(1)
-  })
+app.listen(PORT, () => {
+  console.log(`HabitBuddy API running on http://localhost:${PORT}`)
+})

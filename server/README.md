@@ -1,87 +1,165 @@
-# FitBuddy API — Gamification service
-
-Backend for the **Reminders & Gamification** feature area (Angus): points, streaks
-and the weekly leaderboard.
-
-## What this does
-
-| Rule | Points |
-| --- | --- |
-| Check in any habit | +10 |
-| Complete *every* active habit in a day | +20 bonus |
-| A habit's streak reaches a multiple of 7 | +30 bonus |
-
-Every award is written as its own row in an **append-only points ledger**
-(`PointTransaction`), stamped with the Monday of the week it was earned in. The
-weekly leaderboard is then just a filter on that week — which is how the board
-"resets" every Monday **without ever deleting anything**. Last week's rows stay
-in the database, so all-time totals remain computable later.
+# HabitBuddy API (Express + MongoDB)
 
 ## Setup
 
-```bash
-cd server
-cp .env.example .env        # then paste your MongoDB Atlas connection string in
-npm install
-npm run seed                # creates 6 demo users with two weeks of history
-npm run dev                 # http://localhost:4000
+1. Create a free MongoDB Atlas cluster. Add a database user, and allow your IP under
+   *Network Access*.
+2. Copy the environment file and paste in your connection string:
+   ```bash
+   cp .env.example .env
+   ```
+3. Install and seed demo data:
+   ```bash
+   npm install
+   npm run seed
+   ```
+4. Start the API (restarts on file changes):
+   ```bash
+   npm run dev
+   ```
+   Check it's up: http://localhost:3000/api/health → `{"status":"ok"}`
+5. In another terminal, start the frontend (`cd ../FitBuddy && pnpm dev`). Vite
+   forwards `/api/*` calls to this server.
+
+Log in with any email and password `password123`. The mock login is user `"1"`,
+which owns the seeded habits.
+
+## Folder structure
+
 ```
-
-Then in a second terminal:
-
-```bash
-cd FitBuddy
-pnpm install
-pnpm dev                    # http://localhost:5173 -> open /leaderboard
+server/
+├── server.js              starts the app + connects to MongoDB
+├── app.js                 Express app: middleware + routes (importable by tests)
+├── config/db.js           MongoDB connection
+├── middleware/
+│   └── requireUser.js     PLACEHOLDER auth: reads x-user-id header → req.userId
+├── models/
+│   ├── Habit.js           habit fields + validation
+│   └── CheckIn.js         one document per habit per day
+├── routes/habits.js       URL → controller function
+├── controllers/
+│   └── habitController.js TODO: the handlers (each has its spec in a comment)
+├── utils/
+│   ├── dates.js           'YYYY-MM-DD' helpers
+│   └── streak.js          TODO: calculateStreak()
+├── tests/streak.test.js   unit tests for calculateStreak
+└── seed.js                demo data
 ```
-
-### MongoDB Atlas
-
-1. Create a free **M0** cluster at <https://www.mongodb.com/cloud/atlas> (Singapore
-   region, `ap-southeast-1`).
-2. **Database Access** -> add a user with a password.
-3. **Network Access** -> allow `0.0.0.0/0` (Vercel has no fixed IP).
-4. **Connect -> Drivers** -> copy the connection string into `MONGODB_URI` in `.env`.
-
-`.env` is gitignored. Never commit it.
 
 ## API
 
-| Method | Path | Purpose |
-| --- | --- | --- |
-| GET | `/api/health` | Liveness check |
-| GET | `/api/users` | Demo user list (temporary, until login exists) |
-| GET | `/api/habits` | Current user's habits with streaks + today's status |
-| POST | `/api/checkins` | Check in a habit; awards points; returns what was earned |
-| GET | `/api/leaderboard/weekly` | This week's ranked leaderboard |
+Every `/api/habits` route needs the `x-user-id` header. `src/services/api.js` in the
+frontend adds it for you.
 
-All responses use the envelope `{ success: true, data }` or
-`{ success: false, message }`.
+| Method | URL | Body | Success |
+|---|---|---|---|
+| GET | `/api/habits?today` | | 200 list (each with `todayCount` and `streak`) |
+| POST | `/api/habits` | habit fields | 201 habit |
+| GET | `/api/habits/:id` | | 200 habit |
+| PUT | `/api/habits/:id` | fields to change | 200 habit |
+| DELETE | `/api/habits/:id` | | 204 |
+| POST | `/api/habits/:id/checkins` | `{ date, count? }` (adds to the day's total) | 200/201 check-in |
+| PUT | `/api/habits/:id/checkins/:date` | `{ count }` (replaces the total; 0 clears it) | 200 check-in / 204 |
+| DELETE | `/api/habits/:id/checkins/:date` | | 204 |
+| GET | `/api/habits/:id/history?from&to&today` | | 200 `{ habit, checkIns, streak }` |
 
-Status codes: `200` read, `201` created, `400` validation, `401` no user,
-`403` not your habit, `404` not found, `409` duplicate check-in, `500` server error.
-
-### Temporary authentication
-
-Login is Elnathan's scope and isn't merged yet, so the current user is read from
-an `x-user-id` header in `routes/index.js`. When real auth lands, that one
-middleware changes to read the verified JWT instead — every controller keeps
-working unchanged.
+Errors: 400 validation · 401 no user · 404 not found / not yours · 501 not implemented yet.
 
 ## Tests
 
 ```bash
-npm run test:logic
+npm test            # unit tests (calculateStreak) — fail until streak.js is implemented
 ```
 
-14 tests covering the scoring rules, streak calculation and week boundaries.
-These are pure-function tests, so they need no database and no network.
+End-to-end tests live in `../FitBuddy/e2e` (see the README there).
 
-## Notable implementation detail
+## AI usage disclosure (IS216 FAQ #20)
 
-`services/leaderboardService.js` builds the board in a **single MongoDB
-aggregation pipeline**. It starts from `User` rather than from the ledger, so
-players who haven't scored this week still appear (starting from the ledger
-would make them vanish — exactly the people a leaderboard should motivate), and
-it uses `$setWindowFields` with `$rank` so positions and tie handling are
-computed in the database rather than counted up in JavaScript afterwards.
+Generated with AI (Claude), as boilerplate/test/mock-data assistance:
+- Project scaffolding: `package.json`, `app.js`, `server.js`, `config/db.js`,
+  `middleware/requireUser.js` (placeholder), `utils/dates.js`, Mongoose model field
+  definitions, route table, and the controller/streak **stubs and their spec comments**
+- Mock data: `seed.js`
+- Test cases: `tests/streak.test.js`, `../FitBuddy/e2e/*`, `../FitBuddy/playwright.config.js`
+- Frontend config: Vite `/api` proxy, `src/services/api.js` axios instance
+
+Written by the team: all controller handler logic, `calculateStreak`, and the Vue
+habit pages/components. *(Update this list as the code changes.)*
+
+---
+
+## Gamification: points & the weekly leaderboard
+
+Owned by Angus (feature 6, Reminders & Gamification). Built on top of the habit
+and check-in code rather than beside it — it reads the same collections and uses
+the same `requireUser` / `x-user-id` convention, and adds no fields to `Habit`
+or `CheckIn`.
+
+### Scoring
+
+| Rule | Points |
+| --- | --- |
+| A habit's target met for a day (or for a week, if the habit is weekly) | +10 |
+| Every **daily** habit completed on the same day | +20 |
+| A run of completions reaching 7, 14, 21 … | +30 each |
+
+### How the score is worked out
+
+Points are **derived from check-ins**, not banked in a separate table. Asking
+the check-ins every time means a score can never drift out of step with the
+habits it came from, and nothing in the habit code has to remember to award
+anything. The weekly "reset" is simply which week is scored — no history is
+deleted, so last week's board stays computable.
+
+`services/pointsService.js` holds the rules. `loadProgressRows()` does the heavy
+lifting in MongoDB with one aggregation: `$group` collapses repeat logs into a
+single total per user/habit/day, `$lookup` joins each total to its habit so the
+target and frequency are known, and `$project` flattens the result. The rules
+themselves (milestones, the all-habits bonus) are pure functions over those rows,
+which is why they can be unit tested with no database.
+
+`services/leaderboardService.js` scores every user for the week and ranks them.
+It starts from the list of people rather than the list of scores, so someone on
+zero points this week still appears — they are exactly who a leaderboard is
+meant to nudge. Ties share a rank (two users on 90 are both 1st, the next is 3rd).
+
+### Endpoints
+
+| Method | Path | Purpose |
+| --- | --- | --- |
+| GET | `/api/leaderboard/weekly?today=YYYY-MM-DD` | Ranked board for that week |
+| GET | `/api/leaderboard/me?today=YYYY-MM-DD` | Your own score, broken down |
+| PUT | `/api/leaderboard/profile` | Set the name/colour shown on the board |
+
+`today` comes from the browser so the week is the user's local week — the same
+convention the habit endpoints use.
+
+### Demo data
+
+Everyone signs in as user `1` with the mock login, so the board would otherwise
+have a single row. `seedLeaderboard.js` adds four rival users with their own
+habits and history:
+
+```bash
+npm run dev:memory        # in-memory database, rivals included automatically
+npm run seed:leaderboard  # add the rivals to a real database (Atlas)
+```
+
+`seed:leaderboard` is scoped to users 2–5 and the display-name profiles only.
+It never deletes the demo user's habits or anyone else's data, so it is safe to
+run against the shared cluster.
+
+### Tests
+
+```bash
+node --test tests/points.test.js
+```
+
+12 tests covering the scoring rules, weekly vs daily targets, streak milestones
+and week boundaries. No database required.
+
+### Model added
+
+`models/User.js` is a minimal profile (display name + colour) keyed by the same
+string `userId` the habit code already uses, so the board can show names instead
+of raw ids. It is replaced by the real user model when authentication lands.

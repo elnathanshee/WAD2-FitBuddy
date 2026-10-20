@@ -1,8 +1,16 @@
 import { Router } from 'express'
-import { myScore, upsertProfile, weeklyLeaderboard } from '../controllers/leaderboardController.js'
+import * as mongoLb from '../controllers/leaderboardController.js'
+import * as neonLb from '../controllers/neonLeaderboardController.js'
+
+function useNeon() {
+  return Boolean(process.env.DATABASE_URL || process.env.NEON_DATABASE_URL)
+}
+
+const weeklyLeaderboard = (req, res, next) => (useNeon() ? neonLb : mongoLb).weeklyLeaderboard(req, res, next)
+const myScore = (req, res, next) => (useNeon() ? neonLb : mongoLb).myScore(req, res, next)
+const upsertProfile = (req, res, next) => (useNeon() ? neonLb : mongoLb).upsertProfile(req, res, next)
 
 // Mounted at /api/leaderboard behind requireUser, so req.userId is always set
-// (same convention as routes/habits.js).
 const router = Router()
 
 router.get('/weekly', weeklyLeaderboard)

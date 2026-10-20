@@ -3,6 +3,8 @@ import cors from 'cors'
 import mongoose from 'mongoose'
 import habitRoutes from './routes/habits.js'
 import leaderboardRoutes from './routes/leaderboard.js'
+import aiRoutes from './routes/ai.js'
+import neonRoutes from './routes/neon.js'
 import { requireUser } from './middleware/requireUser.js'
 
 // The Express app is created here (without listening) so tests can import it.
@@ -15,8 +17,10 @@ app.get('/api/health', (req, res) => {
   res.json({ status: 'ok' })
 })
 
+app.use('/api/neon', neonRoutes)
 app.use('/api/habits', requireUser, habitRoutes)
 app.use('/api/leaderboard', requireUser, leaderboardRoutes)
+app.use('/api/ai', requireUser, aiRoutes)
 
 app.use((req, res) => {
   res.status(404).json({ message: `Route not found: ${req.method} ${req.originalUrl}` })

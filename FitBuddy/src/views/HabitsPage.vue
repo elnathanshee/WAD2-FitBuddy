@@ -5,9 +5,14 @@
         <h1 class="h2 fw-bold mb-1">My habits</h1>
         <p class="text-muted mb-0">{{ todayLabel }}</p>
       </div>
-      <button type="button" class="btn btn-primary rounded-pill px-4" data-testid="add-habit-btn" @click="openCreate">
-        <i class="bi bi-plus-lg me-1" aria-hidden="true"></i>New habit
-      </button>
+      <div class="d-flex align-items-center gap-2">
+        <button type="button" class="btn btn-outline-primary rounded-pill px-3" data-testid="ai-coach-btn" @click="aiCoachOpen = true">
+          <i class="bi bi-stars me-1" aria-hidden="true"></i>AI Goal Coach
+        </button>
+        <button type="button" class="btn btn-primary rounded-pill px-4" data-testid="add-habit-btn" @click="openCreate">
+          <i class="bi bi-plus-lg me-1" aria-hidden="true"></i>New habit
+        </button>
+      </div>
     </div>
 
     <div
@@ -40,7 +45,10 @@
       <i class="bi bi-stars text-primary mb-3" style="font-size: 3rem" aria-hidden="true"></i>
       <h2 class="h4 fw-bold">No habits yet</h2>
       <p class="text-muted">Start small: one habit you can do every day.</p>
-      <div>
+      <div class="d-flex justify-content-center gap-2 flex-wrap">
+        <button type="button" class="btn btn-outline-primary rounded-pill px-4" @click="aiCoachOpen = true">
+          <i class="bi bi-stars me-1" aria-hidden="true"></i>Ask AI Goal Coach
+        </button>
         <button type="button" class="btn btn-primary rounded-pill px-4" @click="openCreate">
           Create your first habit
         </button>
@@ -82,6 +90,8 @@
 
     <HabitHistoryModal v-if="historyHabit" :habit="historyHabit" @close="historyHabit = null" />
 
+    <AiGoalCoachModal v-if="aiCoachOpen" @saved="loadHabits" @close="aiCoachOpen = false" />
+
     <AppModal v-if="deletingHabit" title="Delete habit?" @close="deletingHabit = null">
       <p class="mb-0">
         <strong>{{ deletingHabit.name }}</strong> and all of its check-in history will be deleted.
@@ -111,11 +121,13 @@ import HabitFormModal from '../components/habits/HabitFormModal.vue'
 import LogProgressModal from '../components/habits/LogProgressModal.vue'
 import HabitHistoryModal from '../components/habits/HabitHistoryModal.vue'
 import AppModal from '../components/habits/AppModal.vue'
+import AiGoalCoachModal from '../components/habits/AiGoalCoachModal.vue'
 import { habitService, errorMessage } from '../services/habitService'
 import { toDateKey } from '../utils/dates'
 import { celebrate } from '../utils/celebrate'
 
 const habits = ref([])
+const aiCoachOpen = ref(false)
 const loading = ref(true)
 const loadError = ref('')
 const actionError = ref('')

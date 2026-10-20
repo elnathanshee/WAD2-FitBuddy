@@ -3,7 +3,7 @@
 // Technology: @neondatabase/serverless
 //
 // Optimized for Vercel Serverless Functions and local development.
-// Automatically initializes PostgreSQL tables (users, habits, check_ins, cheers).
+// Automatically initializes PostgreSQL tables (users, habits, check_ins, cheers, challenges).
 // =============================================================================
 
 import { neon } from '@neondatabase/serverless'
@@ -112,6 +112,27 @@ export async function initNeonSchema() {
 
   await sql`
     CREATE INDEX IF NOT EXISTS idx_cheers_recipient ON cheers(recipient_id);
+  `
+
+  await sql`
+    CREATE TABLE IF NOT EXISTS challenges (
+      id SERIAL PRIMARY KEY,
+      creator_id VARCHAR(100) NOT NULL,
+      opponent_id VARCHAR(100) NOT NULL,
+      title VARCHAR(100) NOT NULL,
+      habit_category VARCHAR(30) DEFAULT 'exercise',
+      target_days INTEGER NOT NULL DEFAULT 7,
+      creator_progress INTEGER NOT NULL DEFAULT 0,
+      opponent_progress INTEGER NOT NULL DEFAULT 0,
+      status VARCHAR(20) NOT NULL DEFAULT 'active',
+      winner_id VARCHAR(100),
+      created_at TIMESTAMPTZ DEFAULT NOW(),
+      updated_at TIMESTAMPTZ DEFAULT NOW()
+    );
+  `
+
+  await sql`
+    CREATE INDEX IF NOT EXISTS idx_challenges_participants ON challenges(creator_id, opponent_id);
   `
 
   console.log('✅ Neon PostgreSQL schema verified and ready.')

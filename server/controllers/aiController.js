@@ -9,6 +9,7 @@
 // =============================================================================
 
 import Habit, { HABIT_CATEGORIES, HABIT_FREQUENCIES } from '../models/Habit.js'
+import { cleanEnvVar } from '../config/neon.js'
 
 // Default model to use - Gemini 2.5 Flash is fast, cost-effective and supports structured JSON
 const GEMINI_MODEL = 'gemini-2.5-flash'
@@ -21,7 +22,8 @@ export async function suggestHabits(req, res) {
   const { prompt, questionnaire, apiKey: clientApiKey } = req.body || {}
 
   // 1. Resolve API key: Check client-supplied key first, then fall back to server environment
-  const apiKey = clientApiKey?.trim() || process.env.GEMINI_API_KEY?.trim()
+  const rawKey = clientApiKey || process.env.GEMINI_API_KEY
+  const apiKey = cleanEnvVar(rawKey, 'GEMINI_API_KEY')
   if (!apiKey) {
     return res.status(400).json({
       message:
@@ -147,4 +149,3 @@ Every suggested habit MUST adhere to the HabitBuddy schema:
     res.status(500).json({ message: `Failed to generate habits: ${err.message}` })
   }
 }
-

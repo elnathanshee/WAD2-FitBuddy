@@ -10,13 +10,30 @@ import { neon } from '@neondatabase/serverless'
 
 let sqlInstance = null
 
+/**
+ * Robust cleaner for environment variables.
+ * Strips accidental wrapping quotes (" or '), leading KEY_NAME= prefixes,
+ * and trailing/leading whitespace that often gets pasted into Vercel UI.
+ */
+export function cleanEnvVar(val, keyName) {
+  if (!val) return ''
+  let cleaned = String(val).trim().replace(/^["']|["']$/g, '').trim()
+  if (keyName && cleaned.startsWith(`${keyName}=`)) {
+    cleaned = cleaned.slice(keyName.length + 1).trim()
+    cleaned = cleaned.replace(/^["']|["']$/g, '').trim()
+  }
+  return cleaned
+}
+
 export function getDb() {
-  const connectionString = process.env.DATABASE_URL || process.env.NEON_DATABASE_URL
+  const rawConn = process.env.DATABASE_URL || process.env.NEON_DATABASE_URL
+  const connectionString = cleanEnvVar(rawConn, 'DATABASE_URL') || cleanEnvVar(rawConn, 'NEON_DATABASE_URL')
   if (!connectionString) {
     throw new Error(
-      'Missing DATABASE_URL. Please set your Neon PostgreSQL connection string in .env'
+      'Missing DATABASE_URL. Please set your Neon PostgreSQL connection string in .env or Vercel Environment Variables'
     )
   }
+
   if (!sqlInstance) {
     sqlInstance = neon(connectionString)
   }
@@ -77,4 +94,3 @@ export async function initNeonSchema() {
 
   console.log('✅ Neon PostgreSQL schema verified and ready.')
 }
-

@@ -6,16 +6,17 @@
 // =============================================================================
 
 import { S3Client, PutObjectCommand, GetObjectCommand, ListObjectsV2Command } from '@aws-sdk/client-s3'
+import { cleanEnvVar } from './neon.js'
 
 export const BUCKET_NAME = 'assets'
 
 let s3ClientInstance = null
 
 export function getS3Client() {
-  const endpoint = process.env.AWS_ENDPOINT_URL_S3
-  const region = process.env.AWS_REGION || 'ap-southeast-1'
-  const accessKeyId = process.env.AWS_ACCESS_KEY_ID
-  const secretAccessKey = process.env.AWS_SECRET_ACCESS_KEY
+  const endpoint = cleanEnvVar(process.env.AWS_ENDPOINT_URL_S3, 'AWS_ENDPOINT_URL_S3')
+  const region = cleanEnvVar(process.env.AWS_REGION, 'AWS_REGION') || 'ap-southeast-1'
+  const accessKeyId = cleanEnvVar(process.env.AWS_ACCESS_KEY_ID, 'AWS_ACCESS_KEY_ID')
+  const secretAccessKey = cleanEnvVar(process.env.AWS_SECRET_ACCESS_KEY, 'AWS_SECRET_ACCESS_KEY')
 
   if (!endpoint || !accessKeyId || !secretAccessKey) {
     return null
@@ -83,4 +84,3 @@ export async function getAsset(key) {
   const response = await client.send(command)
   return response.Body.transformToString()
 }
-

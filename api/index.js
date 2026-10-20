@@ -6,11 +6,18 @@
 import app from '../server/app.js'
 import { initNeonSchema } from '../server/config/neon.js'
 
-// Cold-start initialization for Neon PostgreSQL tables
-if (process.env.DATABASE_URL || process.env.NEON_DATABASE_URL) {
-  initNeonSchema().catch((err) => {
-    console.error('Neon schema auto-initialization error:', err)
-  })
-}
+let initialized = false
 
-export default app
+export default async function handler(req, res) {
+  // Lazy initialize Neon schema on first live HTTP request (never during Vercel build packaging)
+  if (!initialized && (process.env.DATABASE_URL || process.env.NEON_DATABASE_URL)) {
+    try {
+      await initNeonSchema()
+    } catch (err) {
+      console.error('Neon schema auto-initialization check:', err)
+    }
+    initialized = true
+  }
+
+  return app(req, res)
+}

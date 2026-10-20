@@ -13,14 +13,14 @@ const app = express()
 app.use(cors())
 app.use(express.json())
 
-app.get('/api/health', (req, res) => {
+app.get(['/api/health', '/health'], (req, res) => {
   res.json({ status: 'ok' })
 })
 
-app.use('/api/neon', neonRoutes)
-app.use('/api/habits', requireUser, habitRoutes)
-app.use('/api/leaderboard', requireUser, leaderboardRoutes)
-app.use('/api/ai', requireUser, aiRoutes)
+app.use(['/api/neon', '/neon'], neonRoutes)
+app.use(['/api/habits', '/habits'], requireUser, habitRoutes)
+app.use(['/api/leaderboard', '/leaderboard'], requireUser, leaderboardRoutes)
+app.use(['/api/ai', '/ai'], requireUser, aiRoutes)
 
 app.use((req, res) => {
   res.status(404).json({ message: `Route not found: ${req.method} ${req.originalUrl}` })

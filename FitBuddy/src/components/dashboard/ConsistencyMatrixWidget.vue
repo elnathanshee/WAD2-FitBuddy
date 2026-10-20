@@ -95,3 +95,4 @@ onMounted(loadAnalytics)
   transition: height 0.4s ease, background-color 0.3s ease;
 }
 </style>
+

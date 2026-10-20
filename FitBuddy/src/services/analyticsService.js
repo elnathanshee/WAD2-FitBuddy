@@ -10,3 +10,4 @@ export const analyticsService = {
     return data
   },
 }
+

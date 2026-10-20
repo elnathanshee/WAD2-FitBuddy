@@ -108,3 +108,4 @@ export async function simulateHealthSync(req, res) {
     updatedHabits,
   })
 }
+

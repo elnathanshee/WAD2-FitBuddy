@@ -20,3 +20,4 @@ export const challengeService = {
     return data
   },
 }
+

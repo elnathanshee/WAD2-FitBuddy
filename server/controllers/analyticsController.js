@@ -75,3 +75,4 @@ export async function getWeeklySummary(req, res) {
     categoryCount,
   })
 }
+

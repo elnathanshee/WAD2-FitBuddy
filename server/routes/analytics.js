@@ -7,3 +7,4 @@ const router = Router()
 router.get('/weekly-summary', requireUser, getWeeklySummary)
 
 export default router
+

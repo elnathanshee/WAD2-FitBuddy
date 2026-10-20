@@ -18,13 +18,16 @@ function copyDirSync(src, dest) {
 }
 
 if (fs.existsSync('FitBuddy/package.json')) {
-  console.log('Building FitBuddy from root directory...')
+  console.log('Building from repo root...')
+  if (fs.existsSync('server')) {
+    copyDirSync('server', 'FitBuddy/server')
+  }
   execSync('npm --prefix FitBuddy run build', { stdio: 'inherit' })
   if (fs.existsSync('FitBuddy/dist')) {
     copyDirSync('FitBuddy/dist', 'dist')
   }
 } else {
-  console.log('Building FitBuddy from subfolder...')
+  console.log('Building from FitBuddy subfolder...')
   execSync('npx vite build', { stdio: 'inherit' })
   if (fs.existsSync('dist')) {
     copyDirSync('dist', 'FitBuddy/dist')

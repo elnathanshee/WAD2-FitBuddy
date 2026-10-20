@@ -8,3 +8,4 @@ router.get('/today', requireUser, getTodayMetrics)
 router.post('/simulate', requireUser, simulateHealthSync)
 
 export default router
+

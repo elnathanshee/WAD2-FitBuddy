@@ -142,3 +142,4 @@ async function syncDevice(deviceType) {
 
 onMounted(loadMetrics)
 </script>
+

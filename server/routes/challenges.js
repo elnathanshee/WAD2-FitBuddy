@@ -9,3 +9,4 @@ router.post('/', requireUser, createChallenge)
 router.post('/:id/progress', requireUser, recordChallengeProgress)
 
 export default router
+

@@ -134,3 +134,4 @@ export async function recordChallengeProgress(req, res) {
     challenge: updated[0],
   })
 }
+

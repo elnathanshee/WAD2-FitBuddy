@@ -1,6 +1,6 @@
 {
   "buildCommand": "node scripts/build.js",
-  "outputDirectory": "FitBuddy/dist",
+  "outputDirectory": "dist",
   "rewrites": [
     {
       "source": "/api",

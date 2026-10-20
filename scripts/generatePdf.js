@@ -8,6 +8,21 @@ const ARTIFACT_PDF_PATH = 'C:/Users/User/.gemini/antigravity/brain/e39303b1-e01c
 const PROJECT_PDF_PATH = path.resolve('FitBuddy_Project_Documentation.pdf')
 const SCREENSHOTS_DIR = 'C:/Users/User/.gemini/antigravity/brain/e39303b1-e01c-4b42-9051-e33396e91ffb/screenshots'
 
+// Configure marked to render ```mermaid blocks into <div class="mermaid">
+const renderer = new marked.Renderer()
+const origCode = renderer.code.bind(renderer)
+
+renderer.code = function(token) {
+  const text = typeof token === 'string' ? token : (token.text || '')
+  const lang = typeof token === 'object' ? token.lang : arguments[1]
+  if (lang === 'mermaid') {
+    return `<div class="mermaid">${text}</div>`
+  }
+  return origCode(token)
+}
+
+marked.use({ renderer })
+
 async function generatePdf() {
   console.log('1. Reading markdown document...')
   let md = fs.readFileSync(MD_PATH, 'utf-8')
@@ -31,6 +46,9 @@ async function generatePdf() {
 <head>
   <meta charset="utf-8">
   <title>FitBuddy — Comprehensive Project Documentation</title>
+  <!-- Mermaid.js for rendering vector diagrams -->
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+
   <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap');
     
@@ -108,6 +126,21 @@ async function generatePdf() {
       margin: 18px 0;
       display: block;
       page-break-inside: avoid;
+    }
+
+    .mermaid {
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+      border-radius: 10px;
+      padding: 18px;
+      margin: 20px 0;
+      text-align: center;
+      page-break-inside: avoid;
+    }
+
+    .mermaid svg {
+      max-width: 100% !important;
+      height: auto !important;
     }
 
     pre {
@@ -188,7 +221,7 @@ async function generatePdf() {
         page-break-after: avoid;
       }
 
-      img, table, pre, blockquote {
+      img, table, pre, blockquote, .mermaid {
         page-break-inside: avoid;
       }
     }
@@ -196,21 +229,46 @@ async function generatePdf() {
 </head>
 <body>
   ${htmlBody}
+
+  <script>
+    mermaid.initialize({
+      startOnLoad: false,
+      theme: 'neutral',
+      flowchart: { useMaxWidth: true, htmlLabels: true },
+      er: { useMaxWidth: true }
+    });
+    window.__mermaidPromise = mermaid.run();
+  </script>
 </body>
 </html>`
 
   const previewPath = path.resolve('FitBuddy_Document_Preview.html')
   fs.writeFileSync(previewPath, fullHtml, 'utf-8')
-  console.log('4. HTML written to:', previewPath)
+  console.log('4. HTML preview written to:', previewPath)
 
-  console.log('5. Launching browser to print PDF...')
+  console.log('5. Launching browser to print PDF with Mermaid graphics...')
   const browser = await chromium.launch({ channel: 'msedge', headless: true })
   const page = await browser.newPage()
 
+  page.on('console', msg => console.log('PAGE:', msg.text()))
+  page.on('pageerror', err => console.log('ERROR:', err.message))
+
   await page.setContent(fullHtml, { waitUntil: 'load' })
+
+  console.log('6. Waiting for Mermaid SVG diagrams to render...')
+  try {
+    await page.waitForFunction(() => window.__mermaidPromise !== undefined, { timeout: 12000 })
+    await page.evaluate(() => window.__mermaidPromise)
+    await page.waitForSelector('.mermaid svg', { timeout: 12000 })
+    const count = await page.locator('.mermaid svg').count()
+    console.log(`   ✅ Successfully rendered ${count} vector Mermaid SVG diagrams!`)
+  } catch (err) {
+    console.warn('   ⚠️ Mermaid render wait notice:', err.message)
+  }
+
   await page.waitForTimeout(1000)
 
-  console.log('6. Generating PDF with A4 margins and page numbering...')
+  console.log('7. Generating PDF with A4 margins, page numbering, and diagrams...')
   const pdfBuffer = await page.pdf({
     format: 'A4',
     printBackground: true,
@@ -229,7 +287,7 @@ async function generatePdf() {
   fs.writeFileSync(PROJECT_PDF_PATH, pdfBuffer)
   await browser.close()
 
-  console.log('✅ PDF generated successfully!')
+  console.log('✅ PDF generated successfully with rendered Mermaid diagrams!')
   console.log('Artifact PDF:', ARTIFACT_PDF_PATH, `(${pdfBuffer.length} bytes)`)
   console.log('Project Root PDF:', PROJECT_PDF_PATH)
 }

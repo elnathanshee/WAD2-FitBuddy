@@ -3,6 +3,9 @@
 <head>
   <meta charset="utf-8">
   <title>FitBuddy — Comprehensive Project Documentation</title>
+  <!-- Mermaid.js for rendering vector diagrams -->
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+
   <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap');
     
@@ -80,6 +83,21 @@
       margin: 18px 0;
       display: block;
       page-break-inside: avoid;
+    }
+
+    .mermaid {
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+      border-radius: 10px;
+      padding: 18px;
+      margin: 20px 0;
+      text-align: center;
+      page-break-inside: avoid;
+    }
+
+    .mermaid svg {
+      max-width: 100% !important;
+      height: auto !important;
     }
 
     pre {
@@ -160,7 +178,7 @@
         page-break-after: avoid;
       }
 
-      img, table, pre, blockquote {
+      img, table, pre, blockquote, .mermaid {
         page-break-inside: avoid;
       }
     }
@@ -181,121 +199,117 @@
 <li><strong>Wearable Telemetry Simulation:</strong> Apple Health and Google Fit biometric sync recording steps, distance, active minutes, and calories into PostgreSQL check-ins.</li>
 <li><strong>Social Accountability:</strong> Dynamic weekly leaderboard rankings computed live from check-in history, peer-to-peer cheer/nudge interactions, and head-to-head friend challenges.</li>
 </ul>
-<pre><code class="language-mermaid">flowchart TD
-    subgraph Client[&quot;Frontend Client (Vue 3 + Bootstrap 5)&quot;]
-        UI_Auth[&quot;Auth &amp; Athlete Switcher&lt;br/&gt;LoginPage.vue / Navbar.vue&quot;]
-        UI_Dash[&quot;Dashboard Hub&lt;br/&gt;Dashboard.vue&quot;]
-        UI_Health[&quot;Wearable Sync Widget&lt;br/&gt;FitnessTrackerWidget.vue&quot;]
-        UI_Habits[&quot;Habits &amp; AI Coach&lt;br/&gt;HabitsPage.vue / AiGoalCoachModal.vue&quot;]
-        UI_Leader[&quot;Weekly Leaderboard&lt;br/&gt;Leaderboard.vue / Podium&quot;]
+<div class="mermaid">flowchart TD
+    subgraph Client["Frontend Client (Vue 3 + Bootstrap 5)"]
+        UI_Auth["Auth & Athlete Switcher<br/>LoginPage.vue / Navbar.vue"]
+        UI_Dash["Dashboard Hub<br/>Dashboard.vue"]
+        UI_Health["Wearable Sync Widget<br/>FitnessTrackerWidget.vue"]
+        UI_Habits["Habits & AI Coach<br/>HabitsPage.vue / AiGoalCoachModal.vue"]
+        UI_Leader["Weekly Leaderboard<br/>Leaderboard.vue / Podium"]
     end
 
-    subgraph ServerlessBackend[&quot;Vercel Serverless API (Express 5)&quot;]
-        MW[&quot;Auth Middleware &amp; JWT Validator&lt;br/&gt;requireUser.js&quot;]
-        C_Auth[&quot;authController.js&lt;br/&gt;scrypt password hash&quot;]
-        C_Habit[&quot;neonHabitController.js&lt;br/&gt;CRUD &amp; Check-ins&quot;]
-        C_AI[&quot;aiController.js&lt;br/&gt;Gemini 2.5 Flash&quot;]
-        C_Health[&quot;healthSyncController.js&lt;br/&gt;Biometric Telemetry&quot;]
-        C_Leader[&quot;neonLeaderboardController.js&lt;br/&gt;Weekly Aggregate SQL&quot;]
+    subgraph ServerlessBackend["Vercel Serverless API (Express 5)"]
+        MW["Auth Middleware & JWT Validator<br/>requireUser.js"]
+        C_Auth["authController.js<br/>scrypt password hash"]
+        C_Habit["neonHabitController.js<br/>CRUD & Check-ins"]
+        C_AI["aiController.js<br/>Gemini 2.5 Flash"]
+        C_Health["healthSyncController.js<br/>Biometric Telemetry"]
+        C_Leader["neonLeaderboardController.js<br/>Weekly Aggregate SQL"]
     end
 
-    subgraph CloudServices[&quot;External Cloud &amp; AI Infrastructure&quot;]
-        NeonDB[(&quot;Neon Cloud PostgreSQL&lt;br/&gt;wild-haze-13789239&quot;)]
-        GeminiAI[&quot;Google Gemini 2.5 Flash API&lt;br/&gt;Structured JSON Reasoning&quot;]
-        NeonStorage[&quot;Neon S3 Object Storage&lt;br/&gt;Bucket: assets&quot;]
-        NeonFunc[&quot;Neon Cloud Function&lt;br/&gt;Function: hello&quot;]
+    subgraph CloudServices["External Cloud & AI Infrastructure"]
+        NeonDB[("Neon Cloud PostgreSQL<br/>wild-haze-13789239")]
+        GeminiAI["Google Gemini 2.5 Flash API<br/>Structured JSON Reasoning"]
+        NeonStorage["Neon S3 Object Storage<br/>Bucket: assets"]
+        NeonFunc["Neon Cloud Function<br/>Function: hello"]
     end
 
-    UI_Auth --&gt;|JWT Bearer Token| MW
-    UI_Dash --&gt;|GET /api/habits, /api/analytics| MW
-    UI_Health --&gt;|POST /api/health-sync/simulate| MW
-    UI_Habits --&gt;|POST /api/habits, /api/ai/coach| MW
-    UI_Leader --&gt;|GET /api/leaderboard, POST /api/leaderboard/cheer| MW
+    UI_Auth -->|JWT Bearer Token| MW
+    UI_Dash -->|GET /api/habits, /api/analytics| MW
+    UI_Health -->|POST /api/health-sync/simulate| MW
+    UI_Habits -->|POST /api/habits, /api/ai/coach| MW
+    UI_Leader -->|GET /api/leaderboard, POST /api/leaderboard/cheer| MW
 
-    MW --&gt; C_Auth
-    MW --&gt; C_Habit
-    MW --&gt; C_AI
-    MW --&gt; C_Health
-    MW --&gt; C_Leader
+    MW --> C_Auth
+    MW --> C_Habit
+    MW --> C_AI
+    MW --> C_Health
+    MW --> C_Leader
 
-    C_Auth --&gt;|SQL SELECT/INSERT users| NeonDB
-    C_Habit --&gt;|SQL CRUD habits &amp; check_ins| NeonDB
-    C_Health --&gt;|SQL INSERT check_ins + telemetry| NeonDB
-    C_Leader --&gt;|SQL Aggregation + Cheers| NeonDB
-    C_AI --&gt;|generateContent()| GeminiAI
-</code></pre>
-<hr>
+    C_Auth -->|SQL SELECT/INSERT users| NeonDB
+    C_Habit -->|SQL CRUD habits & check_ins| NeonDB
+    C_Health -->|SQL INSERT check_ins + telemetry| NeonDB
+    C_Leader -->|SQL Aggregation + Cheers| NeonDB
+    C_AI -->|generateContent API| GeminiAI</div><hr>
 <h2>2. Cloud Database Schema &amp; Security Architecture</h2>
 <p>FitBuddy leverages <strong>Neon Serverless PostgreSQL</strong> (<code>@neondatabase/serverless</code>) to ensure strict relational integrity, ACID compliance, and zero cold-start scaling. The database auto-initializes upon server boot via <a href="file:///c:/Users/User/OneDrive/Desktop/College/Year%203/IS216%20WAD2/Group%20project/project/server/config/neon.js"><code>server/config/neon.js</code></a>.</p>
-<pre><code class="language-mermaid">erDiagram
-    USERS ||--o{ HABITS : &quot;owns&quot;
-    USERS ||--o{ CHECK_INS : &quot;records&quot;
-    USERS ||--o{ CHEERS : &quot;sends / receives&quot;
-    USERS ||--o{ CHALLENGES : &quot;participates in&quot;
-    HABITS ||--o{ CHECK_INS : &quot;tracks&quot;
+<div class="mermaid">erDiagram
+    USERS ||--o{ HABITS : owns
+    USERS ||--o{ CHECK_INS : records
+    USERS ||--o{ CHEERS : receives
+    USERS ||--o{ CHALLENGES : participates
+    HABITS ||--o{ CHECK_INS : tracks
 
     USERS {
-        VARCHAR(64) id PK
-        VARCHAR(255) email UK
-        TEXT password_hash
-        VARCHAR(128) name
-        TEXT avatar
-        TEXT bio
-        INT weekly_goal
-        INT total_score
-        TIMESTAMP created_at
-        TIMESTAMP updated_at
+        string id PK
+        string email UK
+        text password_hash
+        string name
+        text avatar
+        text bio
+        int weekly_goal
+        int total_score
+        timestamp created_at
+        timestamp updated_at
     }
 
     HABITS {
-        VARCHAR(64) id PK
-        VARCHAR(64) user_id FK
-        VARCHAR(255) name
-        VARCHAR(64) category
-        INT target_frequency
-        VARCHAR(64) icon
-        VARCHAR(32) color
-        BOOLEAN archived
-        TIMESTAMP created_at
-        TIMESTAMP updated_at
+        string id PK
+        string user_id FK
+        string name
+        string category
+        int target_frequency
+        string icon
+        string color
+        boolean archived
+        timestamp created_at
+        timestamp updated_at
     }
 
     CHECK_INS {
-        VARCHAR(64) id PK
-        VARCHAR(64) habit_id FK
-        VARCHAR(64) user_id FK
-        VARCHAR(10) date
-        VARCHAR(32) status
-        TEXT notes
-        JSONB telemetry
-        TIMESTAMP created_at
+        string id PK
+        string habit_id FK
+        string user_id FK
+        string date
+        string status
+        text notes
+        jsonb telemetry
+        timestamp created_at
     }
 
     CHEERS {
-        VARCHAR(64) id PK
-        VARCHAR(64) from_user_id FK
-        VARCHAR(64) to_user_id FK
-        VARCHAR(32) cheer_type
-        TEXT message
-        TIMESTAMP created_at
+        string id PK
+        string from_user_id FK
+        string to_user_id FK
+        string cheer_type
+        text message
+        timestamp created_at
     }
 
     CHALLENGES {
-        VARCHAR(64) id PK
-        VARCHAR(255) title
-        VARCHAR(64) challenger_id FK
-        VARCHAR(64) opponent_id FK
-        VARCHAR(64) target_metric
-        NUMERIC target_value
-        NUMERIC challenger_progress
-        NUMERIC opponent_progress
-        VARCHAR(10) start_date
-        VARCHAR(10) end_date
-        VARCHAR(32) status
-        TIMESTAMP created_at
-    }
-</code></pre>
-<h3>Password Hashing &amp; JWT Security Design</h3>
+        string id PK
+        string title
+        string challenger_id FK
+        string opponent_id FK
+        string target_metric
+        numeric target_value
+        numeric challenger_progress
+        numeric opponent_progress
+        string start_date
+        string end_date
+        string status
+        timestamp created_at
+    }</div><h3>Password Hashing &amp; JWT Security Design</h3>
 <ul>
 <li><strong>Salted <code>scrypt</code> Hashing:</strong> Passwords are never stored in plaintext. In <a href="file:///c:/Users/User/OneDrive/Desktop/College/Year%203/IS216%20WAD2/Group%20project/project/server/utils/auth.js"><code>server/utils/auth.js</code></a>, <code>hashPassword(password)</code> generates a cryptographically secure 16-byte random salt via <code>crypto.randomBytes(16)</code> and derives a 64-byte key using <code>crypto.scryptSync(password, salt, 64)</code>.</li>
 <li><strong>HMAC-SHA256 Tokenization:</strong> Session authentication utilizes stateless JWTs signed with <code>crypto.createHmac(&#39;sha256&#39;, JWT_SECRET)</code> containing the user&#39;s ID, email, and a 7-day expiration timestamp (<code>exp</code>).</li>
@@ -608,5 +622,15 @@ Tested login as <code>demo@fitbuddy.com</code>, biometric wearable sync, 7-day h
 All codebase enhancements are clean, committed, and pushed to the upstream GitHub repository <code>elnathanshee/WAD2-FitBuddy</code> (<code>main</code> branch).</li>
 </ol>
 
+
+  <script>
+    mermaid.initialize({
+      startOnLoad: false,
+      theme: 'neutral',
+      flowchart: { useMaxWidth: true, htmlLabels: true },
+      er: { useMaxWidth: true }
+    });
+    window.__mermaidPromise = mermaid.run();
+  </script>
 </body>
 </html>

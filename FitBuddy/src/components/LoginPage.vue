@@ -9,8 +9,8 @@
     <div class="col-lg-6 auth-form-section">
       <div class="auth-form-card shadow-sm p-4 p-md-5 rounded-4">
         <div class="text-center mb-4 d-lg-none">
-          <i class="bi bi-activity text-primary fs-1"></i>
-          <h2 class="fw-bold mt-2">HabitBuddy</h2>
+          <i class="bi bi-heart-pulse-fill text-primary fs-1"></i>
+          <h2 class="fw-bold mt-2">FitBuddy</h2>
         </div>
         
         <h3 class="fw-bold mb-3 text-center">Login</h3>

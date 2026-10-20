@@ -15,7 +15,7 @@
     <!-- Subtitle / Intro -->
     <p class="text-muted small mb-3">
       Describe your current routine and health goals, or answer our quick questionnaire.
-      HabitBuddy's AI coach will generate realistic, personalized habits tailored to your schedule.
+      FitBuddy's AI coach will generate realistic, personalized habits tailored to your schedule.
     </p>
 
     <!-- Error Banner -->

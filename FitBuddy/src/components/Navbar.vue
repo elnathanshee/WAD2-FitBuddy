@@ -2,8 +2,8 @@
   <nav class="navbar navbar-expand-lg navbar-dark bg-dark sticky-top shadow-sm">
     <div class="container">
       <router-link class="navbar-brand d-flex align-items-center" to="/">
-        <i class="bi bi-activity text-primary fs-3 me-2"></i>
-        <span class="fw-bold fs-4">HabitBuddy</span>
+        <i class="bi bi-heart-pulse-fill text-primary fs-3 me-2"></i>
+        <span class="fw-bold fs-4">FitBuddy</span>
       </router-link>
       
       <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">

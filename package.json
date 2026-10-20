@@ -7,7 +7,7 @@
     "node": ">=20.0.0"
   },
   "scripts": {
-    "build": "npm install --prefix FitBuddy --include=dev && npm run build --prefix FitBuddy"
+    "build": "node scripts/build.js"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1153.0",

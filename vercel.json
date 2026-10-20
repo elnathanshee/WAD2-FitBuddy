@@ -1,6 +1,5 @@
 {
-  "installCommand": "npm install",
-  "buildCommand": "npm install --prefix FitBuddy --include=dev && npm run build --prefix FitBuddy",
+  "buildCommand": "node scripts/build.js",
   "outputDirectory": "FitBuddy/dist",
   "rewrites": [
     {

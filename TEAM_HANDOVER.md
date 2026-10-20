@@ -203,6 +203,7 @@ All tables are automatically verified and created on startup if they don't exist
 | `POST` | `/api/leaderboard/cheer` | Yes (`Bearer`) | Sends a cheer/nudge to a fellow athlete |
 | `GET` | `/api/leaderboard/cheers` | Yes (`Bearer`) | Gets latest cheers received by current user |
 | `POST` | `/api/health-sync/simulate` | Yes (`Bearer`) | Simulates Apple Health / Google Fit sync |
+| `GET` | `/api/analytics/summary?period=day\|week\|month&offset=0&today=YYYY-MM-DD` | Yes (`Bearer`) | Analytics Dashboard: completion rates, per-day breakdown, streaks, category counts |
 | `GET` | `/api/analytics/weekly-summary` | Yes (`Bearer`) | 7-day completion rates & category counts |
 | `GET` | `/api/challenges` | Yes (`Bearer`) | Lists active and completed friend challenges |
 | `POST` | `/api/challenges` | Yes (`Bearer`) | Creates a new head-to-head challenge |

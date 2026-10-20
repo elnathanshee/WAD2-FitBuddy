@@ -19,8 +19,8 @@
     <!-- 1. Fitness Tracker & Wearable Health Sync Widget -->
     <FitnessTrackerWidget @synced="refreshDashboard" />
 
-    <!-- 2. 7-Day Consistency & Progress Analytics Matrix -->
-    <ConsistencyMatrixWidget ref="consistencyRef" />
+    <!-- 2. Analytics: daily/weekly/monthly stats, charts, completion rates, streaks -->
+    <AnalyticsDashboard ref="analyticsRef" />
 
     <!-- 3. Friend Challenges & Duels Section -->
     <ChallengesSection ref="challengesRef" />
@@ -84,12 +84,12 @@ import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { authService } from '../services/authService'
 import FitnessTrackerWidget from '../components/dashboard/FitnessTrackerWidget.vue'
-import ConsistencyMatrixWidget from '../components/dashboard/ConsistencyMatrixWidget.vue'
+import AnalyticsDashboard from '../components/dashboard/AnalyticsDashboard.vue'
 import ChallengesSection from '../components/dashboard/ChallengesSection.vue'
 
 const router = useRouter()
 const user = ref(authService.getCurrentUser())
-const consistencyRef = ref(null)
+const analyticsRef = ref(null)
 const challengesRef = ref(null)
 
 const handleLogout = () => {
@@ -98,7 +98,7 @@ const handleLogout = () => {
 }
 
 const refreshDashboard = () => {
-  consistencyRef.value?.loadAnalytics?.()
+  analyticsRef.value?.load?.()
 }
 </script>
 

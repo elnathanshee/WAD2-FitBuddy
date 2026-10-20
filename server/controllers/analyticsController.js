@@ -2,77 +2,83 @@
 // [IS216 Project Addition: Analytics & Consistency Controller]
 // Technology: Express.js + Neon PostgreSQL
 //
-// Computes daily habit consistency, 7-day completion rates, and category distribution.
+// Loads the user's habits and check-ins, then hands them to utils/analytics.js,
+// which does every calculation (completion rates, daily breakdowns, streaks).
 // =============================================================================
 
 import { getDb } from '../config/neon.js'
 import { toDateKey, addDays } from '../utils/dates.js'
+import { PERIODS, buildAnalytics, buildWeeklySummary } from '../utils/analytics.js'
+
+// Sanity limit on how many periods back `offset` may go
+const MAX_OFFSET = 366
+
+function isValidDateKey(value) {
+  return typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value) && addDays(value, 0) === value
+}
+
+// Rows from the database → the plain shapes utils/analytics.js expects
+async function loadUserData(userId) {
+  const sql = getDb()
+  const habitRows = await sql`
+    SELECT id, name, icon, category, frequency, target_amount, target_unit, created_at
+    FROM habits
+    WHERE user_id = ${userId}
+  `
+  const checkInRows = await sql`
+    SELECT habit_id, date, count
+    FROM check_ins
+    WHERE user_id = ${userId}
+  `
+  const habits = habitRows.map((row) => ({
+    id: row.id,
+    name: row.name,
+    icon: row.icon,
+    category: row.category,
+    frequency: row.frequency,
+    target: Number(row.target_amount),
+    unit: row.target_unit,
+    createdOn: toDateKey(new Date(row.created_at)),
+  }))
+  const checkIns = checkInRows.map((row) => ({
+    habitId: row.habit_id,
+    date: row.date,
+    count: Number(row.count),
+  }))
+  return { habits, checkIns }
+}
+
+/**
+ * GET /api/analytics/summary?period=day|week|month&today=YYYY-MM-DD&offset=0
+ * `today` comes from the browser so periods follow the user's local calendar.
+ * `offset` is 0 for the current period, -1 for the one before, and so on.
+ */
+export async function getSummary(req, res) {
+  const { period = 'week', today = toDateKey(), offset = '0' } = req.query
+  if (!PERIODS.includes(period)) {
+    return res.status(400).json({ message: 'period must be day, week or month' })
+  }
+  if (!isValidDateKey(today)) {
+    return res.status(400).json({ message: 'today must be a real day in YYYY-MM-DD format' })
+  }
+  const steps = Number(offset)
+  if (!Number.isInteger(steps) || steps > 0 || steps < -MAX_OFFSET) {
+    return res.status(400).json({ message: 'offset must be a whole number, 0 or below' })
+  }
+
+  const { habits, checkIns } = await loadUserData(req.userId)
+  res.json(buildAnalytics(habits, checkIns, { period, today, offset: steps }))
+}
 
 /**
  * GET /api/analytics/weekly-summary
+ * The last 7 days (kept for scripts/verifyAllEndpoints.js and older clients).
  */
 export async function getWeeklySummary(req, res) {
-  const sql = getDb()
-  const today = toDateKey()
-
-  // 1. Fetch user's habits
-  const habits = await sql`
-    SELECT id, name, category, target_amount, frequency
-    FROM habits
-    WHERE user_id = ${req.userId}
-  `
-
-  const totalDailyHabits = habits.filter((h) => h.frequency !== 'weekly').length || 1
-
-  // 2. Fetch check-ins for the last 7 days
-  const sevenDaysAgo = addDays(today, -6)
-  const recentCheckIns = await sql`
-    SELECT c.habit_id, c.date, c.count, h.target_amount, h.category
-    FROM check_ins c
-    JOIN habits h ON c.habit_id = h.id
-    WHERE c.user_id = ${req.userId} AND c.date >= ${sevenDaysAgo} AND c.date <= ${today}
-  `
-
-  // Build day-by-day matrix (Mon through Sun or last 7 days)
-  const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
-  const days = []
-
-  let totalCompletions = 0
-
-  for (let i = 6; i >= 0; i--) {
-    const dKey = addDays(today, -i)
-    const dateObj = new Date(dKey + 'T00:00:00')
-    const dayLabel = dayNames[dateObj.getDay()]
-
-    const dayRows = recentCheckIns.filter((r) => r.date === dKey)
-    const completedCount = dayRows.filter((r) => Number(r.count) >= Number(r.target_amount)).length
-    totalCompletions += completedCount
-
-    const pct = Math.min(100, Math.round((completedCount / totalDailyHabits) * 100))
-
-    days.push({
-      date: dKey,
-      day: dayLabel,
-      completed: completedCount,
-      total: totalDailyHabits,
-      percentage: pct,
-    })
+  const { today = toDateKey() } = req.query
+  if (!isValidDateKey(today)) {
+    return res.status(400).json({ message: 'today must be a real day in YYYY-MM-DD format' })
   }
-
-  // Category distribution
-  const categoryCount = {}
-  for (const row of recentCheckIns) {
-    categoryCount[row.category] = (categoryCount[row.category] || 0) + 1
-  }
-
-  const overallRate = Math.round((totalCompletions / (totalDailyHabits * 7)) * 100)
-
-  res.json({
-    days,
-    overallCompletionRate: Math.min(100, overallRate),
-    totalCheckIns: recentCheckIns.length,
-    activeHabitsCount: habits.length,
-    categoryCount,
-  })
+  const { habits, checkIns } = await loadUserData(req.userId)
+  res.json(buildWeeklySummary(habits, checkIns, today))
 }
-

@@ -82,6 +82,10 @@ Generated with AI (Claude), as boilerplate/test/mock-data assistance:
 - Mock data: `seed.js`
 - Test cases: `tests/streak.test.js`, `../FitBuddy/e2e/*`, `../FitBuddy/playwright.config.js`
 - Frontend config: Vite `/api` proxy, `src/services/api.js` axios instance
+- Analytics Dashboard (David, with Claude): `utils/analytics.js`, `tests/analytics.test.js`,
+  `controllers/analyticsController.js`, `routes/analytics.js`, and in the frontend
+  `components/dashboard/AnalyticsDashboard.vue`, `MonthlyHeatmap.vue`,
+  `utils/completionLevels.js`, `services/analyticsService.js`
 
 Written by the team: all controller handler logic, `calculateStreak`, and the Vue
 habit pages/components. *(Update this list as the code changes.)*

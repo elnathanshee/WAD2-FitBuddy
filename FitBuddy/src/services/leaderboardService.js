@@ -1,8 +1,10 @@
+// =============================================================================
+// [IS216 Project Addition: Leaderboard Service]
+// Connects to /api/leaderboard on Express + Neon PostgreSQL
+// =============================================================================
+
 import api from './api'
 
-// One function per /api/leaderboard endpoint.
-// `today` is the browser's local date key, so the week is the user's week —
-// same convention habitService uses.
 export const leaderboardService = {
   async weekly(today) {
     const { data } = await api.get('/leaderboard/weekly', { params: { today } })
@@ -16,6 +18,16 @@ export const leaderboardService = {
 
   async saveProfile({ displayName, avatarColor }) {
     const { data } = await api.put('/leaderboard/profile', { displayName, avatarColor })
+    return data
+  },
+
+  async sendCheer(recipientId, type = 'cheer', message = '') {
+    const { data } = await api.post('/leaderboard/cheer', { recipientId, type, message })
+    return data
+  },
+
+  async getCheers() {
+    const { data } = await api.get('/leaderboard/cheers')
     return data
   },
 }

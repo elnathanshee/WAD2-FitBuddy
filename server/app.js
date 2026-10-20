@@ -5,6 +5,7 @@ import habitRoutes from './routes/habits.js'
 import leaderboardRoutes from './routes/leaderboard.js'
 import aiRoutes from './routes/ai.js'
 import neonRoutes from './routes/neon.js'
+import authRoutes from './routes/auth.js'
 import { requireUser } from './middleware/requireUser.js'
 
 // The Express app is created here (without listening) so tests can import it.
@@ -17,6 +18,7 @@ app.get(['/api/health', '/health'], (req, res) => {
   res.json({ status: 'ok' })
 })
 
+app.use(['/api/auth', '/auth'], authRoutes)
 app.use(['/api/neon', '/neon'], neonRoutes)
 app.use(['/api/habits', '/habits'], requireUser, habitRoutes)
 app.use(['/api/leaderboard', '/leaderboard'], requireUser, leaderboardRoutes)

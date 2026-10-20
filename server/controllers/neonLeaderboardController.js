@@ -1,6 +1,8 @@
 // =============================================================================
 // [IS216 Project Addition: Neon PostgreSQL Leaderboard Controller]
 // Technology: Node.js + PostgreSQL via @neondatabase/serverless
+//
+// Computes live weekly leaderboard points, user rankings, streaks, and cheers.
 // =============================================================================
 
 import { getDb } from '../config/neon.js'
@@ -39,11 +41,18 @@ export async function weeklyLeaderboard(req, res) {
     GROUP BY c.user_id, c.habit_id, c.date, h.frequency, h.target_amount
   `
 
-  // 2. Fetch all habits & user profiles
-  const [habitRows, profileRows] = await Promise.all([
+  // 2. Fetch all habits & user profiles & cheers
+  const [habitRows, profileRows, cheerCounts] = await Promise.all([
     sql`SELECT id::text, user_id, frequency FROM habits`,
     sql`SELECT user_id, display_name, avatar_color FROM users`,
+    sql`
+      SELECT recipient_id, COUNT(*)::int AS count
+      FROM cheers
+      GROUP BY recipient_id
+    `.catch(() => []),
   ])
+
+  const cheersByRecipient = new Map(cheerCounts.map((c) => [c.recipient_id, c.count]))
 
   const userIds = new Set([
     ...profileRows.map((p) => p.user_id),
@@ -87,6 +96,7 @@ export async function weeklyLeaderboard(req, res) {
       avatarColor: profile?.avatar_color ?? '#7FA3D1',
       points: breakdown.total,
       breakdown,
+      cheersCount: cheersByRecipient.get(userId) || 0,
       isCurrentUser: req.userId != null && String(userId) === String(req.userId),
     }
   })
@@ -181,3 +191,46 @@ export async function upsertProfile(req, res) {
   })
 }
 
+// POST /api/leaderboard/cheer
+export async function sendCheer(req, res) {
+  const sql = getDb()
+  const { recipientId, type = 'cheer', message = '' } = req.body || {}
+  if (!recipientId) {
+    return res.status(400).json({ message: 'recipientId is required' })
+  }
+  if (String(recipientId) === String(req.userId)) {
+    return res.status(400).json({ message: 'You cannot cheer yourself!' })
+  }
+
+  const validTypes = ['cheer', 'nudge', 'fire', 'celebrate']
+  const cheerType = validTypes.includes(type) ? type : 'cheer'
+  const cleanMsg = String(message || '').slice(0, 100).trim()
+
+  await sql`
+    INSERT INTO cheers (sender_id, recipient_id, type, message)
+    VALUES (${req.userId}, ${recipientId}, ${cheerType}, ${cleanMsg})
+  `
+
+  res.json({ success: true, message: `Sent ${cheerType}!` })
+}
+
+// GET /api/leaderboard/cheers
+export async function getCheers(req, res) {
+  const sql = getDb()
+  const rows = await sql`
+    SELECT 
+      c.id,
+      c.sender_id,
+      c.type,
+      c.message,
+      c.created_at,
+      u.display_name AS sender_name,
+      u.avatar_color AS sender_color
+    FROM cheers c
+    LEFT JOIN users u ON c.sender_id = u.user_id
+    WHERE c.recipient_id = ${req.userId}
+    ORDER BY c.created_at DESC
+    LIMIT 10
+  `
+  res.json({ cheers: rows })
+}

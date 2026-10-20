@@ -3,7 +3,7 @@
     <div class="col-lg-6 auth-brand-section d-none d-lg-flex bg-primary">
       <i class="bi bi-trophy-fill text-white" style="font-size: 5rem;"></i>
       <h1 class="fw-bold mt-4 mb-3">Join HabitBuddy</h1>
-      <p class="lead text-light opacity-75">Start your personalized fitness adventure today.</p>
+      <p class="lead text-light opacity-75">Start your personalized fitness adventure and build daily habits that last.</p>
     </div>
     
     <div class="col-lg-6 auth-form-section">
@@ -16,13 +16,13 @@
         <h3 class="fw-bold mb-4 text-center">Create an Account</h3>
         
         <div v-if="errorMsg" class="alert alert-danger alert-dismissible fade show" role="alert">
-          {{ errorMsg }}
+          <i class="bi bi-exclamation-circle me-2"></i>{{ errorMsg }}
           <button type="button" class="btn-close" @click="errorMsg = ''"></button>
         </div>
 
         <form @submit.prevent="handleSignup">
           <div class="form-floating mb-3">
-            <input type="text" class="form-control" id="name" v-model="form.name" placeholder="John Doe" required>
+            <input type="text" class="form-control" id="name" v-model="form.name" placeholder="John Doe" required maxlength="60">
             <label for="name">Full Name</label>
           </div>
           
@@ -32,8 +32,8 @@
           </div>
           
           <div class="form-floating mb-3">
-            <input type="password" class="form-control" id="password" v-model="form.password" placeholder="Password" required minlength="8">
-            <label for="password">Password (min 8 chars)</label>
+            <input type="password" class="form-control" id="password" v-model="form.password" placeholder="Password" required minlength="6">
+            <label for="password">Password (min 6 chars)</label>
           </div>
           
           <div class="form-floating mb-3">
@@ -45,13 +45,13 @@
           <div class="form-check mb-4">
             <input class="form-check-input" type="checkbox" id="terms" v-model="form.terms" required>
             <label class="form-check-label text-muted small" for="terms">
-              I agree to the <a href="#" class="text-primary">Terms & Conditions</a>
+              I agree to the <a href="#" class="text-primary text-decoration-none">Terms & Conditions</a>
             </label>
           </div>
           
           <button type="submit" class="btn btn-primary w-100 py-3 rounded-pill mb-4" :disabled="loading || passwordMismatch">
             <span v-if="loading" class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
-            {{ loading ? 'Creating Account...' : 'Sign Up' }}
+            {{ loading ? 'Creating Account & Bootstrapping Habits...' : 'Sign Up' }}
           </button>
           
           <p class="text-center text-muted mb-0">
@@ -74,7 +74,7 @@ const form = reactive({
   email: '',
   password: '',
   confirmPassword: '',
-  terms: false
+  terms: false,
 })
 const loading = ref(false)
 const errorMsg = ref('')
@@ -89,7 +89,7 @@ const handleSignup = async () => {
   loading.value = true
   try {
     await authService.signup({ name: form.name, email: form.email, password: form.password })
-    router.push({ name: 'login', query: { registered: 'true' } })
+    router.push('/dashboard')
   } catch (err) {
     errorMsg.value = err.response?.data?.message || 'An error occurred during signup.'
   } finally {
@@ -97,4 +97,3 @@ const handleSignup = async () => {
   }
 }
 </script>
-

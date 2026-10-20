@@ -6,6 +6,7 @@
 
 import { getDb, initNeonSchema } from './config/neon.js'
 import { toDateKey, addDays } from './utils/dates.js'
+import { hashPassword } from './utils/auth.js'
 
 export const DEMO_USER_ID = '1'
 const HISTORY_DAYS = 60
@@ -64,10 +65,10 @@ const demoHabits = [
 ]
 
 const rivals = [
-  { userId: 'rival_alex', name: 'Alex Tan', color: '#4CAF50' },
-  { userId: 'rival_bernice', name: 'Bernice Lim', color: '#FF9800' },
-  { userId: 'rival_charlie', name: 'Charlie Wong', color: '#9C27B0' },
-  { userId: 'rival_david', name: 'David Lee', color: '#2196F3' },
+  { userId: 'rival_alex', name: 'Alex Tan', email: 'alex@fitbuddy.com', color: '#4CAF50' },
+  { userId: 'rival_bernice', name: 'Bernice Lim', email: 'bernice@fitbuddy.com', color: '#FF9800' },
+  { userId: 'rival_charlie', name: 'Charlie Wong', email: 'charlie@fitbuddy.com', color: '#9C27B0' },
+  { userId: 'rival_david', name: 'David Lee', email: 'david@fitbuddy.com', color: '#2196F3' },
 ]
 
 export async function seedNeon() {
@@ -78,18 +79,23 @@ export async function seedNeon() {
 
   // Clear demo user and rival data
   const allUserIds = [DEMO_USER_ID, ...rivals.map((r) => r.userId)]
+  await sql`DELETE FROM check_ins WHERE user_id = ANY(${allUserIds})`
   await sql`DELETE FROM habits WHERE user_id = ANY(${allUserIds})`
   await sql`DELETE FROM users WHERE user_id = ANY(${allUserIds})`
 
-  // Seed user profiles
+  const defaultPasswordHash = hashPassword('password123')
+
+  // Seed primary demo user profile
   await sql`
-    INSERT INTO users (user_id, display_name, avatar_color)
-    VALUES (${DEMO_USER_ID}, 'You', '#4F46E5')
+    INSERT INTO users (user_id, display_name, email, password_hash, avatar_color)
+    VALUES (${DEMO_USER_ID}, 'You', 'demo@fitbuddy.com', ${defaultPasswordHash}, '#4F46E5')
   `
+
+  // Seed rival athlete profiles
   for (const r of rivals) {
     await sql`
-      INSERT INTO users (user_id, display_name, avatar_color)
-      VALUES (${r.userId}, ${r.name}, ${r.color})
+      INSERT INTO users (user_id, display_name, email, password_hash, avatar_color)
+      VALUES (${r.userId}, ${r.name}, ${r.email}, ${defaultPasswordHash}, ${r.color})
     `
   }
 
@@ -118,7 +124,7 @@ export async function seedNeon() {
     }
   }
 
-  // Seed some rival habits & check-ins so leaderboard has activity
+  // Seed rival habits & check-ins so leaderboard has rich weekly scores
   for (const r of rivals) {
     const inserted = await sql`
       INSERT INTO habits (user_id, name, category, frequency, target_amount, target_unit, icon)
@@ -127,12 +133,10 @@ export async function seedNeon() {
     `
     const hid = inserted[0].id
     for (let daysAgo = 0; daysAgo < 7; daysAgo++) {
-      if (Math.random() > 0.3) {
-        await sql`
-          INSERT INTO check_ins (user_id, habit_id, date, count)
-          VALUES (${r.userId}, ${hid}, ${addDays(today, -daysAgo)}, 30)
-        `
-      }
+      await sql`
+        INSERT INTO check_ins (user_id, habit_id, date, count)
+        VALUES (${r.userId}, ${hid}, ${addDays(today, -daysAgo)}, 30)
+      `
     }
   }
 
@@ -149,4 +153,3 @@ if (process.argv[1]?.endsWith('seedNeon.js')) {
     process.exit(1)
   }
 }
-

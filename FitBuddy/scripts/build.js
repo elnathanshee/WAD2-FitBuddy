@@ -19,10 +19,20 @@ function copyDirSync(src, dest) {
 
 if (fs.existsSync('FitBuddy/package.json')) {
   console.log('Building from repo root...')
+  // 1. Keep FitBuddy/server synchronized with server
   if (fs.existsSync('server')) {
     copyDirSync('server', 'FitBuddy/server')
   }
+
+  // 2. Install FitBuddy frontend dependencies so Vite and Vue are guaranteed present
+  console.log('Installing FitBuddy frontend dependencies...')
+  execSync('npm install --prefix FitBuddy --include=dev', { stdio: 'inherit' })
+
+  // 3. Compile frontend with Vite
+  console.log('Building FitBuddy frontend with Vite...')
   execSync('npm --prefix FitBuddy run build', { stdio: 'inherit' })
+
+  // 4. Duplicate output to root dist
   if (fs.existsSync('FitBuddy/dist')) {
     copyDirSync('FitBuddy/dist', 'dist')
   }

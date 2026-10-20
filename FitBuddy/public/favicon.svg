@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <defs>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#4F46E5" />
+      <stop offset="50%" stop-color="#3B82F6" />
+      <stop offset="100%" stop-color="#06B6D4" />
+    </linearGradient>
+    <linearGradient id="sparkleGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FDE047" />
+      <stop offset="100%" stop-color="#F59E0B" />
+    </linearGradient>
+    <filter id="shadow" x="-10%" y="-10%" width="120%" height="120%">
+      <feDropShadow dx="0" dy="2" stdDeviation="2" flood-color="#000000" flood-opacity="0.3" />
+    </filter>
+  </defs>
+
+  <!-- Background Squircle with Gradient -->
+  <rect x="2" y="2" width="60" height="60" rx="16" fill="url(#bgGrad)" filter="url(#shadow)" />
+
+  <!-- Dynamic Athletic Pulse / Waveform -->
+  <path d="M 11 34 L 19 34 L 24 21 L 31 46 L 38 27 L 43 34 L 53 34" 
+        fill="none" 
+        stroke="#FFFFFF" 
+        stroke-width="4.5" 
+        stroke-linecap="round" 
+        stroke-linejoin="round" />
+
+  <!-- Habit Goal Checkmark Badge -->
+  <circle cx="47" cy="17" r="8.5" fill="#10B981" stroke="#FFFFFF" stroke-width="1.5" />
+  <path d="M 43.5 17 L 46 19.5 L 50.5 14.5" fill="none" stroke="#FFFFFF" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" />
+
+  <!-- Gemini AI Sparkle Star -->
+  <path d="M 17 10 C 17 13.5 14 14.5 14 14.5 C 14 14.5 17 15.5 17 19 C 17 15.5 20 14.5 20 14.5 C 20 14.5 17 13.5 17 10 Z" 
+        fill="url(#sparkleGrad)" />
+</svg>

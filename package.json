@@ -3,8 +3,15 @@
   "version": "1.0.0",
   "private": true,
   "type": "module",
+  "engines": {
+    "node": ">=22.18.0"
+  },
+  "workspaces": [
+    "FitBuddy",
+    "server"
+  ],
   "scripts": {
-    "build": "cd FitBuddy && npm install && npm run build"
+    "build": "npm install --prefix FitBuddy && npm run build --prefix FitBuddy"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1153.0",

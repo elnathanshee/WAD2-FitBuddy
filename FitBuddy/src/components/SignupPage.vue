@@ -1,16 +1,16 @@
 <template>
   <div class="row g-0 auth-wrapper flex-row-reverse">
-    <div class="col-lg-6 auth-brand-section d-none d-lg-flex bg-primary">
+    <div class="col-lg-6 auth-brand-section d-none d-lg-flex">
       <i class="bi bi-trophy-fill text-white" style="font-size: 5rem;"></i>
-      <h1 class="fw-bold mt-4 mb-3">Join FitBuddy</h1>
+      <h1 class="fw-bold mt-4 mb-3">Join HabitBuddy</h1>
       <p class="lead text-light opacity-75">Start your personalized fitness adventure and build daily habits that last.</p>
     </div>
     
     <div class="col-lg-6 auth-form-section">
       <div class="auth-form-card shadow-sm p-4 p-md-5 rounded-4">
         <div class="text-center mb-4 d-lg-none">
-          <i class="bi bi-activity text-primary fs-1"></i>
-          <h2 class="fw-bold mt-2">FitBuddy</h2>
+          <BrandMark class="auth-logo mx-auto" aria-hidden="true" />
+          <h2 class="fw-bold mt-2">HabitBuddy</h2>
         </div>
         
         <h3 class="fw-bold mb-4 text-center">Create an Account</h3>
@@ -64,6 +64,7 @@
 </template>
 
 <script setup>
+import BrandMark from './BrandMark.vue'
 import { ref, reactive, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { authService } from '../services/authService'
@@ -89,7 +90,7 @@ const handleSignup = async () => {
   loading.value = true
   try {
     await authService.signup({ name: form.name, email: form.email, password: form.password })
-    router.push('/dashboard')
+    router.push('/home')
   } catch (err) {
     errorMsg.value = err.response?.data?.message || 'An error occurred during signup.'
   } finally {

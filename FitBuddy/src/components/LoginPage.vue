@@ -9,8 +9,8 @@
     <div class="col-lg-6 auth-form-section">
       <div class="auth-form-card shadow-sm p-4 p-md-5 rounded-4">
         <div class="text-center mb-4 d-lg-none">
-          <i class="bi bi-heart-pulse-fill text-primary fs-1"></i>
-          <h2 class="fw-bold mt-2">FitBuddy</h2>
+          <BrandMark class="auth-logo mx-auto" aria-hidden="true" />
+          <h2 class="fw-bold mt-2">HabitBuddy</h2>
         </div>
         
         <h3 class="fw-bold mb-3 text-center">Login</h3>
@@ -86,6 +86,7 @@
 </template>
 
 <script setup>
+import BrandMark from './BrandMark.vue'
 import { ref } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { authService } from '../services/authService'
@@ -114,7 +115,7 @@ const handleLogin = async () => {
   loading.value = true
   try {
     await authService.login(email.value, password.value)
-    router.push('/dashboard')
+    router.push('/home')
   } catch (err) {
     errorMsg.value = err.response?.data?.message || 'Invalid email or password.'
   } finally {

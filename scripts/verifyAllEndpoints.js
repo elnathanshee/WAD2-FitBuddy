@@ -129,6 +129,9 @@ async function verifyAll() {
       const cheerData = await cheerRes.json()
       if (cheerRes.ok && cheerData.success) {
         console.log('   ✅ POST /api/leaderboard/cheer passed! Cheer recorded:', cheerData.message)
+      } else if (cheerRes.status === 409) {
+        // Each cheer type can only be sent once per person per day
+        console.log('   ✅ POST /api/leaderboard/cheer passed! Daily limit enforced:', cheerData.message)
       } else {
         throw new Error('Cheer failed: ' + JSON.stringify(cheerData))
       }

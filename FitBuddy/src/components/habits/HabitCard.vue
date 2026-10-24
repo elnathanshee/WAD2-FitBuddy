@@ -5,7 +5,7 @@
 -->
 <template>
   <div
-    class="card habit-card h-100 border-0 shadow-sm"
+    class="card habit-card h-100"
     :class="{ 'is-done': isDone }"
     :style="{ '--habit-colour': STATUS[status].colour }"
     data-testid="habit-card"
@@ -15,9 +15,10 @@
       <div class="d-flex align-items-start gap-3 mb-3">
         <div class="habit-icon flex-shrink-0" aria-hidden="true">{{ habit.icon }}</div>
         <div class="flex-grow-1 min-w-0">
-          <h3 class="h5 fw-bold mb-1 text-break">{{ habit.name }}</h3>
+          <h3 class="habit-title mb-1 text-break">{{ habit.name }}</h3>
           <div class="d-flex flex-wrap gap-2 small">
-            <span class="badge rounded-pill text-bg-light text-capitalize">{{ habit.category }}</span>
+            <span class="text-muted text-capitalize">{{ habit.category }}</span>
+            <span class="text-muted" aria-hidden="true">·</span>
             <span class="text-muted" data-testid="habit-frequency">{{ frequencyText }}</span>
           </div>
           <span class="status-label small fw-semibold" data-testid="habit-status">
@@ -25,7 +26,7 @@
           </span>
         </div>
         <div class="text-center flex-shrink-0" :title="`Longest streak: ${habit.streak.longest} ${streakUnit}s`">
-          <div class="streak-number fw-bold" :class="{ 'text-muted': !habit.streak.current }">
+          <div class="streak-number display-num" :class="{ 'text-muted': !habit.streak.current }">
             <i class="bi bi-fire" :class="{ 'streak-flame': habit.streak.current }" aria-hidden="true"></i>
             <span data-testid="habit-streak">{{ habit.streak.current }}</span>
           </div>
@@ -39,7 +40,7 @@
           <span class="fw-semibold">
             <span data-testid="habit-progress">{{ formatAmount(habit.periodCount) }} / {{ formatAmount(habit.target.amount) }}</span>
             {{ habit.target.unit }}
-            <i v-if="isDone" class="bi bi-check-circle-fill text-success ms-1" aria-hidden="true"></i>
+            <i v-if="isDone" class="bi bi-check-circle-fill text-success ms-1 done-check" aria-hidden="true"></i>
           </span>
         </div>
         <div
@@ -50,7 +51,7 @@
           aria-valuemin="0"
           :aria-valuemax="habit.target.amount"
         >
-          <div class="progress-bar habit-progress-bar" :style="{ width: `${progressPercent}%` }"></div>
+          <div class="progress-bar habit-progress-bar" :style="{ transform: `scaleX(${progressPercent / 100})` }"></div>
         </div>
       </div>
 
@@ -116,13 +117,19 @@ const streakUnit = computed(() => (props.habit.frequency === 'weekly' ? 'week' :
 </script>
 
 <style scoped>
+/* Status colour as an accent along the top edge (E2E tests read this border) */
 .habit-card {
   border-top: 4px solid var(--habit-colour) !important;
-  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  box-shadow: var(--fb-shadow-sm);
 }
-.habit-card:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.08) !important;
+@media (hover: hover) and (pointer: fine) {
+  .habit-card {
+    transition: transform var(--dur-ui) var(--ease-out), box-shadow var(--dur-ui) var(--ease-out);
+  }
+  .habit-card:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--fb-shadow-md);
+  }
 }
 .habit-icon {
   width: 3rem;
@@ -138,8 +145,8 @@ const streakUnit = computed(() => (props.habit.frequency === 'weekly' ? 'week' :
 .status-label {
   display: inline-flex;
   align-items: center;
-  gap: 0.35rem;
-  margin-top: 0.35rem;
+  gap: var(--s-1);
+  margin-top: var(--s-1);
   color: #495057;
 }
 .status-dot {
@@ -151,16 +158,34 @@ const streakUnit = computed(() => (props.habit.frequency === 'weekly' ? 'week' :
 .min-w-0 {
   min-width: 0;
 }
+.habit-title {
+  font-size: var(--fs-lg);
+  font-weight: 600;
+}
 .streak-number {
-  font-size: 1.4rem;
-  line-height: 1;
+  font-size: 1.9rem;
 }
 .habit-progress-bar {
+  width: 100%;
   background-color: var(--habit-colour);
-  transition: width 0.3s ease;
+  transform-origin: left;
+  transition: transform 500ms var(--ease-out), background-color 300ms ease;
+}
+/* The check pops in once when a habit is completed */
+.done-check {
+  display: inline-block;
+  animation: check-pop 360ms var(--ease-out) backwards;
+}
+@keyframes check-pop {
+  from { opacity: 0; transform: scale(0.5); }
+  60% { opacity: 1; transform: scale(1.15); }
+  to { transform: scale(1); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .habit-progress-bar { transition: none; }
 }
 .streak-flame {
-  color: #fd7e14;
+  color: var(--fb-amber);
 }
 /* Dark text on a tint of the status colour, so it stays readable on amber
    as well as on green and grey. */
@@ -169,6 +194,7 @@ const streakUnit = computed(() => (props.habit.frequency === 'weekly' ? 'week' :
   border: 2px solid var(--habit-colour);
   background: transparent;
   font-weight: 600;
+  border-radius: var(--r-md);
 }
 .btn-log:hover:not(:disabled),
 .is-done .btn-log {

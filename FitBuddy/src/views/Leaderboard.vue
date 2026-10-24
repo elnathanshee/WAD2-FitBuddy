@@ -1,169 +1,194 @@
+<!--
+  Weekly leaderboard: points from habit check-ins, a podium for the top 3,
+  and cheers/nudges. Each cheer type can be sent to a person once per day
+  (enforced by the server; `sentToday` tells the UI which buttons to lock).
+-->
 <template>
-  <div class="container py-4" style="max-width: 860px;">
-
-    <div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-2">
+  <div class="container py-4 py-md-5" style="max-width: 880px;">
+    <header class="d-flex justify-content-between align-items-end flex-wrap gap-3 mb-4">
       <div>
-        <h2 class="fw-bold mb-0">🏆 Weekly Leaderboard</h2>
-        <p class="text-muted mb-0">{{ weekLabel }} · Powered by Neon PostgreSQL</p>
+        <h1 class="page-title">Leaderboard</h1>
+        <p class="page-subtitle">{{ weekLabel || 'This week' }} · resets every Monday</p>
       </div>
-      <button class="btn btn-sm btn-outline-secondary rounded-pill" @click="load" :disabled="loading">
-        <i class="bi bi-arrow-clockwise me-1"></i>Refresh
+      <button type="button" class="btn btn-sm btn-tinted px-3" :disabled="loading" @click="load">
+        <i class="bi bi-arrow-clockwise me-1" :class="{ spin: loading }" aria-hidden="true"></i>Refresh
       </button>
-    </div>
+    </header>
 
-    <div v-if="error" class="alert alert-danger d-flex align-items-center mt-3" role="alert">
-      <i class="bi bi-exclamation-triangle me-2"></i>{{ error }}
-    </div>
-
-    <div v-if="toastMsg" class="alert alert-success alert-dismissible fade show mt-3 shadow-sm" role="alert">
-      <i class="bi bi-megaphone me-2"></i>{{ toastMsg }}
-      <button type="button" class="btn-close" @click="toastMsg = ''"></button>
-    </div>
-
-    <!-- Your score card -->
-    <div v-if="me" class="card border-0 shadow-sm rounded-4 my-3 bg-gradient" style="background: linear-gradient(135deg, #f8faff 0%, #eef2ff 100%);">
-      <div class="card-body p-4">
-        <div class="d-flex justify-content-between align-items-center flex-wrap gap-3">
-          <div>
-            <div class="text-primary small text-uppercase fw-bold letter-spacing-1">Your Total Points This Week</div>
-            <div class="display-5 fw-bold text-dark">{{ me.total }} <span class="fs-6 text-muted fw-normal">pts</span></div>
-          </div>
-          <div class="d-flex flex-column gap-1 small text-muted">
-            <div><i class="bi bi-check-circle-fill text-success me-1"></i><strong>{{ me.completions }}</strong> completed × {{ me.rules.COMPLETION }} pts</div>
-            <div><i class="bi bi-stars text-warning me-1"></i><strong>{{ me.allDailyDays }}</strong> perfect days × {{ me.rules.ALL_DAILY }} pts</div>
-            <div><i class="bi bi-fire text-danger me-1"></i><strong>{{ me.milestones }}</strong> 7-day milestones × {{ me.rules.STREAK_MILESTONE }} pts</div>
-          </div>
+    <!-- Toast: drops in from the top and leaves the same way -->
+    <Teleport to="body">
+      <Transition name="toast">
+        <div v-if="toast" class="lb-toast" :class="`lb-toast-${toast.kind}`" role="status" data-testid="leaderboard-toast">
+          <i class="bi" :class="toast.kind === 'info' ? 'bi-clock-history' : 'bi-megaphone-fill'" aria-hidden="true"></i>
+          {{ toast.text }}
         </div>
-      </div>
+      </Transition>
+    </Teleport>
+
+    <div v-if="error" class="alert alert-danger d-flex align-items-center" role="alert">
+      <i class="bi bi-exclamation-triangle me-2" aria-hidden="true"></i>{{ error }}
     </div>
 
-    <!-- Social Cheers & Nudges Received Inbox -->
-    <div v-if="recentCheers.length > 0" class="card border-0 shadow-sm rounded-4 mb-3">
-      <div class="card-body p-3">
-        <div class="d-flex align-items-center gap-2 mb-2">
-          <i class="bi bi-bell-fill text-warning"></i>
-          <span class="small fw-bold text-uppercase text-muted">Recent Buddy Cheers & Nudges</span>
+    <div v-if="loading && !board" class="d-grid gap-3" aria-busy="true">
+      <div class="skeleton" style="height: 120px"></div>
+      <div class="skeleton" style="height: 220px"></div>
+      <div class="skeleton" style="height: 260px"></div>
+    </div>
+
+    <div v-else-if="board" class="d-grid gap-4">
+      <!-- Your points -->
+      <section v-if="me" class="surface my-points p-4">
+        <Trophy3D class="my-trophy" />
+        <div class="flex-grow-1">
+          <div class="eyebrow">Your points this week</div>
+          <div class="points-big display-num"><CountUp :value="me.total" /><span class="pts"> pts</span></div>
         </div>
-        <div class="d-flex flex-wrap gap-2">
-          <div
-            v-for="ch in recentCheers"
-            :key="ch.id"
-            class="badge bg-light text-dark border p-2 rounded-pill d-flex align-items-center gap-2"
-          >
-            <span
-              class="rounded-circle d-inline-block"
-              :style="{ width: '12px', height: '12px', backgroundColor: ch.sender_color || '#4F46E5' }"
-            ></span>
-            <span><strong>{{ ch.sender_name }}</strong> sent you a 
-              <span v-if="ch.type === 'cheer'">🎉 Cheer</span>
-              <span v-else-if="ch.type === 'nudge'">💪 Nudge</span>
-              <span v-else>🔥 Boost</span>!
+        <ul class="breakdown list-unstyled mb-0">
+          <li><i class="bi bi-check-circle-fill text-success" aria-hidden="true"></i><strong>{{ me.completions }}</strong> completions × {{ me.rules.COMPLETION }}</li>
+          <li><i class="bi bi-calendar-check-fill" style="color: var(--fb-blue)" aria-hidden="true"></i><strong>{{ me.allDailyDays }}</strong> perfect days × {{ me.rules.ALL_DAILY }}</li>
+          <li><i class="bi bi-fire" style="color: var(--fb-amber)" aria-hidden="true"></i><strong>{{ me.milestones }}</strong> 7-day milestones × {{ me.rules.STREAK_MILESTONE }}</li>
+        </ul>
+      </section>
+
+      <!-- Podium (top 3) -->
+      <section v-if="podium.length === 3" class="podium" aria-label="Top three">
+        <div
+          v-for="entry in podium"
+          :key="entry.userId"
+          v-tilt
+          class="podium-spot"
+          :class="`place-${entry.rank}`"
+        >
+          <span class="avatar podium-avatar" :style="{ backgroundColor: entry.avatarColor }">
+            {{ entry.displayName.charAt(0).toUpperCase() }}
+          </span>
+          <div class="podium-name">{{ entry.displayName }}</div>
+          <div class="podium-points">{{ entry.points }} pts</div>
+          <div class="podium-step display-num" aria-hidden="true">{{ entry.rank }}</div>
+        </div>
+      </section>
+
+      <!-- Cheers received -->
+      <section v-if="recentCheers.length" v-reveal class="surface p-3 px-md-4">
+        <h2 class="section-title mb-2">Cheers for you</h2>
+        <ul class="cheers-list divided list-unstyled mb-0">
+          <li v-for="ch in recentCheers" :key="ch.id">
+            <span class="avatar" :style="{ width: '24px', height: '24px', fontSize: '11px', backgroundColor: ch.sender_color || '#4F46E5' }">
+              {{ (ch.sender_name || '?').charAt(0) }}
             </span>
-          </div>
-        </div>
-      </div>
-    </div>
+            <span><strong>{{ ch.sender_name }}</strong> {{ CHEER_TEXT[ch.type] || 'boosted you' }}</span>
+          </li>
+        </ul>
+      </section>
 
-    <div v-if="loading && !board" class="text-center py-5">
-      <div class="spinner-border text-primary"></div>
-    </div>
-
-    <div v-else-if="board" class="card border-0 shadow-sm rounded-4">
-      <div class="card-body p-3 p-md-4">
-
+      <!-- Full ranking -->
+      <section class="surface p-2 p-md-3">
         <p v-if="board.entries.length === 0" class="text-muted text-center mb-0 py-4">
           Nobody has any habits yet. Add one and check in to get on the board.
         </p>
 
-        <div
-          v-for="entry in board.entries"
-          :key="entry.userId"
-          class="d-flex align-items-center justify-content-between p-3 rounded-4 mb-2 transition-all"
-          :class="{
-            'bg-primary bg-opacity-10 border border-primary border-opacity-25': entry.isCurrentUser,
-            'bg-light': !entry.isCurrentUser
-          }"
-        >
-          <!-- Left: Rank + Avatar + Name + Metrics -->
-          <div class="d-flex align-items-center gap-3">
-            <span class="fw-bold fs-5 text-muted text-center" style="width: 36px;">
-              <span v-if="entry.rank === 1">🥇</span>
-              <span v-else-if="entry.rank === 2">🥈</span>
-              <span v-else-if="entry.rank === 3">🥉</span>
-              <span v-else>{{ entry.rank }}</span>
+        <ol class="list-unstyled mb-0 stagger">
+          <li
+            v-for="entry in board.entries"
+            :key="entry.userId"
+            class="lb-row"
+            :class="{ 'is-me': entry.isCurrentUser }"
+            data-testid="leaderboard-row"
+            :data-user-id="entry.userId"
+          >
+            <span class="lb-rank display-num" :class="`rank-${entry.rank}`">{{ entry.rank }}</span>
+
+            <span class="avatar" :style="{ width: '40px', height: '40px', backgroundColor: entry.avatarColor, fontSize: '16px' }">
+              {{ entry.displayName.charAt(0).toUpperCase() }}
             </span>
 
-            <div
-              class="rounded-circle d-flex align-items-center justify-content-center text-white fw-bold flex-shrink-0 shadow-sm"
-              :style="{ width: '44px', height: '44px', background: entry.avatarColor, fontSize: '18px' }"
-            >
-              {{ entry.displayName.charAt(0).toUpperCase() }}
-            </div>
-
-            <div>
-              <div class="fw-bold d-flex align-items-center gap-1">
+            <div class="lb-info">
+              <div class="lb-name">
                 {{ entry.displayName }}
-                <span v-if="entry.isCurrentUser" class="badge text-bg-primary ms-1">You</span>
-                <span v-if="entry.cheersCount > 0" class="badge rounded-pill text-bg-warning ms-1" style="font-size: 11px;">
-                  🎉 {{ entry.cheersCount }}
+                <span v-if="entry.isCurrentUser" class="badge rounded-pill text-bg-primary">You</span>
+                <span v-if="entry.cheersCount > 0" class="cheer-count" :title="`${entry.cheersCount} cheers received`">
+                  <i class="bi bi-heart-fill" aria-hidden="true"></i>{{ entry.cheersCount }}
                 </span>
               </div>
-              <small class="text-muted d-block">
-                {{ entry.breakdown.completions }} habits completed
-                <span v-if="entry.breakdown.milestones > 0">· 🔥 {{ entry.breakdown.milestones }} milestone<span v-if="entry.breakdown.milestones > 1">s</span></span>
-              </small>
-            </div>
-          </div>
-
-          <!-- Right: Action Buttons (Cheer / Nudge) + Points -->
-          <div class="d-flex align-items-center gap-3">
-            <!-- Cheer / Nudge buttons for other athletes -->
-            <div v-if="!entry.isCurrentUser" class="d-flex gap-1">
-              <button
-                class="btn btn-sm btn-outline-warning rounded-pill px-2 py-1"
-                @click="cheerAthlete(entry, 'cheer')"
-                title="Cheer on this athlete!"
-              >
-                🎉 Cheer
-              </button>
-              <button
-                class="btn btn-sm btn-outline-primary rounded-pill px-2 py-1"
-                @click="cheerAthlete(entry, 'nudge')"
-                title="Send a friendly nudge!"
-              >
-                💪 Nudge
-              </button>
+              <div class="lb-sub">
+                {{ entry.breakdown.completions }} completed
+                <span v-if="entry.breakdown.milestones > 0">· {{ entry.breakdown.milestones }} streak milestone{{ entry.breakdown.milestones > 1 ? 's' : '' }}</span>
+              </div>
             </div>
 
-            <!-- Total Points -->
-            <div class="text-end">
-              <div class="fw-bold fs-4 text-dark">{{ entry.points }}</div>
-              <small class="text-muted" style="font-size: 11px;">points</small>
+            <div class="lb-points display-num">
+              {{ entry.points }}<small>pts</small>
             </div>
-          </div>
-        </div>
-      </div>
+
+            <!-- Cheer / Nudge: each once per person per day -->
+            <div v-if="!entry.isCurrentUser" class="lb-actions">
+              <button
+                v-for="action in ACTIONS"
+                :key="action.type"
+                type="button"
+                class="btn btn-sm cheer-btn"
+                :class="[`cheer-btn-${action.type}`, { sent: entry.sentToday?.[action.type] }]"
+                :disabled="entry.sentToday?.[action.type] || sendingKey === `${entry.userId}-${action.type}`"
+                :title="entry.sentToday?.[action.type] ? 'Available again tomorrow' : action.title"
+                :data-testid="`${action.type}-btn`"
+                @click="cheerAthlete(entry, action.type)"
+              >
+                <Transition name="morph" mode="out-in">
+                  <span v-if="entry.sentToday?.[action.type]" key="sent">
+                    <i class="bi bi-check2" aria-hidden="true"></i> {{ action.doneLabel }}
+                  </span>
+                  <span v-else key="ready"><i class="bi" :class="action.icon" aria-hidden="true"></i> {{ action.label }}</span>
+                </Transition>
+              </button>
+            </div>
+          </li>
+        </ol>
+      </section>
+
+      <p class="text-muted small text-center mb-0">
+        Points come from completed habit check-ins. You can send each friend one cheer and one nudge a day.
+      </p>
     </div>
-
-    <p class="text-muted small mt-3 mb-0 text-center">
-      Points calculate live from completed habit check-ins and reset every Monday.
-    </p>
   </div>
 </template>
 
 <script setup>
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { leaderboardService } from '../services/leaderboardService'
 import { errorMessage } from '../services/habitService'
 import { toDateKey, fromDateKey } from '../utils/dates'
 import { celebrate } from '../utils/celebrate'
+import CountUp from '../components/CountUp.vue'
+import Trophy3D from '../components/three/Trophy3D.vue'
 
 const board = ref(null)
 const me = ref(null)
 const recentCheers = ref([])
 const loading = ref(false)
 const error = ref('')
-const toastMsg = ref('')
+const toast = ref(null) // { text, kind: 'success' | 'info' }
+const sendingKey = ref(null)
+
+const ACTIONS = [
+  { type: 'cheer', icon: 'bi-heart', label: 'Cheer', doneLabel: 'Cheered', title: 'Cheer on this athlete!' },
+  { type: 'nudge', icon: 'bi-bell', label: 'Nudge', doneLabel: 'Nudged', title: 'Send a friendly nudge!' },
+]
+const CHEER_TEXT = { cheer: 'cheered you on', nudge: 'nudged you', fire: 'sent you a boost', celebrate: 'celebrated you' }
+
+// Podium order is 2nd, 1st, 3rd so the winner stands in the middle.
+// Only shown when the top three have distinct ranks (no ties).
+const podium = computed(() => {
+  const top = board.value?.entries.slice(0, 3) ?? []
+  if (top.length < 3 || new Set(top.map((e) => e.rank)).size < 3) return []
+  return [top[1], top[0], top[2]]
+})
+
+let toastTimer = null
+function showToast(text, kind = 'success') {
+  toast.value = { text, kind }
+  clearTimeout(toastTimer)
+  toastTimer = setTimeout(() => (toast.value = null), 3500)
+}
 
 const weekLabel = computed(() => {
   if (!board.value) return ''
@@ -192,20 +217,335 @@ async function load() {
   }
 }
 
+function markSent(athlete, type) {
+  athlete.sentToday = { ...(athlete.sentToday || {}), [type]: true }
+}
+
 async function cheerAthlete(athlete, type) {
+  if (athlete.sentToday?.[type]) return
+  sendingKey.value = `${athlete.userId}-${type}`
   try {
     await leaderboardService.sendCheer(athlete.userId, type)
     celebrate()
-    const label = type === 'cheer' ? '🎉 cheered' : '💪 nudged'
-    toastMsg.value = `You ${label} ${athlete.displayName}!`
+    const label = type === 'cheer' ? 'cheered' : 'nudged'
+    showToast(`You ${label} ${athlete.displayName}!`)
     athlete.cheersCount = (athlete.cheersCount || 0) + 1
-    setTimeout(() => {
-      toastMsg.value = ''
-    }, 4000)
+    markSent(athlete, type)
   } catch (err) {
-    error.value = err.response?.data?.message || 'Failed to send cheer.'
+    if (err.response?.status === 409) {
+      // Already sent today (e.g. from another tab): lock the button too
+      markSent(athlete, type)
+      showToast(err.response.data?.message || 'Already sent today. Try again tomorrow!', 'info')
+    } else {
+      error.value = err.response?.data?.message || 'Failed to send cheer.'
+    }
+  } finally {
+    sendingKey.value = null
   }
 }
 
 onMounted(load)
+onUnmounted(() => clearTimeout(toastTimer))
 </script>
+
+<style scoped>
+.spin {
+  display: inline-block;
+  animation: spin 0.8s linear infinite;
+}
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* Your points */
+.my-points {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--s-4) var(--s-6);
+}
+.my-trophy {
+  margin: calc(var(--s-4) * -1) 0;
+}
+.points-big {
+  font-size: 4rem;
+  color: var(--fb-green-700);
+  margin-top: var(--s-1);
+}
+.points-big .pts {
+  font-family: var(--font-body);
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--fb-text-2);
+}
+.breakdown {
+  display: grid;
+  gap: var(--s-1);
+  font-size: 0.85rem;
+  color: var(--fb-text-2);
+}
+.breakdown i {
+  margin-right: var(--s-2);
+}
+.breakdown strong {
+  color: var(--fb-text);
+}
+
+/* Podium */
+.podium {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  align-items: end;
+  gap: var(--s-3);
+}
+.podium-spot {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  min-width: 0;
+  animation: rise-up 480ms var(--ease-out) backwards;
+}
+.place-1 { animation-delay: 80ms; }
+.place-3 { animation-delay: 160ms; }
+@keyframes rise-up {
+  from { opacity: 0; transform: translateY(16px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.podium-avatar {
+  width: 56px;
+  height: 56px;
+  font-size: 1.3rem;
+  box-shadow: 0 0 0 3px var(--fb-bg);
+}
+.place-1 .podium-avatar {
+  width: 68px;
+  height: 68px;
+  font-size: 1.5rem;
+}
+.podium-name {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: var(--fs-md);
+  margin-top: var(--s-2);
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.podium-points {
+  font-size: 0.8rem;
+  color: var(--fb-text-2);
+  font-weight: 600;
+  margin-bottom: var(--s-2);
+}
+.podium-step {
+  width: 100%;
+  border-radius: var(--r-md) var(--r-md) 0 0;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding-top: var(--s-3);
+  font-size: 2.2rem;
+  color: var(--fb-text-2);
+  background: var(--fb-surface);
+  border: 1px solid var(--fb-hairline);
+  border-bottom: 0;
+}
+.place-1 .podium-step {
+  height: 112px;
+  color: #f5f3ee;
+  background: var(--fb-green-700);
+  border-color: var(--fb-green-700);
+}
+.place-2 .podium-step {
+  height: 84px;
+}
+.place-3 .podium-step {
+  height: 64px;
+}
+
+/* Cheers received */
+.cheers-list li {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  padding: var(--s-2) 0;
+  font-size: 0.9rem;
+}
+
+/* Ranking rows */
+.lb-row {
+  display: grid;
+  grid-template-columns: 32px 40px minmax(0, 1fr) auto;
+  grid-template-areas:
+    'rank avatar info points'
+    '.    .      actions actions';
+  align-items: center;
+  column-gap: var(--s-3);
+  row-gap: var(--s-2);
+  padding: var(--s-3);
+  border-radius: var(--r-md);
+}
+.lb-row + .lb-row {
+  margin-top: 2px;
+}
+.lb-row.is-me {
+  background: var(--fb-green-50);
+  box-shadow: inset 0 0 0 1px var(--fb-green-200);
+}
+.lb-rank {
+  grid-area: rank;
+  text-align: center;
+  color: var(--fb-text-3);
+  font-size: 1.5rem;
+}
+.lb-rank.rank-1 {
+  color: var(--fb-green-700);
+}
+.lb-row > .avatar {
+  grid-area: avatar;
+}
+.lb-info {
+  grid-area: info;
+  min-width: 0;
+}
+.lb-name {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--s-2);
+  font-weight: 700;
+}
+.lb-sub {
+  font-size: 0.8rem;
+  color: var(--fb-text-2);
+}
+.cheer-count {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-1);
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--fb-rose);
+}
+.lb-points {
+  grid-area: points;
+  text-align: right;
+  font-size: 1.7rem;
+}
+.lb-points small {
+  font-family: var(--font-body);
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: var(--fb-text-2);
+  margin-left: 2px;
+}
+.lb-actions {
+  grid-area: actions;
+  display: flex;
+  gap: var(--s-2);
+}
+
+@media (min-width: 768px) {
+  .lb-row {
+    grid-template-columns: 32px 40px minmax(0, 1fr) auto 72px;
+    grid-template-areas: 'rank avatar info actions points';
+  }
+}
+
+.cheer-btn {
+  min-width: 96px;
+  min-height: 36px;
+  font-size: 0.82rem;
+  padding: var(--s-1) var(--s-3);
+  border: 1px solid var(--fb-hairline);
+  background: var(--fb-surface);
+}
+.cheer-btn-cheer:not(:disabled):hover {
+  background: #fbeeed;
+  border-color: #e8b5b1;
+}
+.cheer-btn-nudge:not(:disabled):hover {
+  background: var(--fb-green-50);
+  border-color: var(--fb-green-200);
+}
+.cheer-btn.sent,
+.cheer-btn.sent:disabled {
+  opacity: 1;
+  color: var(--fb-green-700);
+  background: var(--fb-green-50);
+  border-color: transparent;
+}
+.morph-enter-active,
+.morph-leave-active {
+  transition: opacity 140ms ease, filter 140ms ease;
+}
+.morph-enter-from,
+.morph-leave-to {
+  opacity: 0;
+  filter: blur(2px);
+}
+
+/* Toast */
+.lb-toast {
+  position: fixed;
+  top: calc(var(--fb-nav-h) + 12px);
+  left: 50%;
+  z-index: 1060;
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  max-width: calc(100vw - 32px);
+  padding: var(--s-3) var(--s-4);
+  border-radius: 999px;
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: #fff;
+  background: rgba(28, 27, 24, 0.94);
+  box-shadow: var(--fb-shadow-lg);
+  transform: translateX(-50%);
+}
+.lb-toast-success i {
+  color: var(--fb-green-400);
+}
+.lb-toast-info i {
+  color: var(--fb-yellow);
+}
+.toast-enter-active {
+  transition: opacity 220ms var(--ease-out), transform 220ms var(--ease-out);
+}
+.toast-leave-active {
+  transition: opacity 160ms ease, transform 160ms ease;
+}
+.toast-enter-from,
+.toast-leave-to {
+  opacity: 0;
+  transform: translate(-50%, -12px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .toast-enter-from,
+  .toast-leave-to {
+    transform: translateX(-50%);
+  }
+}
+
+@media (max-width: 575.98px) {
+  .podium {
+    gap: var(--s-2);
+  }
+  .podium-avatar {
+    width: 44px;
+    height: 44px;
+    font-size: 1.1rem;
+  }
+  .place-1 .podium-avatar {
+    width: 54px;
+    height: 54px;
+  }
+  .lb-actions .cheer-btn {
+    flex: 1;
+  }
+}
+</style>

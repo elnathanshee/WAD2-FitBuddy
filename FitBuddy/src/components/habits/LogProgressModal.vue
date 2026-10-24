@@ -1,7 +1,8 @@
 <!--
   Log progress for one habit today: type an amount (decimals allowed) or tap a
   quick chip, then "Log". "Edit today's total" fixes a mistake by setting the
-  total directly. Emits `logged` after a successful save.
+  total directly. Emits `logged` after a successful save, with what changed
+  ({ habitId, date, previousTotal, summary }) so the page can offer Undo.
 -->
 <template>
   <AppModal :title="`${habit.icon} ${habit.name}`" size="sm" @close="emit('close')">
@@ -146,7 +147,11 @@ async function logAmount() {
     return
   }
   unlockSound() // must happen during the click, so the victory sound can play later
-  await run(() => habitService.logAmount(props.habit._id, toDateKey(), roundAmount(amount.value)))
+  const added = roundAmount(amount.value)
+  await run(
+    () => habitService.logAmount(props.habit._id, toDateKey(), added),
+    `Logged ${formatAmount(added)} ${props.habit.target.unit}`,
+  )
 }
 
 function startEditTotal() {
@@ -161,15 +166,21 @@ async function saveTotal() {
     return
   }
   unlockSound()
-  await run(() => habitService.setTotal(props.habit._id, toDateKey(), roundAmount(total.value)))
+  const newTotal = roundAmount(total.value)
+  await run(
+    () => habitService.setTotal(props.habit._id, toDateKey(), newTotal),
+    `Set today to ${formatAmount(newTotal)} ${props.habit.target.unit}`,
+  )
 }
 
-async function run(action) {
+async function run(action, summary) {
   error.value = ''
   saving.value = true
+  const date = toDateKey()
+  const previousTotal = props.habit.todayCount // today's amount before this change
   try {
     await action()
-    emit('logged')
+    emit('logged', { habitId: props.habit._id, habitName: props.habit.name, date, previousTotal, summary })
   } catch (err) {
     error.value = errorMessage(err)
   } finally {

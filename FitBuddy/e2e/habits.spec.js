@@ -243,6 +243,24 @@ test.describe('Logging progress', () => {
     await expect(card.getByTestId('habit-streak')).toHaveText('0')
   })
 
+  test('a mis-tapped log can be undone from the confirmation bar', async ({ page, request }) => {
+    const habit = await createHabitViaApi(request, { name: uniqueHabitName('Undo'), target: { amount: 5, unit: 'times' } })
+    await page.goto('/habits')
+    const card = habitCard(page, habit.name)
+    await logViaUi(page, habit.name, 3)
+    await expect(card.getByTestId('habit-progress')).toHaveText(/3\s*\/\s*5/)
+
+    const bar = page.getByTestId('undo-bar')
+    await expect(bar).toContainText('Logged 3 times')
+    await bar.getByTestId('undo-log-btn').click()
+    await expect(bar).toHaveCount(0)
+    await expect(card.getByTestId('habit-progress')).toHaveText(/0\s*\/\s*5/)
+
+    // Saved for real
+    await page.reload()
+    await expect(habitCard(page, habit.name).getByTestId('habit-progress')).toHaveText(/0\s*\/\s*5/)
+  })
+
   test('there is no one-click reset/undo button on the card', async ({ page, request }) => {
     const habit = await createHabitViaApi(request, { name: uniqueHabitName('No undo') })
     await page.goto('/habits')
@@ -335,6 +353,9 @@ test.describe('Celebration', () => {
     await page.evaluate((id) => {
       const user = JSON.parse(localStorage.getItem('fitbuddy_user'))
       localStorage.setItem('fitbuddy_user', JSON.stringify({ ...user, id }))
+      // A token the server can't verify, so it falls back to the x-user-id
+      // header (the new user) while the router still treats us as logged in
+      localStorage.setItem('fitbuddy_token', 'e2e-unverified')
     }, userId)
 
     try {

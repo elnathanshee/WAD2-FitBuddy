@@ -13,8 +13,8 @@
       :aria-labelledby="titleId"
       @click.self="emit('close')"
     >
-      <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable" :class="sizeClass">
-        <div class="modal-content border-0 shadow">
+      <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable app-modal-dialog" :class="sizeClass">
+        <div class="modal-content border-0">
           <div class="modal-header">
             <h5 :id="titleId" class="modal-title fw-bold">{{ title }}</h5>
             <button type="button" class="btn-close" aria-label="Close" @click="emit('close')"></button>
@@ -28,7 +28,7 @@
         </div>
       </div>
     </div>
-    <div class="modal-backdrop show"></div>
+    <div class="modal-backdrop show app-modal-backdrop"></div>
   </Teleport>
 </template>
 
@@ -58,3 +58,30 @@ onUnmounted(() => {
   window.removeEventListener('keydown', onKeydown)
 })
 </script>
+
+<style>
+/* Unscoped: the modal is teleported to <body>. Modals open from the centre
+   (not anchored to a trigger); they appear quickly and close instantly. */
+.app-modal-dialog {
+  animation: app-modal-in 220ms var(--ease-out) backwards;
+}
+.app-modal-dialog .modal-content {
+  box-shadow: var(--fb-shadow-lg);
+}
+.app-modal-backdrop {
+  animation: app-backdrop-in 200ms ease backwards;
+}
+@keyframes app-modal-in {
+  from { opacity: 0; transform: scale(0.96); }
+  to { opacity: 1; transform: scale(1); }
+}
+@keyframes app-backdrop-in {
+  from { opacity: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  @keyframes app-modal-in {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+}
+</style>

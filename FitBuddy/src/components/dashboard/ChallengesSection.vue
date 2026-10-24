@@ -1,181 +1,150 @@
+<!--
+  Friend challenges: head-to-head duels between two athletes.
+  With `activeOnly` (Home page) finished duels are hidden.
+-->
 <template>
-  <div class="card border-0 shadow-sm rounded-4 p-4 mb-4">
-    <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+  <section class="surface p-4" data-testid="home-challenges">
+    <div class="section-head">
       <div>
-        <h5 class="fw-bold mb-0 d-flex align-items-center gap-2">
-          <i class="bi bi-lightning-charge-fill text-warning"></i>
-          <span>Friend Challenges & Head-to-Head Duels</span>
-        </h5>
-        <small class="text-muted">Compete 1-on-1 with rival athletes to stay accountable</small>
+        <h2 class="section-title">{{ activeOnly ? 'Active challenges' : 'Challenges' }}</h2>
+        <div class="text-muted small">Head-to-head duels keep you accountable</div>
       </div>
-
-      <button
-        class="btn btn-sm btn-primary rounded-pill px-3 d-flex align-items-center gap-1"
-        @click="showCreateModal = true"
-      >
-        <i class="bi bi-plus-circle me-1"></i>New Challenge
-      </button>
     </div>
 
-    <!-- Empty state -->
-    <div v-if="challenges.length === 0" class="text-center py-4 text-muted">
-      <i class="bi bi-shield-shaded fs-1 d-block mb-2 opacity-50"></i>
-      <p class="mb-2">No active challenges yet. Challenge a rival athlete to boost your streak!</p>
-      <button class="btn btn-outline-primary btn-sm rounded-pill px-3" @click="showCreateModal = true">
-        Start First Challenge
-      </button>
+    <div v-if="loading" class="d-grid gap-3">
+      <div v-for="n in 2" :key="n" class="skeleton" style="height: 72px"></div>
     </div>
 
-    <!-- Active Challenges Cards -->
-    <div v-else class="row g-3">
-      <div v-for="ch in challenges" :key="ch.id" class="col-12 col-md-6">
-        <div class="p-3 rounded-4 border bg-light h-100 d-flex flex-column justify-content-between">
-          <div>
-            <div class="d-flex justify-content-between align-items-start mb-2">
-              <span class="badge rounded-pill text-bg-warning px-2 py-1" style="font-size: 11px;">
-                {{ ch.habit_category }} · {{ ch.target_days }}-day duel
-              </span>
-              <span
-                class="badge rounded-pill"
-                :class="ch.status === 'completed' ? 'text-bg-success' : 'text-bg-secondary'"
-                style="font-size: 11px;"
-              >
-                {{ ch.status === 'completed' ? '🏆 Winner Decided' : '⚔️ Active' }}
-              </span>
-            </div>
+    <template v-else>
+      <p v-if="visibleChallenges.length === 0" class="text-muted mb-3" data-testid="challenges-empty">
+        No active challenges. Challenge a friend to stay on track.
+      </p>
 
-            <h6 class="fw-bold mb-2">{{ ch.title }}</h6>
-
-            <!-- Head-to-head Participants -->
-            <div class="d-flex justify-content-between align-items-center text-muted small mb-2">
-              <div class="d-flex align-items-center gap-1">
-                <span class="rounded-circle d-inline-block" :style="{ width: '10px', height: '10px', backgroundColor: ch.creator_color || '#4F46E5' }"></span>
-                <span>{{ ch.creator_name || 'Creator' }}: <strong>{{ ch.creator_progress }}/{{ ch.target_days }}</strong></span>
-              </div>
-              <span class="fw-bold text-danger">VS</span>
-              <div class="d-flex align-items-center gap-1">
-                <span>{{ ch.opponent_name || 'Opponent' }}: <strong>{{ ch.opponent_progress }}/{{ ch.target_days }}</strong></span>
-                <span class="rounded-circle d-inline-block" :style="{ width: '10px', height: '10px', backgroundColor: ch.opponent_color || '#FF9800' }"></span>
+      <!-- One row per duel, separated by hairlines -->
+      <ul v-else class="duels divided list-unstyled mb-3 stagger">
+        <li v-for="ch in visibleChallenges" :key="ch.id" class="duel" data-testid="challenge-card">
+          <div class="duel-head">
+            <div class="min-w-0">
+              <h3 class="duel-title">{{ ch.title }}</h3>
+              <div class="duel-meta">
+                <span class="text-capitalize">{{ ch.habit_category }}</span> · {{ ch.target_days }}-day duel
+                <template v-if="ch.status === 'completed'"> · Finished</template>
               </div>
             </div>
-
-            <!-- Progress bar -->
-            <div class="progress" style="height: 10px;">
-              <div
-                class="progress-bar bg-primary"
-                role="progressbar"
-                :style="{ width: Math.round((ch.creator_progress / ch.target_days) * 50) + '%' }"
-              ></div>
-              <div
-                class="progress-bar bg-warning"
-                role="progressbar"
-                :style="{ width: Math.round((ch.opponent_progress / ch.target_days) * 50) + '%' }"
-              ></div>
-            </div>
-          </div>
-
-          <!-- Bottom Action -->
-          <div class="mt-3 pt-2 border-top d-flex justify-content-between align-items-center">
-            <small class="text-muted" style="font-size: 11px;">
-              {{ ch.status === 'completed' ? 'Finished!' : 'Daily check-in advances progress' }}
-            </small>
             <button
               v-if="ch.status !== 'completed'"
-              class="btn btn-sm btn-outline-success rounded-pill px-2 py-0"
-              style="font-size: 12px;"
+              type="button"
+              class="btn btn-sm btn-outline-success px-3"
+              :disabled="advancingId === ch.id"
               @click="advanceProgress(ch)"
             >
-              <i class="bi bi-check2 me-1"></i>Log Progress
+              <i class="bi bi-check2 me-1" aria-hidden="true"></i>Log day
             </button>
           </div>
-        </div>
-      </div>
-    </div>
 
-    <!-- Create Challenge Modal -->
-    <div v-if="showCreateModal" class="modal-backdrop fade show"></div>
-    <div
-      v-if="showCreateModal"
-      class="modal fade show d-block"
-      tabindex="-1"
-      role="dialog"
-      aria-modal="true"
-    >
-      <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content border-0 shadow rounded-4">
-          <div class="modal-header border-bottom-0 pb-0">
-            <h5 class="modal-title fw-bold">⚔️ Issue a Friend Challenge</h5>
-            <button type="button" class="btn-close" @click="showCreateModal = false"></button>
+          <div v-for="side in sides(ch)" :key="side.key" class="racer">
+            <span class="racer-name">{{ side.name }}</span>
+            <span class="track"><span :style="{ transform: `scaleX(${share(side.progress, ch.target_days)})`, background: side.colour }"></span></span>
+            <span class="racer-score display-num">{{ side.progress }}/{{ ch.target_days }}</span>
           </div>
-          <div class="modal-body">
-            <form @submit.prevent="submitChallenge">
-              <div class="mb-3">
-                <label class="form-label small fw-semibold">Select Opponent</label>
-                <select v-model="newChallenge.opponentId" class="form-select rounded-3" required>
-                  <option disabled value="">Choose a rival athlete...</option>
-                  <option v-for="ath in availableOpponents" :key="ath.id" :value="ath.id">
-                    {{ ath.name }} ({{ ath.email }})
-                  </option>
-                </select>
-              </div>
+        </li>
+      </ul>
 
-              <div class="mb-3">
-                <label class="form-label small fw-semibold">Challenge Title</label>
-                <input
-                  v-model="newChallenge.title"
-                  type="text"
-                  class="form-control rounded-3"
-                  placeholder="e.g. 7-Day Hydration Sprint, 10k Daily Steps Duel"
-                  required
-                />
-              </div>
+      <button type="button" class="btn btn-outline-primary px-3" data-testid="new-challenge-btn" @click="showCreateModal = true">
+        <i class="bi bi-plus-lg me-1" aria-hidden="true"></i>Start a challenge
+      </button>
+    </template>
 
-              <div class="row g-2 mb-3">
-                <div class="col-6">
-                  <label class="form-label small fw-semibold">Category</label>
-                  <select v-model="newChallenge.habitCategory" class="form-select rounded-3">
-                    <option value="exercise">Exercise / Steps</option>
-                    <option value="water">Hydration</option>
-                    <option value="sleep">Sleep Routine</option>
-                    <option value="study">Study Sprint</option>
-                  </select>
-                </div>
-                <div class="col-6">
-                  <label class="form-label small fw-semibold">Duration (Days)</label>
-                  <select v-model="newChallenge.targetDays" class="form-select rounded-3">
-                    <option :value="3">3 Days (Sprint)</option>
-                    <option :value="5">5 Days (Workweek)</option>
-                    <option :value="7">7 Days (Full Week)</option>
-                    <option :value="14">14 Days (Pro)</option>
-                  </select>
-                </div>
-              </div>
+    <p v-if="error" class="text-danger small mt-3 mb-0" role="alert">{{ error }}</p>
 
-              <div class="d-flex justify-content-end gap-2 mt-4">
-                <button type="button" class="btn btn-outline-secondary rounded-pill px-3" @click="showCreateModal = false">
-                  Cancel
-                </button>
-                <button type="submit" class="btn btn-primary rounded-pill px-4" :disabled="submitting">
-                  {{ submitting ? 'Issuing...' : 'Issue Challenge' }}
-                </button>
-              </div>
-            </form>
+    <!-- Create challenge -->
+    <AppModal v-if="showCreateModal" title="New challenge" @close="showCreateModal = false">
+      <form id="challenge-form" @submit.prevent="submitChallenge">
+        <div class="mb-3">
+          <label class="form-label small fw-semibold" for="ch-opponent">Opponent</label>
+          <select id="ch-opponent" v-model="newChallenge.opponentId" class="form-select" required>
+            <option disabled value="">Choose a friend…</option>
+            <option v-for="ath in availableOpponents" :key="ath.id" :value="ath.id">
+              {{ ath.name }} ({{ ath.email }})
+            </option>
+          </select>
+        </div>
+
+        <div class="mb-3">
+          <label class="form-label small fw-semibold" for="ch-title">Title</label>
+          <input
+            id="ch-title"
+            v-model="newChallenge.title"
+            type="text"
+            class="form-control"
+            placeholder="e.g. 7-Day Hydration Sprint"
+            required
+          />
+        </div>
+
+        <div class="row g-2">
+          <div class="col-6">
+            <label class="form-label small fw-semibold" for="ch-category">Category</label>
+            <select id="ch-category" v-model="newChallenge.habitCategory" class="form-select">
+              <option value="exercise">Exercise / Steps</option>
+              <option value="water">Hydration</option>
+              <option value="sleep">Sleep Routine</option>
+              <option value="study">Study Sprint</option>
+            </select>
+          </div>
+          <div class="col-6">
+            <label class="form-label small fw-semibold" for="ch-days">Duration</label>
+            <select id="ch-days" v-model="newChallenge.targetDays" class="form-select">
+              <option :value="3">3 days</option>
+              <option :value="5">5 days</option>
+              <option :value="7">7 days</option>
+              <option :value="14">14 days</option>
+            </select>
           </div>
         </div>
-      </div>
-    </div>
-  </div>
+        <p v-if="createError" class="text-danger small mt-3 mb-0" role="alert">{{ createError }}</p>
+      </form>
+      <template #footer>
+        <button type="button" class="btn btn-outline-secondary px-3" @click="showCreateModal = false">Cancel</button>
+        <button type="submit" form="challenge-form" class="btn btn-primary px-4" :disabled="submitting">
+          {{ submitting ? 'Sending…' : 'Send challenge' }}
+        </button>
+      </template>
+    </AppModal>
+  </section>
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { computed, ref, onMounted } from 'vue'
+import AppModal from '../habits/AppModal.vue'
 import { challengeService } from '../../services/challengeService'
+import { errorMessage } from '../../services/habitService'
 import { authService } from '../../services/authService'
 import { celebrate } from '../../utils/celebrate'
 
+const props = defineProps({
+  activeOnly: { type: Boolean, default: false }, // hide finished duels
+})
+
 const challenges = ref([])
+const loading = ref(true)
+const error = ref('')
+const createError = ref('')
+const advancingId = ref(null)
 const showCreateModal = ref(false)
 const submitting = ref(false)
+
+const visibleChallenges = computed(() =>
+  props.activeOnly ? challenges.value.filter((ch) => ch.status !== 'completed') : challenges.value
+)
+
+const share = (progress, target) => (target > 0 ? Math.min(1, progress / target) : 0)
+
+// The two athletes in a duel, as rows for the progress race
+const sides = (ch) => [
+  { key: 'creator', name: ch.creator_name || 'Creator', progress: ch.creator_progress, colour: ch.creator_color || '#4F46E5' },
+  { key: 'opponent', name: ch.opponent_name || 'Opponent', progress: ch.opponent_progress, colour: ch.opponent_color || '#FF9800' },
+]
 
 const availableOpponents = ref([
   { id: 'rival_charlie', name: 'Charlie Wong', email: 'charlie@fitbuddy.com' },
@@ -197,30 +166,36 @@ async function loadChallenges() {
     challenges.value = list
   } catch (err) {
     console.warn('Failed to load challenges:', err)
+  } finally {
+    loading.value = false
   }
 }
 
 async function submitChallenge() {
   submitting.value = true
+  createError.value = ''
   try {
     await challengeService.createChallenge(newChallenge.value)
     celebrate()
     showCreateModal.value = false
     await loadChallenges()
   } catch (err) {
-    alert(err.response?.data?.message || 'Failed to create challenge')
+    createError.value = errorMessage(err)
   } finally {
     submitting.value = false
   }
 }
 
 async function advanceProgress(ch) {
+  advancingId.value = ch.id
+  error.value = ''
   try {
     await challengeService.recordProgress(ch.id)
-    celebrate()
     await loadChallenges()
   } catch (err) {
-    console.error('Progress error:', err)
+    error.value = errorMessage(err)
+  } finally {
+    advancingId.value = null
   }
 }
 
@@ -240,3 +215,66 @@ onMounted(async () => {
 })
 </script>
 
+<style scoped>
+.min-w-0 {
+  min-width: 0;
+}
+.duel {
+  padding: var(--s-4) 0;
+}
+.duel:first-child {
+  padding-top: 0;
+}
+.duel-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--s-3);
+  margin-bottom: var(--s-3);
+}
+.duel-title {
+  font-size: 1.2rem;
+  font-weight: 600;
+  margin: 0;
+}
+.duel-meta {
+  font-size: 0.8rem;
+  color: var(--fb-text-2);
+}
+.racer {
+  display: grid;
+  grid-template-columns: minmax(0, 110px) 1fr auto;
+  align-items: center;
+  gap: var(--s-3);
+  margin-top: var(--s-2);
+}
+.racer-name {
+  font-size: 0.85rem;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.racer-score {
+  font-size: 1.05rem;
+  min-width: 2.6rem;
+  text-align: right;
+}
+.track {
+  display: block;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--fb-hairline);
+  overflow: hidden;
+}
+.track span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  transform-origin: left;
+  transition: transform 600ms var(--ease-out);
+}
+@media (prefers-reduced-motion: reduce) {
+  .track span { transition: none; }
+}
+</style>

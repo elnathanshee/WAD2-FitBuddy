@@ -1,29 +1,29 @@
 <template>
   <div data-testid="monthly-heatmap">
-    <!-- Rows are weekdays (Mon at the top), columns are weeks: the same layout as
-         GitHub's contribution graph, for one month. -->
-    <div class="heatmap" :style="{ gridTemplateColumns: `auto repeat(${weeks.length}, minmax(0, 44px))` }">
-      <template v-for="(name, row) in WEEKDAYS" :key="name">
-        <span class="weekday small text-muted">{{ name }}</span>
-        <template v-for="week in weeks" :key="week[row].date">
+    <!-- A normal month calendar: one row per week, Mon–Sun columns. Seven equal
+         columns scale with the container, so it fits any screen width. -->
+    <div class="calendar">
+      <span v-for="name in WEEKDAYS" :key="name" class="weekday" aria-hidden="true">{{ name.charAt(0) }}<span class="d-none d-sm-inline">{{ name.slice(1) }}</span></span>
+      <template v-for="week in weeks" :key="week[0].date">
+        <template v-for="cell in week" :key="cell.date">
           <button
-            v-if="week[row].inMonth"
+            v-if="cell.inMonth"
             type="button"
             class="cell"
             :class="{
-              empty: week[row].level === -1,
-              today: week[row].date === today,
-              selected: week[row].date === selectedDate,
+              empty: cell.level === -1,
+              today: cell.date === today,
+              selected: cell.date === selectedDate,
             }"
-            :style="cellStyle(week[row])"
-            :aria-label="describe(week[row])"
-            :title="describe(week[row])"
-            :data-date="week[row].date"
-            :data-level="week[row].level"
+            :style="cellStyle(cell)"
+            :aria-label="describe(cell)"
+            :title="describe(cell)"
+            :data-date="cell.date"
+            :data-level="cell.level"
             data-testid="heatmap-day"
-            @click="selectedDate = week[row].date"
+            @click="selectedDate = cell.date"
           >
-            {{ week[row].dayOfMonth }}
+            {{ cell.dayOfMonth }}
           </button>
           <span v-else class="cell outside" aria-hidden="true"></span>
         </template>
@@ -31,7 +31,7 @@
     </div>
 
     <!-- Details for the tapped day (hover titles don't exist on phones) -->
-    <p class="small mb-2 mt-3" data-testid="heatmap-detail">
+    <p class="small mb-3 mt-3" data-testid="heatmap-detail">
       <template v-if="selectedDay">
         <strong>{{ formatDay(selectedDay.date) }}:</strong> {{ summaryText(selectedDay) }}
       </template>
@@ -39,22 +39,12 @@
     </p>
 
     <!-- Legend -->
-    <div class="d-flex align-items-center column-gap-3 row-gap-1 small text-muted flex-wrap">
-      <span class="d-inline-flex align-items-center gap-1">
-        Less
-        <span
-          v-for="level in LEVELS"
-          :key="level.label"
-          class="swatch"
-          :style="{ backgroundColor: level.colour }"
-          :title="level.label"
-        ></span>
-        More
-      </span>
-      <span class="d-inline-flex align-items-center gap-1">
-        <span class="swatch empty"></span>Nothing due / future
-      </span>
-    </div>
+    <ul class="legend list-unstyled mb-0">
+      <li v-for="level in LEVELS" :key="level.label">
+        <span class="swatch" :style="{ backgroundColor: level.colour }"></span>{{ level.label }}
+      </li>
+      <li><span class="swatch empty"></span>Nothing due / future</li>
+    </ul>
   </div>
 </template>
 
@@ -126,52 +116,78 @@ function describe(cell) {
 </script>
 
 <style scoped>
-.heatmap {
+.calendar {
   display: grid;
-  gap: 4px;
-  align-items: center;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: var(--s-2);
+  max-width: 420px;
 }
 .weekday {
-  font-size: 11px;
-  padding-right: 6px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  text-align: center;
+  color: var(--fb-text-2);
+  padding-bottom: 2px;
 }
 .cell {
   aspect-ratio: 1;
+  min-width: 0;
   border: 0;
-  border-radius: 6px;
+  border-radius: var(--r-sm);
   padding: 0;
-  font-size: 11px;
+  font-family: var(--font-display);
+  font-size: 1rem;
   font-weight: 600;
+  font-variant-numeric: tabular-nums;
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: transform 0.15s ease;
+  transition: transform var(--dur-press) var(--ease-out);
 }
-button.cell:hover {
-  transform: scale(1.08);
+button.cell:active {
+  transform: scale(0.94);
+}
+@media (hover: hover) and (pointer: fine) {
+  button.cell:hover {
+    transform: scale(1.05);
+  }
 }
 .cell.empty {
   background: transparent;
-  border: 1px dashed #d0d7de;
-  color: #8c959f;
+  border: 1px dashed var(--fb-hairline);
+  color: var(--fb-text-3);
 }
 .cell.outside {
   visibility: hidden;
 }
 .cell.today {
-  box-shadow: 0 0 0 2px #fff, 0 0 0 4px #f59f00; /* amber, stands out from the greens */
+  box-shadow: 0 0 0 2px var(--fb-surface), 0 0 0 4px var(--fb-text);
 }
 .cell.selected {
-  outline: 2px solid #1f2328;
+  outline: 2px solid var(--fb-text);
   outline-offset: 1px;
 }
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-1) var(--s-4);
+  font-size: 0.8rem;
+  color: var(--fb-text-2);
+}
+.legend li {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+}
 .swatch {
-  width: 14px;
-  height: 14px;
+  width: 12px;
+  height: 12px;
   border-radius: 3px;
   display: inline-block;
 }
 .swatch.empty {
-  border: 1px dashed #d0d7de;
+  border: 1px dashed var(--fb-text-3);
 }
 </style>

@@ -27,12 +27,18 @@ export function weekStartKey(key) {
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`
 }
 
+// The seeded demo account (server/seedNeon.js); its user id is '1'
+export const DEMO_EMAIL = 'demo@fitbuddy.com'
+export const DEMO_PASSWORD = 'password123'
+
 export async function login(page) {
   await page.goto('/login')
-  await page.locator('#email').fill('demo@habitbuddy.test')
-  await page.locator('#password').fill('password123')
+  await page.locator('#email').fill(DEMO_EMAIL)
+  await page.locator('#password').fill(DEMO_PASSWORD)
   await page.getByRole('button', { name: 'Log In' }).click()
-  await expect(page).toHaveURL(/\/dashboard/)
+  // Home is the first page after login. The database is remote (Neon), so allow
+  // for the occasional slow login request.
+  await expect(page).toHaveURL(/\/home/, { timeout: 15_000 })
 }
 
 // --- API shortcuts: set up state quickly so each UI test only exercises the

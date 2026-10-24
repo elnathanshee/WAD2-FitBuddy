@@ -1,8 +1,15 @@
 # End-to-end tests (Playwright)
 
-`habits.spec.js` covers the Habit feature's main user journeys: create, read,
-update, delete, daily check-ins, completion history, streaks and access control.
+| Spec | Covers |
+|---|---|
+| `habits.spec.js` | Habit CRUD, daily check-ins, completion history, streaks, access control |
+| `navigation.spec.js` | Login lands on Home; Home sections; bottom navigation on every page; Dashboard is stats-only, in order, with a 3-colour calendar; logout in the account menu |
+| `coach-chat.spec.js` | AI coach button position, chat send/reply, multi-turn history, adding a suggested habit, error + retry (Gemini is mocked with `page.route`) |
+| `leaderboard.spec.js` | Cheer/nudge buttons, once-per-day lock (UI + reload), server 409 on a repeat, cheer and nudge limited separately |
+| `experience.spec.js` | Highlights carousel (buttons, dots, autoplay, pause on hover, no autoplay with reduced motion, slide links), background picker (persists after reload), 3D medal/trophy load or fall back, page titles |
+
 Each test runs twice: on a desktop viewport and on a 375 × 667 phone (iPhone 6/7/8).
+Tests log in as the seeded demo account `demo@fitbuddy.com` / `password123`.
 
 ## Running
 
@@ -13,7 +20,7 @@ pnpm install
 npx playwright install chromium
 ```
 
-Then, with `server/.env` pointing at your MongoDB:
+Then, with the API running against the Neon database (see `TEAM_HANDOVER.md`):
 
 ```bash
 pnpm test:e2e        # headless, prints results
@@ -69,6 +76,27 @@ restyling the page won't break them. The Habits page (`/habits`) must use these:
 | `history-week` | Weekly habits: week total cell | Needs `data-week="YYYY-MM-DD"` (the Monday) and `data-completed` |
 | `history-current-streak` | Inside history panel | Only the number |
 | `history-longest-streak` | Inside history panel | Only the number |
+
+Other pages:
+
+| data-testid | Element | Notes |
+|---|---|---|
+| `navbar` / `tabbar` | Top bar / bottom navigation | |
+| `tab-<page>` | Bottom navigation links (every screen size) | `<page>` is `home`, `habits`, `dashboard`, `leaderboard` |
+| `account-menu-btn` / `logout-btn` | Account dropdown and its Log out item | |
+| `home-hero`, `home-habits`, `home-challenges`, `google-health` | Home page sections | |
+| `health-sync-btn` / `health-updates` / `health-steps` (also `-active`, `-distance`, `-calories`) | Google Health card | |
+| `ai-coach-btn` | Floating coach button (Habits page) | |
+| `coach-panel`, `coach-input`, `coach-send`, `coach-chip`, `coach-close` | Coach chat panel | |
+| `coach-message` | One chat bubble | `data-role` is `user`, `model` or `error` |
+| `coach-suggestion`, `coach-add-btn`, `coach-add-all` | Suggested habit cards | |
+| `leaderboard-row` | One athlete | `data-user-id` is the athlete's id |
+| `cheer-btn` / `nudge-btn` | Inside a row | Disabled once sent today |
+| `leaderboard-toast` | Confirmation toast | |
+| `highlights-carousel` | Home carousel | `data-active-index` is the current slide |
+| `carousel-slide`, `carousel-prev`, `carousel-next`, `carousel-dot` | Carousel parts | Dots have `aria-selected` |
+| `bg-picker`, `bg-<id>` | Background picker in the account menu | ids: `paper`, `dots`, `topo`, `track`, `field`; the choice is `<html data-bg>` |
+| `streak-medal`, `trophy-3d` | 3D models | `data-state` is `loading`, `ready` or `fallback` |
 
 Example:
 

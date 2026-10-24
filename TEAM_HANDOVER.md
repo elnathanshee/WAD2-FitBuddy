@@ -14,10 +14,10 @@ Welcome team! **FitBuddy** is a full-stack social fitness and habit accountabili
    - Salted `scrypt` password hashing + stateless HMAC-SHA256 JWT tokens.
    - Login, Signup, Remember Me, and Session persistence.
    - **1-Click Test Athlete Switcher:** Instant buttons on the login page and navbar for rapid grading and multi-account testing.
-2. **Interactive Fitness & Habits Dashboard (`/dashboard`):**
-   - Active streak tracking, weekly consistency rates, and quick habit shortcuts.
-   - Live integrated widgets: Wearable Sync, Consistency Matrix, and Challenges.
-3. **Wearable Health Sync Simulator (Apple Health & Google Fit):**
+2. **Home (`/home`, the first page after login) and Dashboard (`/dashboard`):**
+   - Home: today's habits and progress ring, active challenges, and the Google Health card with its latest sync updates.
+   - Dashboard: statistics only — completion rates, charts and streaks by day, week or month.
+3. **Google Health Sync Simulator (simulated data, no real Google API):**
    - Real-time biometric simulation (Steps, Active Distance km, Active Calories kcal, Workout mins).
    - Automatically writes verified check-in records with JSONB telemetry to Neon PostgreSQL.
 4. **7-Day Consistency Analytics & Habit Heatmap:**
@@ -26,8 +26,8 @@ Welcome team! **FitBuddy** is a full-stack social fitness and habit accountabili
    - Social duels against rivals with dual progress bar split visualization.
 6. **Habits Tracker Suite (`/habits`):**
    - Full CRUD, category filtering (Fitness, Nutrition, Mindfulness, Recovery), 7-day interactive check-in dot matrix, and streak calculators.
-7. **Gemini AI Goal Coach (`AiGoalCoachModal.vue`):**
-   - Google Gemini 2.5 Flash integration generating personalized SMART training plans and atomic habit recommendations with 1-click database import.
+7. **Gemini AI Goal Coach chatbot (`CoachChat.vue`):**
+   - Floating button in the bottom-right of the Habits page opens a chat. The user describes a goal; Google Gemini 3.5 Flash replies (multi-turn, it remembers the conversation) and suggests habits that can be added in one tap.
 8. **Weekly Social Leaderboard & Confetti Cheers (`/leaderboard`):**
    - Live weekly points computed directly from PostgreSQL check-ins.
    - Gold/Silver/Bronze podium styling, cheer/nudge buttons with `canvas-confetti` animations, and activity inbox.
@@ -126,7 +126,7 @@ WAD2-FitBuddy/
 │   │   ├── healthSyncController.js     # Apple Health & Google Fit sync
 │   │   ├── analyticsController.js      # 7-day consistency calculation
 │   │   ├── challengeController.js      # Head-to-head friend duels
-│   │   └── aiController.js             # Google Gemini 2.5 Flash Coach
+│   │   └── aiController.js             # Google Gemini 3.5 Flash Coach (suggest-habits + coach-chat)
 │   ├── middleware/
 │   │   └── requireUser.js     # Bearer token JWT verification
 │   ├── routes/                # Express API routes (/api/auth, /api/habits, etc.)
@@ -143,7 +143,7 @@ WAD2-FitBuddy/
 │   │   │   ├── habits/        # HabitCard, AddHabitModal, AiGoalCoachModal
 │   │   │   ├── leaderboard/   # LeaderboardPodium, LeaderboardTable
 │   │   │   └── Navbar.vue     # Global top navigation & quick user switcher
-│   │   ├── views/             # Dashboard.vue, HabitsPage.vue, Leaderboard.vue
+│   │   ├── views/             # HomePage.vue, Dashboard.vue, HabitsPage.vue, Leaderboard.vue
 │   │   ├── services/          # api.js, authService.js
 │   │   ├── router/            # Vue Router 4 with route guards (requiresAuth)
 │   │   ├── App.vue
@@ -181,7 +181,8 @@ All tables are automatically verified and created on startup if they don't exist
 3. **`check_ins`**:
    - `id` (SERIAL PK), `habit_id` (INT FK), `user_id` (VARCHAR FK), `date` (VARCHAR YYYY-MM-DD), `count` (INT), `notes` (TEXT), `telemetry` (JSONB).
 4. **`cheers`**:
-   - `id` (SERIAL PK), `sender_id` (VARCHAR FK), `recipient_id` (VARCHAR FK), `type` (VARCHAR: `cheer`, `nudge`, `fire`, `celebrate`), `message` (TEXT), `created_at`.
+   - `id` (SERIAL PK), `sender_id` (VARCHAR FK), `recipient_id` (VARCHAR FK), `type` (VARCHAR: `cheer`, `nudge`, `fire`, `celebrate`), `message` (TEXT), `created_at`, `sent_on` (DATE, Singapore day).
+   - Unique index on (`sender_id`, `recipient_id`, `type`, `sent_on`): each type can be sent to a person once per day.
 5. **`challenges`**:
    - `id` (SERIAL PK), `creator_id` (VARCHAR FK), `opponent_id` (VARCHAR FK), `title` (VARCHAR), `habit_category` (VARCHAR), `target_days` (INT), `creator_progress` (INT), `opponent_progress` (INT), `status` (VARCHAR: `active`, `completed`).
 
@@ -200,14 +201,15 @@ All tables are automatically verified and created on startup if they don't exist
 | `POST` | `/api/habits` | Yes (`Bearer`) | Creates a new habit |
 | `POST` | `/api/habits/:id/check-in` | Yes (`Bearer`) | Logs or toggles completion for a specific date |
 | `GET` | `/api/leaderboard/weekly` | Yes (`Bearer`) | Dynamic weekly leaderboard rankings and points |
-| `POST` | `/api/leaderboard/cheer` | Yes (`Bearer`) | Sends a cheer/nudge to a fellow athlete |
+| `POST` | `/api/leaderboard/cheer` | Yes (`Bearer`) | Sends a cheer/nudge to a fellow athlete. **409** if that type was already sent to them today |
 | `GET` | `/api/leaderboard/cheers` | Yes (`Bearer`) | Gets latest cheers received by current user |
 | `POST` | `/api/health-sync/simulate` | Yes (`Bearer`) | Simulates Apple Health / Google Fit sync |
 | `GET` | `/api/analytics/summary?period=day\|week\|month&offset=0&today=YYYY-MM-DD` | Yes (`Bearer`) | Analytics Dashboard: completion rates, per-day breakdown, streaks, category counts |
 | `GET` | `/api/analytics/weekly-summary` | Yes (`Bearer`) | 7-day completion rates & category counts |
 | `GET` | `/api/challenges` | Yes (`Bearer`) | Lists active and completed friend challenges |
 | `POST` | `/api/challenges` | Yes (`Bearer`) | Creates a new head-to-head challenge |
-| `POST` | `/api/ai/suggest-habits` | Yes (`Bearer`) | Google Gemini 2.5 Flash habit recommendation |
+| `POST` | `/api/ai/suggest-habits` | Yes (`Bearer`) | Google Gemini 3.5 Flash habit recommendation (one-shot) |
+| `POST` | `/api/ai/coach-chat` | Yes (`Bearer`) | Goal coach chatbot. Body `{ messages: [{ role: 'user'\|'model', text }] }` → `{ reply, suggestions }` |
 
 ---
 

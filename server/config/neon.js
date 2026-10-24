@@ -114,6 +114,16 @@ export async function initNeonSchema() {
     CREATE INDEX IF NOT EXISTS idx_cheers_recipient ON cheers(recipient_id);
   `
 
+  // One cheer and one nudge per sender → recipient per day. sent_on is the
+  // Singapore calendar day; older rows keep sent_on NULL so they never conflict.
+  await sql`
+    ALTER TABLE cheers ADD COLUMN IF NOT EXISTS sent_on DATE;
+  `
+
+  await sql`
+    CREATE UNIQUE INDEX IF NOT EXISTS uniq_cheers_daily ON cheers(sender_id, recipient_id, type, sent_on);
+  `
+
   await sql`
     CREATE TABLE IF NOT EXISTS challenges (
       id SERIAL PRIMARY KEY,

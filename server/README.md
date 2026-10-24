@@ -86,6 +86,35 @@ Generated with AI (Claude), as boilerplate/test/mock-data assistance:
   `controllers/analyticsController.js`, `routes/analytics.js`, and in the frontend
   `components/dashboard/AnalyticsDashboard.vue`, `MonthlyHeatmap.vue`,
   `utils/completionLevels.js`, `services/analyticsService.js`
+- UI redesign & page restructure (David, implemented by Claude): the design system
+  (`src/assets/main.css`), animations, `App.vue` route transition, `Navbar.vue`
+  (sliding pill, mobile tab bar, account menu), the new Home page
+  (`views/HomePage.vue`), the stats-only `views/Dashboard.vue`, and the restyle of
+  `Leaderboard.vue`, `HabitsPage.vue`, `HabitCard.vue`, `AppModal.vue`,
+  `ChallengesSection.vue`, `FitnessTrackerWidget.vue` (Google Health card),
+  `AnalyticsDashboard.vue`, `MonthlyHeatmap.vue` and the login/sign-up pages
+- Visual refresh (implemented by Claude): warm palette, bottom navigation on every
+  screen size, divider-based layouts, 3-colour month calendar, reordered Dashboard,
+  4-point spacing scale and type ramp (`src/assets/main.css`)
+- Interactive layer (implemented by Claude): background presets
+  (`composables/useBackground.js`), highlights carousel (`components/HighlightsCarousel.vue`),
+  count-up numbers (`components/CountUp.vue`), scroll-reveal and tilt
+  (`directives/motion.js`), 3D streak medal and trophy (`components/three/*`,
+  `utils/three/spinnable.js`), page titles/meta, OG image and favicon
+- Third-party, free resources used (credited per IS216 FAQ #6):
+  - Three.js (MIT licence, threejs.org): 3D rendering; models are built in code
+  - Fredoka and Nunito fonts (SIL Open Font Licence, via Google Fonts)
+  - Palette and font pairing from the open-source ui-ux-pro-max design database
+    (github.com/nextlevelbuilder/ui-ux-pro-max-skill, "Habit Tracker" and
+    "Playful Creative" profiles)
+- AI Goal Coach chatbot (implemented by Claude): `components/habits/CoachChat.vue`,
+  `services/aiService.js` `coachChat()`, and the backend `POST /api/ai/coach-chat`
+  (`coachChat`, `callGemini`, `sanitizeSuggestion` in `controllers/aiController.js`)
+- Once-a-day cheer/nudge limit (implemented by Claude): `sent_on` column + unique
+  index in `config/neon.js`, the 409 rule and `sentToday` in
+  `controllers/neonLeaderboardController.js`
+- Tests (Claude): `../FitBuddy/e2e/navigation.spec.js`, `coach-chat.spec.js`,
+  `leaderboard.spec.js`, and the coach-chat cases in `tests/ai.api.test.js`
 
 Written by the team: all controller handler logic, `calculateStreak`, and the Vue
 habit pages/components. *(Update this list as the code changes.)*

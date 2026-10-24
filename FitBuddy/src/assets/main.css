@@ -1,85 +1,631 @@
-/* Custom Styles for FitBuddy */
+/* =============================================================================
+   FitBuddy design system
+   Tokens + Bootstrap theming + shared primitives (surface, glass, pressable,
+   stagger). Motion values follow two rules: respond instantly on press, and
+   keep UI transitions short (≤ 300ms) with strong ease-out curves.
+   Palette and type follow the "Habit Tracker" / "Playful Creative" profiles of
+   the ui-ux-pro-max design database (github.com/nextlevelbuilder/ui-ux-pro-max-skill):
+   streak amber + progress green on a warm neutral, rounded playful headings.
+
+   Systems (use these, never ad-hoc values):
+   - Spacing: 4-point scale, --s-1 (4px) … --s-16 (64px)
+   - Type ramp: --fs-xs … --fs-4xl, headings in Fredoka, body in Nunito
+   - Shape: --r-sm / --r-md / --r-lg / --r-xl, one shadow style for floating UI
+   ============================================================================= */
+
 :root {
-  --fb-primary: #198754; /* Success green/teal */
-  --fb-primary-dark: #146c43;
-  --fb-bg: #f8f9fa;
-  --fb-dark: #212529;
+  /* Brand green: a deep, slightly muted "progress" green */
+  --fb-green-50: #eef6f1;
+  --fb-green-100: #dcefe3;
+  --fb-green-200: #b9dec8;
+  --fb-green-400: #4fae7d;
+  --fb-green-500: #2f9364;
+  --fb-green-600: #237a51;
+  --fb-green-700: #1b6343;
+  --fb-green-rgb: 35, 122, 81;
+
+  /* Accents: streak amber is the second brand colour */
+  --fb-amber: #d98a1c;
+  --fb-amber-text: #a85f08;
+  --fb-blue: #3b6fb6;
+  --fb-orange: #d98a1c;
+  --fb-purple: #7a5aa6;
+  --fb-rose: #c4504a;
+  --fb-red: #c4504a;
+  --fb-yellow: #e2b33c;
+
+  /* Warm neutrals */
+  --fb-bg: #f5f3ee;
+  --fb-surface: #ffffff;
+  --fb-surface-2: #faf8f4;
+  --fb-text: #1c1b18;
+  --fb-text-2: #5d5850;
+  --fb-text-3: #8f897e;
+  --fb-hairline: #e7e2d8;
+
+  /* Type */
+  --font-display: 'Fredoka', 'Nunito', system-ui, sans-serif;
+  --font-body: 'Nunito', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  /* Type ramp */
+  --fs-xs: 0.75rem;   /* 12px */
+  --fs-sm: 0.875rem;  /* 14px */
+  --fs-md: 1rem;      /* 16px */
+  --fs-lg: 1.25rem;   /* 20px */
+  --fs-xl: 1.5rem;    /* 24px */
+  --fs-2xl: 2rem;     /* 32px */
+  --fs-3xl: 2.5rem;   /* 40px */
+  --fs-4xl: 3.5rem;   /* 56px */
+
+  /* Spacing: 4-point scale */
+  --s-1: 4px;
+  --s-2: 8px;
+  --s-3: 12px;
+  --s-4: 16px;
+  --s-5: 20px;
+  --s-6: 24px;
+  --s-8: 32px;
+  --s-10: 40px;
+  --s-12: 48px;
+  --s-16: 64px;
+
+  /* Legacy aliases still used by a few components */
+  --fb-primary: var(--fb-green-600);
+  --fb-primary-dark: var(--fb-green-700);
+  --fb-dark: var(--fb-text);
+
+  /* Shape: modest radii read as crafted rather than "bubbly" */
+  --r-sm: 6px;
+  --r-md: 10px;
+  --r-lg: 14px;
+  --r-xl: 20px;
+
+  /* Elevation: structure comes from hairlines; shadows only for floating UI */
+  --fb-shadow-sm: 0 1px 0 rgba(28, 27, 24, 0.03);
+  --fb-shadow-card: 0 1px 2px rgba(28, 27, 24, 0.04), 0 4px 12px rgba(28, 27, 24, 0.04);
+  --fb-shadow-md: 0 1px 2px rgba(28, 27, 24, 0.05), 0 6px 18px rgba(28, 27, 24, 0.07);
+  --fb-shadow-lg: 0 2px 8px rgba(28, 27, 24, 0.08), 0 18px 44px rgba(28, 27, 24, 0.16);
+
+  /* Motion */
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
+  --ease-drawer: cubic-bezier(0.32, 0.72, 0, 1);
+  --dur-press: 120ms;
+  --dur-ui: 200ms;
+  --dur-panel: 280ms;
+
+  /* Layout: height of the sticky top bar (it gains a second row of tabs on phones) */
+  --fb-nav-h: 64px;
+
+  /* Bootstrap theming through its own variables */
+  --bs-primary: var(--fb-green-600);
+  --bs-primary-rgb: var(--fb-green-rgb);
+  --bs-primary-bg-subtle: var(--fb-green-50);
+  --bs-primary-border-subtle: var(--fb-green-200);
+  --bs-primary-text-emphasis: var(--fb-green-700);
+  --bs-success: var(--fb-green-600);
+  --bs-success-rgb: var(--fb-green-rgb);
+  --bs-link-color: var(--fb-green-700);
+  --bs-link-color-rgb: 27, 99, 67;
+  --bs-link-hover-color: var(--fb-green-600);
+  --bs-link-hover-color-rgb: var(--fb-green-rgb);
+  --bs-body-bg: var(--fb-bg);
+  --bs-body-color: var(--fb-text);
+  --bs-secondary-color: var(--fb-text-2);
+  --bs-border-color: var(--fb-hairline);
+  --bs-border-radius: var(--r-md);
+  --bs-border-radius-lg: var(--r-lg);
+  --bs-border-radius-xl: var(--r-xl);
+  --bs-body-font-family: var(--font-body);
+  --bs-body-font-size: 1rem;
+  --bs-focus-ring-color: rgba(var(--fb-green-rgb), 0.3);
 }
 
+@media (max-width: 767.98px) {
+  :root {
+    --fb-nav-h: 120px;
+  }
+}
+
+/* ---------- Backgrounds (chosen in the account menu, see composables/useBackground.js) ---------- */
+html[data-bg] body {
+  background-attachment: fixed;
+}
+html[data-bg='paper'] body {
+  background-color: var(--fb-bg);
+}
+html[data-bg='dots'] body {
+  background-color: var(--fb-bg);
+  background-image: radial-gradient(circle, #d8d1c3 1px, transparent 1.5px);
+  background-size: 24px 24px;
+}
+html[data-bg='topo'] body {
+  background-color: var(--fb-bg);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='480' height='480' viewBox='0 0 480 480'%3E%3Cg fill='none' stroke='%23ddd5c6' stroke-width='1.2'%3E%3Cpath d='M-20 80c60-40 120 30 190 0s120-60 200-20 100 40 140 10'/%3E%3Cpath d='M-20 120c70-30 130 40 200 10s110-50 190-10 90 30 130 0'/%3E%3Cpath d='M-20 160c80-20 140 50 210 20s100-40 180 0 80 20 120-10'/%3E%3Cpath d='M120 300c0-50 50-80 100-80s110 30 110 80-50 90-110 90-100-40-100-90z'/%3E%3Cpath d='M150 300c0-34 34-56 70-56s78 22 78 56-34 62-78 62-70-28-70-62z'/%3E%3Cpath d='M180 300c0-18 18-30 40-30s44 12 44 30-18 34-44 34-40-16-40-34z'/%3E%3Cpath d='M-20 420c60-30 140 20 220-10s130-40 200-10 60 20 100 0'/%3E%3Cpath d='M-20 460c70-20 140 30 220 0s120-30 190 0 70 10 110-10'/%3E%3C/g%3E%3C/svg%3E");
+  background-size: 480px 480px;
+}
+html[data-bg='track'] body {
+  background-color: #f6efe6;
+  background-image: repeating-linear-gradient(180deg, transparent 0 62px, rgba(196, 80, 74, 0.14) 62px 64px);
+}
+html[data-bg='field'] body {
+  background-color: #eef3ea;
+  background-image: repeating-linear-gradient(90deg, rgba(47, 147, 100, 0.06) 0 96px, transparent 96px 192px);
+}
+
+/* Swatches in the background picker reuse the same patterns, scaled down */
+[data-bg-preview='paper'] { background: var(--fb-bg); }
+[data-bg-preview='dots'] {
+  background: var(--fb-bg) radial-gradient(circle, #cfc7b7 1px, transparent 1.5px) 0 0 / 8px 8px;
+}
+[data-bg-preview='topo'] {
+  background-color: var(--fb-bg);
+  background-image: repeating-radial-gradient(circle at 30% 70%, transparent 0 5px, #d6cdbc 5px 6px);
+}
+[data-bg-preview='track'] {
+  background: #f6efe6 repeating-linear-gradient(180deg, transparent 0 7px, rgba(196, 80, 74, 0.35) 7px 8px);
+}
+[data-bg-preview='field'] {
+  background: #eef3ea repeating-linear-gradient(90deg, rgba(47, 147, 100, 0.18) 0 8px, transparent 8px 16px);
+}
+
+/* ---------- Base & typography ---------- */
 body {
   background-color: var(--fb-bg);
-  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-  color: var(--fb-dark);
+  color: var(--fb-text);
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
 }
 
-.text-primary {
-  color: var(--fb-primary) !important;
+/* Headings use the rounded display face; body copy stays in Nunito */
+h1, h2, h3, h4, h5, .h1, .h2, .h3, .h4, .h5, .modal-title {
+  font-family: var(--font-display);
+  font-weight: 600;
+  letter-spacing: -0.005em;
+  line-height: 1.15;
+}
+h6, .h6 {
+  letter-spacing: 0;
+  line-height: 1.25;
 }
 
-.bg-primary {
-  background-color: var(--fb-primary) !important;
+/* Big numbers (stats, points, counts) read like a scoreboard */
+.display-num {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0;
+  line-height: 1;
+}
+
+.text-muted,
+.text-secondary {
+  color: var(--fb-text-2) !important;
+}
+
+.tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Small uppercase label */
+.eyebrow {
+  font-size: var(--fs-xs);
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--fb-text-2);
+}
+
+/* Page header used at the top of every view */
+.page-title {
+  font-size: clamp(var(--fs-2xl), 5vw, var(--fs-3xl));
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  line-height: 1.1;
+  margin-bottom: var(--s-1);
+}
+.page-subtitle {
+  color: var(--fb-text-2);
+  margin-bottom: 0;
+}
+
+/* ---------- Bootstrap component theming ---------- */
+.btn {
+  --bs-btn-font-weight: 600;
+  --bs-btn-border-radius: var(--r-md);
+  --bs-btn-focus-box-shadow: 0 0 0 0.25rem rgba(var(--fb-green-rgb), 0.25);
+  letter-spacing: -0.005em;
+  transition:
+    transform var(--dur-press) var(--ease-out),
+    background-color 150ms ease,
+    border-color 150ms ease,
+    color 150ms ease,
+    box-shadow 150ms ease;
 }
 
 .btn-primary {
-  background-color: var(--fb-primary);
-  border-color: var(--fb-primary);
-  transition: all 0.3s ease;
+  --bs-btn-bg: var(--fb-green-600);
+  --bs-btn-border-color: var(--fb-green-600);
+  --bs-btn-hover-bg: var(--fb-green-700);
+  --bs-btn-hover-border-color: var(--fb-green-700);
+  --bs-btn-active-bg: var(--fb-green-700);
+  --bs-btn-active-border-color: var(--fb-green-700);
+  --bs-btn-disabled-bg: var(--fb-green-600);
+  --bs-btn-disabled-border-color: var(--fb-green-600);
 }
 
-.btn-primary:hover {
-  background-color: var(--fb-primary-dark);
-  border-color: var(--fb-primary-dark);
-  transform: translateY(-1px);
+.btn-outline-primary {
+  --bs-btn-color: var(--fb-green-700);
+  --bs-btn-border-color: var(--fb-green-200);
+  --bs-btn-hover-color: var(--fb-green-700);
+  --bs-btn-hover-bg: var(--fb-green-50);
+  --bs-btn-hover-border-color: var(--fb-green-400);
+  --bs-btn-active-color: var(--fb-green-700);
+  --bs-btn-active-bg: var(--fb-green-100);
+  --bs-btn-active-border-color: var(--fb-green-400);
+  --bs-btn-disabled-color: var(--fb-green-700);
+  --bs-btn-disabled-border-color: var(--fb-green-200);
 }
 
-.page-transition {
-  animation: fadeIn 0.3s ease-in-out;
+.btn-success {
+  --bs-btn-bg: var(--fb-green-600);
+  --bs-btn-border-color: var(--fb-green-600);
+  --bs-btn-hover-bg: var(--fb-green-700);
+  --bs-btn-hover-border-color: var(--fb-green-700);
+  --bs-btn-active-bg: var(--fb-green-700);
 }
 
-@keyframes fadeIn {
-  from { opacity: 0; transform: translateY(5px); }
+.btn-outline-success {
+  --bs-btn-color: var(--fb-green-700);
+  --bs-btn-border-color: var(--fb-green-200);
+  --bs-btn-hover-color: #fff;
+  --bs-btn-hover-bg: var(--fb-green-600);
+  --bs-btn-hover-border-color: var(--fb-green-600);
+  --bs-btn-active-bg: var(--fb-green-700);
+}
+
+/* Quiet "tinted" button: soft fill, no border */
+.btn-tinted {
+  --bs-btn-color: var(--fb-green-700);
+  --bs-btn-bg: var(--fb-green-50);
+  --bs-btn-border-color: transparent;
+  --bs-btn-hover-color: var(--fb-green-700);
+  --bs-btn-hover-bg: var(--fb-green-100);
+  --bs-btn-hover-border-color: transparent;
+  --bs-btn-active-color: var(--fb-green-700);
+  --bs-btn-active-bg: var(--fb-green-100);
+  --bs-btn-active-border-color: transparent;
+  --bs-btn-disabled-color: var(--fb-text-2);
+  --bs-btn-disabled-bg: var(--fb-surface-2);
+  --bs-btn-disabled-border-color: transparent;
+}
+
+/* Press feedback: instant, subtle. Applies to every button and .pressable */
+.btn:active:not(:disabled),
+.pressable:active {
+  transform: scale(0.97);
+}
+.pressable {
+  transition: transform var(--dur-press) var(--ease-out);
+}
+
+.card {
+  --bs-card-border-color: var(--fb-hairline);
+  --bs-card-border-radius: var(--r-lg);
+  --bs-card-inner-border-radius: calc(var(--r-lg) - 1px);
+  --bs-card-bg: var(--fb-surface);
+}
+
+.form-control,
+.form-select {
+  border-color: rgba(0, 0, 0, 0.12);
+  background-color: var(--fb-surface);
+  transition: border-color 150ms ease, box-shadow 150ms ease;
+}
+.form-control:focus,
+.form-select:focus {
+  border-color: var(--fb-green-400);
+  box-shadow: 0 0 0 0.25rem rgba(var(--fb-green-rgb), 0.18);
+}
+.form-check-input:checked {
+  background-color: var(--fb-green-600);
+  border-color: var(--fb-green-600);
+}
+.form-check-input:focus {
+  border-color: var(--fb-green-400);
+  box-shadow: 0 0 0 0.25rem rgba(var(--fb-green-rgb), 0.18);
+}
+
+.progress {
+  --bs-progress-bg: rgba(0, 0, 0, 0.06);
+  --bs-progress-bar-bg: var(--fb-green-500);
+  --bs-progress-border-radius: 999px;
+}
+
+.nav-pills {
+  --bs-nav-pills-link-active-bg: var(--fb-green-600);
+}
+.nav-link {
+  --bs-nav-link-color: var(--fb-green-700);
+  --bs-nav-link-hover-color: var(--fb-green-600);
+}
+
+.dropdown-menu {
+  --bs-dropdown-border-color: var(--fb-hairline);
+  --bs-dropdown-border-radius: var(--r-md);
+  --bs-dropdown-link-active-bg: var(--fb-green-600);
+  --bs-dropdown-item-border-radius: var(--r-sm);
+  box-shadow: var(--fb-shadow-lg);
+  padding: 6px;
+}
+
+.alert {
+  --bs-alert-border-radius: var(--r-md);
+  border: 0;
+}
+
+.badge {
+  font-weight: 600;
+  letter-spacing: 0.01em;
+}
+
+.modal {
+  --bs-modal-border-radius: var(--r-xl);
+  --bs-modal-inner-border-radius: var(--r-xl);
+  --bs-modal-header-border-color: var(--fb-hairline);
+  --bs-modal-footer-border-color: var(--fb-hairline);
+}
+.modal-backdrop.show {
+  --bs-backdrop-opacity: 0.35;
+}
+
+/* Visible keyboard focus everywhere */
+:focus-visible {
+  outline: 2px solid var(--fb-green-500);
+  outline-offset: 2px;
+}
+.btn:focus-visible,
+.form-control:focus-visible,
+.form-select:focus-visible {
+  outline: none;
+}
+
+/* ---------- Shared primitives ---------- */
+
+/* Primary content surface. Never nest one inside another: inside a surface,
+   separate content with .divided lists and whitespace instead. */
+.surface {
+  background: var(--fb-surface);
+  border: 1px solid var(--fb-hairline);
+  border-radius: var(--r-lg);
+  box-shadow: var(--fb-shadow-card); /* lifts surfaces off the patterned background */
+}
+
+/* Rows separated by hairlines (used inside surfaces instead of inner cards) */
+.divided > * + * {
+  border-top: 1px solid var(--fb-hairline);
+}
+
+/* Translucent material for floating chrome (nav, tab bar, panels) */
+.glass {
+  background: rgba(255, 253, 249, 0.78);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  backdrop-filter: blur(20px) saturate(180%);
+}
+
+/* Section header inside a surface */
+.section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-3);
+  margin-bottom: var(--s-4);
+}
+.section-title {
+  font-family: var(--font-display);
+  font-size: var(--fs-lg);
+  font-weight: 600;
+  letter-spacing: 0;
+  margin: 0;
+}
+
+/* Icon tile used for habits, stats and list rows */
+.icon-tile {
+  width: 40px;
+  height: 40px;
+  border-radius: var(--r-md);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  font-size: 1.25rem;
+  background: var(--fb-surface-2);
+}
+
+/* Small round avatar with the user's initial */
+.avatar {
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+/* Hover lift only for real pointers, never on touch */
+@media (hover: hover) and (pointer: fine) {
+  .lift {
+    transition: transform var(--dur-ui) var(--ease-out), box-shadow var(--dur-ui) var(--ease-out);
+  }
+  .lift:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--fb-shadow-md);
+  }
+}
+
+/* Entrance cascade for groups of cards. Plays once on mount; never blocks input. */
+.stagger > * {
+  animation: fb-rise 360ms var(--ease-out) backwards;
+}
+.stagger > *:nth-child(2) { animation-delay: 40ms; }
+.stagger > *:nth-child(3) { animation-delay: 80ms; }
+.stagger > *:nth-child(4) { animation-delay: 120ms; }
+.stagger > *:nth-child(5) { animation-delay: 160ms; }
+.stagger > *:nth-child(6) { animation-delay: 200ms; }
+.stagger > *:nth-child(n + 7) { animation-delay: 240ms; }
+
+@keyframes fb-rise {
+  from { opacity: 0; transform: translateY(8px); }
   to { opacity: 1; transform: translateY(0); }
 }
 
-/* Auth Pages Split Layout */
+/* v-reveal (directives/motion.js): fade + lift in on first scroll into view */
+.reveal {
+  opacity: 0;
+  transform: translateY(16px);
+  transition: opacity 480ms var(--ease-out), transform 600ms var(--ease-out);
+}
+.reveal.is-visible {
+  opacity: 1;
+  transform: none;
+}
+
+/* v-tilt (directives/motion.js): pointer-driven 3D tilt + soft light sheen */
+.tilt {
+  position: relative;
+  transform: perspective(900px) rotateX(var(--tilt-rx, 0deg)) rotateY(var(--tilt-ry, 0deg));
+  transform-style: preserve-3d;
+  will-change: transform;
+}
+.tilt::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  background: radial-gradient(circle at var(--tilt-glare-x, 50%) var(--tilt-glare-y, 50%), rgba(255, 255, 255, 0.28), transparent 55%);
+  opacity: 0;
+  transition: opacity var(--dur-ui) ease;
+}
+.tilt.is-tilting::after {
+  opacity: 1;
+}
+
+/* Loading placeholder */
+.skeleton {
+  border-radius: var(--r-md);
+  background: linear-gradient(90deg, rgba(0, 0, 0, 0.05) 25%, rgba(0, 0, 0, 0.09) 37%, rgba(0, 0, 0, 0.05) 63%);
+  background-size: 400% 100%;
+  animation: fb-shimmer 1.2s ease infinite;
+}
+@keyframes fb-shimmer {
+  from { background-position: 100% 50%; }
+  to { background-position: 0 50%; }
+}
+
+/* Route change: quick fade-up in, faster fade out */
+.route-enter-active {
+  transition: opacity var(--dur-ui) var(--ease-out), transform var(--dur-ui) var(--ease-out);
+}
+.route-leave-active {
+  transition: opacity 120ms ease;
+}
+.route-enter-from {
+  opacity: 0;
+  transform: translateY(6px);
+}
+.route-leave-to {
+  opacity: 0;
+}
+
+/* ---------- Auth pages ---------- */
 .auth-wrapper {
-  min-height: calc(100vh - 56px); /* subtract navbar height */
+  min-height: calc(100vh - var(--fb-nav-h));
 }
 
 .auth-brand-section {
-  background: linear-gradient(135deg, var(--fb-dark), #1a1e21);
-  color: white;
+  position: relative;
+  overflow: hidden;
+  background: var(--fb-green-700);
+  color: #f5f3ee;
   display: flex;
   flex-direction: column;
-  justify-content: center;
+  justify-content: center; /* text sits in the middle of the panel, not tucked in a corner */
   align-items: center;
-  padding: 3rem;
+  padding: var(--s-12);
   text-align: center;
+}
+.auth-brand-section h1 {
+  font-size: clamp(var(--fs-3xl), 6vw, var(--fs-4xl));
+  font-weight: 600;
+  line-height: 1.05;
+}
+.auth-brand-section .lead {
+  max-width: 26rem;
+  margin-inline: auto;
+}
+.auth-brand-section > .bi {
+  display: none; /* the type carries this panel */
 }
 
 .auth-form-section {
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 2rem;
-  background-color: white;
+  padding: 2rem 1rem;
+  background: var(--fb-bg);
+}
+
+.auth-logo {
+  font-size: 56px;
 }
 
 .auth-form-card {
   width: 100%;
-  max-width: 400px;
+  max-width: 420px;
+  background: var(--fb-surface);
+  border: 1px solid var(--fb-hairline);
+  border-radius: var(--r-lg);
+  animation: fb-rise 360ms var(--ease-out) backwards;
 }
 
 .password-toggle {
   cursor: pointer;
   border-left: none;
 }
-
 .password-toggle i {
-  color: #6c757d;
+  color: var(--fb-text-2);
 }
 
-.form-control:focus {
-  border-color: var(--fb-primary);
-  box-shadow: 0 0 0 0.25rem rgba(25, 135, 84, 0.25);
+/* ---------- Accessibility preferences ---------- */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 1ms !important;
+    animation-delay: 0ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+  }
+  .btn:active:not(:disabled),
+  .pressable:active {
+    transform: none;
+  }
+  .route-enter-from {
+    transform: none;
+  }
+  .reveal {
+    transform: none;
+    transition: opacity 200ms ease;
+  }
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  .glass {
+    background: var(--fb-surface);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
 }

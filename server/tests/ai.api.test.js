@@ -38,3 +38,38 @@ describe('POST /api/ai/suggest-habits', () => {
   })
 })
 
+
+describe('POST /api/ai/coach-chat', () => {
+  test('rejects requests without authentication header', async () => {
+    const res = await request(app)
+      .post('/api/ai/coach-chat')
+      .send({ messages: [{ role: 'user', text: 'Hi' }] })
+    assert.equal(res.status, 401)
+  })
+
+  test('requires at least one message', async () => {
+    const res = await request(app)
+      .post('/api/ai/coach-chat')
+      .set(ALICE)
+      .send({ messages: [], apiKey: 'dummy-key' })
+
+    assert.equal(res.status, 400)
+    assert.match(res.body.message, /at least one message/)
+  })
+
+  test('requires the last message to come from the user', async () => {
+    const res = await request(app)
+      .post('/api/ai/coach-chat')
+      .set(ALICE)
+      .send({
+        messages: [
+          { role: 'user', text: 'I want to run a 5K' },
+          { role: 'model', text: 'Great goal!' },
+        ],
+        apiKey: 'dummy-key',
+      })
+
+    assert.equal(res.status, 400)
+    assert.match(res.body.message, /last message must come from the user/)
+  })
+})

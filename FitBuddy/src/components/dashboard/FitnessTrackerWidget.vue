@@ -1,120 +1,133 @@
+<!--
+  Google Health card (Home page).
+  Health data is simulated: "Sync" sends made-up steps/minutes to
+  POST /api/health-sync/simulate, which checks in matching habits for today.
+  Shows today's metrics plus a "Latest updates" list from the last sync.
+-->
 <template>
-  <div class="card border-0 shadow-sm rounded-4 p-4 mb-4 bg-gradient" style="background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%); color: #ffffff;">
-    <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+  <section class="surface p-4 health-card d-flex flex-column" data-testid="google-health">
+    <div class="section-head mb-3">
       <div class="d-flex align-items-center gap-2">
-        <div class="rounded-circle bg-danger bg-opacity-25 p-2 d-flex align-items-center justify-content-center text-danger" style="width: 40px; height: 40px;">
-          <i class="bi bi-heart-pulse-fill fs-5"></i>
-        </div>
+        <span class="health-icon" aria-hidden="true"><i class="bi bi-google"></i></span>
         <div>
-          <h5 class="fw-bold mb-0 text-white">Fitness Tracker & Apple Health Sync</h5>
-          <small class="text-white opacity-75">Simulate real-time wearable telemetry & auto-sync habits</small>
+          <h2 class="section-title">Google Health</h2>
+          <div class="text-muted small">{{ lastSyncedLabel }}</div>
         </div>
       </div>
+      <button
+        type="button"
+        class="btn btn-sm btn-tinted px-3 sync-btn"
+        :disabled="syncState === 'syncing'"
+        data-testid="health-sync-btn"
+        @click="syncDevice('Google Health')"
+      >
+        <Transition name="morph" mode="out-in">
+          <span v-if="syncState === 'syncing'" key="syncing" class="d-inline-flex align-items-center gap-1">
+            <i class="bi bi-arrow-repeat spin" aria-hidden="true"></i>Syncing
+          </span>
+          <span v-else-if="syncState === 'done'" key="done" class="d-inline-flex align-items-center gap-1">
+            <i class="bi bi-check2" aria-hidden="true"></i>Synced
+          </span>
+          <span v-else key="idle" class="d-inline-flex align-items-center gap-1">
+            <i class="bi bi-arrow-repeat" aria-hidden="true"></i>Sync
+          </span>
+        </Transition>
+      </button>
+    </div>
 
-      <div class="d-flex gap-2">
-        <button
-          class="btn btn-sm btn-outline-light rounded-pill px-3 d-flex align-items-center gap-1"
-          @click="syncDevice('Apple Health')"
-          :disabled="syncing"
-        >
-          <i class="bi bi-apple"></i>
-          <span>{{ syncing ? 'Syncing...' : 'Sync Apple Health' }}</span>
-        </button>
-        <button
-          class="btn btn-sm btn-outline-info rounded-pill px-3 d-flex align-items-center gap-1"
-          @click="syncDevice('Google Fit')"
-          :disabled="syncing"
-        >
-          <i class="bi bi-google"></i>
-          <span>Google Fit</span>
-        </button>
+    <!-- Today's metrics: same layout for all four, each with its own colour -->
+    <div class="metrics">
+      <div v-for="m in metricRows" :key="m.key" class="metric" :style="{ '--metric': m.colour }" :data-testid="`health-${m.key}`">
+        <div class="metric-label"><i class="bi" :class="m.icon" aria-hidden="true"></i>{{ m.label }}</div>
+        <div class="metric-value display-num"><CountUp :value="m.raw" :decimals="m.decimals" /><small> {{ m.unit }}</small></div>
+        <div class="bar"><span :style="{ transform: `scaleX(${ratio(m.raw, m.goal)})` }"></span></div>
+        <div class="metric-foot">of {{ m.goalLabel }} {{ m.unit }}</div>
       </div>
     </div>
 
-    <!-- Sync Success Banner -->
-    <div v-if="syncSuccessMsg" class="alert alert-success alert-dismissible fade show text-dark py-2 px-3 rounded-3 small mb-3" role="alert">
-      <i class="bi bi-check-circle-fill text-success me-2"></i>{{ syncSuccessMsg }}
-      <button type="button" class="btn-close" @click="syncSuccessMsg = ''" style="padding: 0.75rem;"></button>
+    <!-- Latest updates from the most recent sync -->
+    <div class="mt-4 flex-grow-1">
+      <div class="eyebrow mb-2">Latest updates</div>
+      <TransitionGroup v-if="updates.length" tag="ul" name="update" class="updates list-unstyled mb-0" data-testid="health-updates">
+        <li v-for="u in updates" :key="u.id" class="update">
+          <span class="update-dot" aria-hidden="true"></span>
+          <span class="flex-grow-1">{{ u.text }}</span>
+          <span class="text-muted small text-nowrap">{{ u.time }}</span>
+        </li>
+      </TransitionGroup>
+      <p v-else class="text-muted small mb-0">Sync to pull in your latest activity and auto-check matching habits.</p>
     </div>
 
-    <!-- 4 Health Metric Tiles -->
-    <div class="row g-3">
-      <!-- Steps -->
-      <div class="col-6 col-lg-3">
-        <div class="p-3 rounded-3 bg-white bg-opacity-10 h-100">
-          <div class="text-white opacity-75 small mb-1"><i class="bi bi-person-walking me-1"></i>Daily Steps</div>
-          <div class="fs-4 fw-bold text-white mb-1">{{ metrics.steps.toLocaleString() }}</div>
-          <div class="progress" style="height: 6px; background-color: rgba(255,255,255,0.2);">
-            <div class="progress-bar bg-success" :style="{ width: Math.min(100, Math.round((metrics.steps / metrics.stepsGoal) * 100)) + '%' }"></div>
-          </div>
-          <small class="text-white opacity-50 mt-1 d-block" style="font-size: 11px;">Goal: {{ metrics.stepsGoal.toLocaleString() }}</small>
-        </div>
-      </div>
-
-      <!-- Distance -->
-      <div class="col-6 col-lg-3">
-        <div class="p-3 rounded-3 bg-white bg-opacity-10 h-100">
-          <div class="text-white opacity-75 small mb-1"><i class="bi bi-geo-alt-fill me-1"></i>Distance</div>
-          <div class="fs-4 fw-bold text-info mb-1">{{ metrics.distanceKm }} <span class="fs-6 fw-normal">km</span></div>
-          <small class="text-white opacity-75 d-block mt-2" style="font-size: 12px;">Paced across day</small>
-        </div>
-      </div>
-
-      <!-- Active Minutes -->
-      <div class="col-6 col-lg-3">
-        <div class="p-3 rounded-3 bg-white bg-opacity-10 h-100">
-          <div class="text-white opacity-75 small mb-1"><i class="bi bi-stopwatch-fill me-1"></i>Active Time</div>
-          <div class="fs-4 fw-bold text-warning mb-1">{{ metrics.activeMinutes }} <span class="fs-6 fw-normal">mins</span></div>
-          <div class="progress" style="height: 6px; background-color: rgba(255,255,255,0.2);">
-            <div class="progress-bar bg-warning" :style="{ width: Math.min(100, Math.round((metrics.activeMinutes / metrics.activeMinutesGoal) * 100)) + '%' }"></div>
-          </div>
-          <small class="text-white opacity-50 mt-1 d-block" style="font-size: 11px;">Target: {{ metrics.activeMinutesGoal }}m</small>
-        </div>
-      </div>
-
-      <!-- Calories -->
-      <div class="col-6 col-lg-3">
-        <div class="p-3 rounded-3 bg-white bg-opacity-10 h-100">
-          <div class="text-white opacity-75 small mb-1"><i class="bi bi-fire me-1"></i>Calories Burned</div>
-          <div class="fs-4 fw-bold text-danger mb-1">{{ metrics.caloriesBurned }} <span class="fs-6 fw-normal">kcal</span></div>
-          <small class="text-white opacity-75 d-block mt-2" style="font-size: 12px;">Active burn</small>
-        </div>
-      </div>
-    </div>
-  </div>
+    <p v-if="syncError" class="text-danger small mt-3 mb-0" role="alert">{{ syncError }}</p>
+  </section>
 </template>
 
+<script>
+// Kept at module level so the update list survives navigating away and back
+import { ref } from 'vue'
+const sharedUpdates = ref([])
+const lastSyncedAt = ref(null)
+</script>
+
 <script setup>
-import { ref, onMounted } from 'vue'
+import { computed, onMounted } from 'vue'
+import CountUp from '../CountUp.vue'
 import { healthSyncService } from '../../services/healthSyncService'
-import { celebrate } from '../../utils/celebrate'
+import { errorMessage } from '../../services/habitService'
 
 const emit = defineEmits(['synced'])
 
 const metrics = ref({
-  steps: 6420,
+  steps: 0,
   stepsGoal: 10000,
-  distanceKm: '5.01',
-  activeMinutes: 35,
+  distanceKm: '0.00',
+  activeMinutes: 0,
   activeMinutesGoal: 30,
-  caloriesBurned: 430,
+  caloriesBurned: 0,
 })
 
-const syncing = ref(false)
-const syncSuccessMsg = ref('')
+const syncState = ref('idle') // idle | syncing | done
+const syncError = ref('')
+const updates = sharedUpdates
+
+const ratio = (value, goal) => (goal > 0 ? Math.min(1, value / goal) : 0)
+
+// Distance and calorie goals aren't sent by the server, so derive sensible ones:
+// distance = the step goal walked (≈0.78 m per step); calories = a common 500 kcal target
+const CALORIE_GOAL = 500
+
+const metricRows = computed(() => {
+  const m = metrics.value
+  const distanceGoal = Number((m.stepsGoal * 0.00078).toFixed(1))
+  return [
+    { key: 'steps', label: 'Steps', icon: 'bi-person-walking', colour: 'var(--fb-green-500)',
+      raw: m.steps, decimals: 0, unit: '', goal: m.stepsGoal, goalLabel: m.stepsGoal.toLocaleString() },
+    { key: 'active', label: 'Active', icon: 'bi-stopwatch', colour: 'var(--fb-amber)',
+      raw: m.activeMinutes, decimals: 0, unit: 'min', goal: m.activeMinutesGoal, goalLabel: m.activeMinutesGoal },
+    { key: 'distance', label: 'Distance', icon: 'bi-geo-alt', colour: 'var(--fb-blue)',
+      raw: Number(m.distanceKm), decimals: 2, unit: 'km', goal: distanceGoal, goalLabel: distanceGoal },
+    { key: 'calories', label: 'Calories', icon: 'bi-fire', colour: 'var(--fb-rose)',
+      raw: m.caloriesBurned, decimals: 0, unit: 'kcal', goal: CALORIE_GOAL, goalLabel: CALORIE_GOAL },
+  ]
+})
+
+const lastSyncedLabel = computed(() => {
+  if (!lastSyncedAt.value) return "Today's activity"
+  return `Last synced ${lastSyncedAt.value.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}`
+})
 
 async function loadMetrics() {
   try {
     const data = await healthSyncService.getTodayMetrics()
-    if (data) metrics.value = data
+    if (data) metrics.value = { ...metrics.value, ...data }
   } catch (err) {
     console.warn('Could not load health metrics:', err)
   }
 }
 
 async function syncDevice(deviceType) {
-  syncing.value = true
-  syncSuccessMsg.value = ''
+  syncState.value = 'syncing'
+  syncError.value = ''
   try {
     const randomSteps = Math.floor(Math.random() * 2500) + 8000
     const randomMins = Math.floor(Math.random() * 25) + 35
@@ -124,22 +137,165 @@ async function syncDevice(deviceType) {
       activeMinutes: randomMins,
     })
 
-    celebrate()
     metrics.value.steps = randomSteps
     metrics.value.activeMinutes = randomMins
     metrics.value.distanceKm = (randomSteps * 0.00078).toFixed(2)
     metrics.value.caloriesBurned = Math.round(randomSteps * 0.042)
 
-    const updatedNames = res.updatedHabits?.map((h) => h.name).join(', ')
-    syncSuccessMsg.value = `Synced ${deviceType}! Automatically checked in for: ${updatedNames || 'Active Habits'}`
+    const now = new Date()
+    lastSyncedAt.value = now
+    const time = now.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
+    const habitUpdates = (res.updatedHabits || []).map((h) => ({
+      id: `${now.getTime()}-${h.id}`,
+      text: `${h.name}: logged ${h.syncedCount} ${h.unit || ''}`.trim(),
+      time,
+    }))
+    updates.value = [
+      { id: `${now.getTime()}-steps`, text: `${randomSteps.toLocaleString()} steps · ${randomMins} active min`, time },
+      ...habitUpdates,
+      ...updates.value,
+    ].slice(0, 8)
+
+    syncState.value = 'done'
+    setTimeout(() => (syncState.value = 'idle'), 1800)
     emit('synced')
   } catch (err) {
-    console.error('Device sync error:', err)
-  } finally {
-    syncing.value = false
+    syncError.value = errorMessage(err)
+    syncState.value = 'idle'
   }
 }
 
 onMounted(loadMetrics)
 </script>
 
+<style scoped>
+.health-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: var(--r-md);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  color: #4285f4;
+  border: 1px solid var(--fb-hairline);
+}
+
+/* 2 × 2 grid divided by hairlines instead of four little cards */
+.metrics {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  border-top: 1px solid var(--fb-hairline);
+  border-bottom: 1px solid var(--fb-hairline);
+}
+.metric {
+  padding: var(--s-4) 0 var(--s-4) var(--s-4);
+}
+.metric:nth-child(odd) {
+  padding-left: 0;
+  padding-right: var(--s-4);
+  border-right: 1px solid var(--fb-hairline);
+}
+.metric:nth-child(-n + 2) {
+  border-bottom: 1px solid var(--fb-hairline);
+}
+.metric-label {
+  display: flex;
+  align-items: center;
+  gap: var(--s-1);
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--fb-text-2);
+}
+.metric-label i {
+  color: var(--metric);
+}
+.metric-value {
+  font-size: 1.9rem;
+  margin-top: var(--s-1);
+}
+.metric-value small {
+  font-family: var(--font-body);
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--fb-text-2);
+}
+.metric-foot {
+  font-size: 0.72rem;
+  color: var(--fb-text-3);
+  margin-top: var(--s-1);
+}
+
+/* Progress bars fill with scaleX (compositor-only) */
+.bar {
+  height: 5px;
+  border-radius: 999px;
+  background: var(--fb-hairline);
+  overflow: hidden;
+  margin-top: var(--s-2);
+}
+.bar span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--metric);
+  transform-origin: left;
+  transition: transform 600ms var(--ease-out);
+}
+
+.updates {
+  display: grid;
+  gap: var(--s-2);
+}
+.update {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  font-size: 0.85rem;
+}
+.update-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #4285f4;
+  flex-shrink: 0;
+}
+.update-enter-active {
+  transition: opacity 240ms var(--ease-out), transform 240ms var(--ease-out);
+}
+.update-enter-from {
+  opacity: 0;
+  transform: translateY(-6px);
+}
+.update-leave-active {
+  display: none;
+}
+
+.sync-btn {
+  min-width: 96px;
+}
+/* Label morph: a little blur hides the swap between two labels */
+.morph-enter-active,
+.morph-leave-active {
+  transition: opacity 140ms ease, filter 140ms ease;
+}
+.morph-enter-from,
+.morph-leave-to {
+  opacity: 0;
+  filter: blur(2px);
+}
+.spin {
+  display: inline-block;
+  animation: spin 0.8s linear infinite;
+}
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bar span,
+  .update-enter-active {
+    transition: none;
+  }
+}
+</style>

@@ -42,7 +42,7 @@ export async function weeklyLeaderboard(req, res) {
   `
 
   // 2. Fetch all habits & user profiles & cheers
-  const [habitRows, profileRows, cheerCounts] = await Promise.all([
+  const [habitRows, profileRows, cheerCounts, sentRows] = await Promise.all([
     sql`SELECT id::text, user_id, frequency FROM habits`,
     sql`SELECT user_id, display_name, avatar_color FROM users`,
     sql`
@@ -50,9 +50,21 @@ export async function weeklyLeaderboard(req, res) {
       FROM cheers
       GROUP BY recipient_id
     `.catch(() => []),
+    // What the current user has already sent today, so the UI can disable those buttons
+    sql`
+      SELECT recipient_id, type
+      FROM cheers
+      WHERE sender_id = ${req.userId}
+        AND sent_on = (NOW() AT TIME ZONE 'Asia/Singapore')::date
+    `.catch(() => []),
   ])
 
   const cheersByRecipient = new Map(cheerCounts.map((c) => [c.recipient_id, c.count]))
+  const sentTodayTypes = new Map()
+  for (const row of sentRows) {
+    if (!sentTodayTypes.has(row.recipient_id)) sentTodayTypes.set(row.recipient_id, new Set())
+    sentTodayTypes.get(row.recipient_id).add(row.type)
+  }
 
   const userIds = new Set([
     ...profileRows.map((p) => p.user_id),
@@ -97,6 +109,10 @@ export async function weeklyLeaderboard(req, res) {
       points: breakdown.total,
       breakdown,
       cheersCount: cheersByRecipient.get(userId) || 0,
+      sentToday: {
+        cheer: sentTodayTypes.get(userId)?.has('cheer') ?? false,
+        nudge: sentTodayTypes.get(userId)?.has('nudge') ?? false,
+      },
       isCurrentUser: req.userId != null && String(userId) === String(req.userId),
     }
   })
@@ -206,10 +222,24 @@ export async function sendCheer(req, res) {
   const cheerType = validTypes.includes(type) ? type : 'cheer'
   const cleanMsg = String(message || '').slice(0, 100).trim()
 
-  await sql`
-    INSERT INTO cheers (sender_id, recipient_id, type, message)
-    VALUES (${req.userId}, ${recipientId}, ${cheerType}, ${cleanMsg})
+  // sent_on is today's Singapore date, computed by the database so the limit
+  // can't be dodged by changing the client's clock. The unique (sender,
+  // recipient, type, sent_on) index enforces it, so a double-click or a second
+  // tab can't slip a duplicate through.
+  const inserted = await sql`
+    INSERT INTO cheers (sender_id, recipient_id, type, message, sent_on)
+    VALUES (${req.userId}, ${recipientId}, ${cheerType}, ${cleanMsg}, (NOW() AT TIME ZONE 'Asia/Singapore')::date)
+    ON CONFLICT (sender_id, recipient_id, type, sent_on) DO NOTHING
+    RETURNING id
   `
+
+  if (inserted.length === 0) {
+    const [recipient] = await sql`SELECT display_name FROM users WHERE user_id = ${recipientId}`
+    const name = recipient?.display_name || 'them'
+    return res.status(409).json({
+      message: `You've already sent a ${cheerType} to ${name} today. Try again tomorrow!`,
+    })
+  }
 
   res.json({ success: true, message: `Sent ${cheerType}!` })
 }

@@ -104,7 +104,13 @@
 
             <div class="lb-info">
               <div class="lb-name">
-                {{ entry.displayName }}
+                <RouterLink
+                  v-if="entry.friendStatus === 'friends'"
+                  :to="`/friends/${entry.userId}`"
+                  class="lb-friend-link"
+                  data-testid="leaderboard-friend-link"
+                >{{ entry.displayName }}</RouterLink>
+                <template v-else>{{ entry.displayName }}</template>
                 <span v-if="entry.isCurrentUser" class="badge rounded-pill text-bg-primary">You</span>
                 <span v-if="entry.cheersCount > 0" class="cheer-count" :title="`${entry.cheersCount} cheers received`">
                   <i class="bi bi-heart-fill" aria-hidden="true"></i>{{ entry.cheersCount }}
@@ -140,6 +146,21 @@
                   <span v-else key="ready"><i class="bi" :class="action.icon" aria-hidden="true"></i> {{ action.label }}</span>
                 </Transition>
               </button>
+
+              <!-- Add friend / Accept / Requested (nothing if the server doesn't report a status) -->
+              <button
+                v-if="FRIEND_BUTTONS[entry.friendStatus]"
+                type="button"
+                class="btn btn-sm cheer-btn friend-btn"
+                :disabled="entry.friendStatus === 'outgoing' || sendingKey === `${entry.userId}-friend`"
+                :aria-label="FRIEND_BUTTONS[entry.friendStatus].label"
+                :title="FRIEND_BUTTONS[entry.friendStatus].label"
+                data-testid="add-friend-btn"
+                @click="friendAction(entry)"
+              >
+                <i class="bi me-sm-1" :class="FRIEND_BUTTONS[entry.friendStatus].icon" aria-hidden="true"></i>
+                <span class="d-none d-sm-inline">{{ FRIEND_BUTTONS[entry.friendStatus].label }}</span>
+              </button>
             </div>
           </li>
         </ol>
@@ -147,6 +168,7 @@
 
       <p class="text-muted small text-center mb-0">
         Points come from completed habit check-ins. You can send each friend one cheer and one nudge a day.
+        Tap a friend's name to see their progress.
       </p>
     </div>
   </div>
@@ -155,6 +177,7 @@
 <script setup>
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { leaderboardService } from '../services/leaderboardService'
+import { friendService } from '../services/friendService'
 import { errorMessage } from '../services/habitService'
 import { toDateKey, fromDateKey } from '../utils/dates'
 import { celebrate } from '../utils/celebrate'
@@ -173,6 +196,12 @@ const ACTIONS = [
   { type: 'cheer', icon: 'bi-heart', label: 'Cheer', doneLabel: 'Cheered', title: 'Cheer on this athlete!' },
   { type: 'nudge', icon: 'bi-bell', label: 'Nudge', doneLabel: 'Nudged', title: 'Send a friendly nudge!' },
 ]
+// The friend button for each friendStatus ('friends' and 'self' have none)
+const FRIEND_BUTTONS = {
+  none: { icon: 'bi-person-plus', label: 'Add friend' },
+  incoming: { icon: 'bi-person-check', label: 'Accept' },
+  outgoing: { icon: 'bi-hourglass-split', label: 'Requested' },
+}
 const CHEER_TEXT = { cheer: 'cheered you on', nudge: 'nudged you', fire: 'sent you a boost', celebrate: 'celebrated you' }
 
 // Podium order is 2nd, 1st, 3rd so the winner stands in the middle.
@@ -239,6 +268,23 @@ async function cheerAthlete(athlete, type) {
     } else {
       error.value = err.response?.data?.message || 'Failed to send cheer.'
     }
+  } finally {
+    sendingKey.value = null
+  }
+}
+
+async function friendAction(athlete) {
+  sendingKey.value = `${athlete.userId}-friend`
+  try {
+    const data =
+      athlete.friendStatus === 'incoming'
+        ? await friendService.accept(athlete.friendRequestId)
+        : await friendService.sendRequest(athlete.userId)
+    athlete.friendStatus = data.relation
+    athlete.friendRequestId = data.requestId ?? athlete.friendRequestId
+    showToast(data.message)
+  } catch (err) {
+    showToast(errorMessage(err), 'info')
   } finally {
     sendingKey.value = null
   }
@@ -417,6 +463,14 @@ onUnmounted(() => clearTimeout(toastTimer))
   gap: var(--s-2);
   font-weight: 700;
 }
+.lb-friend-link {
+  color: inherit;
+  text-decoration: none;
+}
+.lb-friend-link:hover {
+  color: inherit;
+  text-decoration: underline;
+}
 .lb-sub {
   font-size: 0.8rem;
   color: var(--fb-text-2);
@@ -532,6 +586,16 @@ onUnmounted(() => clearTimeout(toastTimer))
 }
 
 @media (max-width: 575.98px) {
+  /* Three buttons share the row on phones: shrink the cheer/nudge minimum, keep the friend button icon-sized */
+  .lb-actions .cheer-btn {
+    min-width: 0;
+    padding: var(--s-1) var(--s-2);
+    white-space: nowrap;
+  }
+  .lb-actions .friend-btn {
+    flex: 0 0 auto;
+    min-width: 44px;
+  }
   .podium {
     gap: var(--s-2);
   }
@@ -544,7 +608,7 @@ onUnmounted(() => clearTimeout(toastTimer))
     width: 54px;
     height: 54px;
   }
-  .lb-actions .cheer-btn {
+  .lb-actions .cheer-btn:not(.friend-btn) {
     flex: 1;
   }
 }

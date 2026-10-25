@@ -18,7 +18,7 @@ function isValidDateKey(value) {
 }
 
 // Rows from the database → the plain shapes utils/analytics.js expects
-async function loadUserData(userId) {
+export async function loadUserData(userId) {
   const sql = getDb()
   const habitRows = await sql`
     SELECT id, name, icon, category, frequency, target_amount, target_unit, created_at

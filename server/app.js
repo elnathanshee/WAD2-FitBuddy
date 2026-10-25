@@ -9,6 +9,7 @@ import authRoutes from './routes/auth.js'
 import challengeRoutes from './routes/challenges.js'
 import healthSyncRoutes from './routes/healthSync.js'
 import analyticsRoutes from './routes/analytics.js'
+import friendRoutes from './routes/friends.js'
 import { requireUser } from './middleware/requireUser.js'
 
 // The Express app is created here (without listening) so tests can import it.
@@ -25,6 +26,7 @@ app.use(['/api/auth', '/auth'], authRoutes)
 app.use(['/api/neon', '/neon'], neonRoutes)
 app.use(['/api/habits', '/habits'], requireUser, habitRoutes)
 app.use(['/api/leaderboard', '/leaderboard'], requireUser, leaderboardRoutes)
+app.use(['/api/friends', '/friends'], requireUser, friendRoutes)
 app.use(['/api/ai', '/ai'], requireUser, aiRoutes)
 app.use(['/api/challenges', '/challenges'], challengeRoutes)
 app.use(['/api/health-sync', '/health-sync'], healthSyncRoutes)

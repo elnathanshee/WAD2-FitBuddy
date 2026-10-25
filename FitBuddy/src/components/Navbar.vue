@@ -1,8 +1,8 @@
 <!--
   App navigation, always at the top inside one bar:
   - brand | page tabs | account menu (background, switch demo athlete, log out)
-  - The four tabs share the space between the brand and the account menu
-    equally. On phones they move to a second row of the same bar, full width.
+  - The five tabs share the space between the brand and the account menu
+    equally. On phones and tablets they move to a second row of the same bar, full width.
   - One indicator slides behind the active tab, so switching pages reads as
     one continuous motion.
 -->
@@ -22,6 +22,7 @@
           :key="item.to"
           :to="item.to"
           class="tab pressable"
+          :class="{ 'router-link-active': isActive(item) }"
           :data-testid="`tab-${item.name}`"
         >
           <i class="bi" :class="isActive(item) ? item.iconActive : item.icon" aria-hidden="true"></i>
@@ -119,6 +120,7 @@ const navItems = [
   { name: 'habits', to: '/habits', label: 'Habits', icon: 'bi-check2-square', iconActive: 'bi-check-square-fill' },
   { name: 'dashboard', to: '/dashboard', label: 'Dashboard', icon: 'bi-bar-chart', iconActive: 'bi-bar-chart-fill' },
   { name: 'leaderboard', to: '/leaderboard', label: 'Leaderboard', icon: 'bi-trophy', iconActive: 'bi-trophy-fill' },
+  { name: 'friends', to: '/friends', label: 'Friends', icon: 'bi-people', iconActive: 'bi-people-fill' },
 ]
 
 const demoAthletes = [
@@ -275,7 +277,7 @@ const switchAthlete = async (email) => {
   grid-area: tabs;
   position: relative;
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(5, 1fr);
   gap: var(--s-1);
   align-self: stretch;
   padding: var(--s-2) 0;
@@ -324,8 +326,8 @@ const switchAthlete = async (email) => {
   }
 }
 
-/* Phones: brand + account on the first row, tabs across the second */
-@media (max-width: 767.98px) {
+/* Phones and tablets: brand + account on the first row, tabs across the second */
+@media (max-width: 991.98px) {
   .topbar-inner.authed {
     grid-template-columns: 1fr auto;
     grid-template-areas:
@@ -342,7 +344,7 @@ const switchAthlete = async (email) => {
     flex-direction: column;
     gap: 2px;
     min-height: 48px;
-    font-size: var(--fs-xs);
+    font-size: 0.6875rem; /* 11px: fits "Leaderboard" so all five tabs stay equal width */
   }
   .tab i {
     font-size: var(--fs-lg);

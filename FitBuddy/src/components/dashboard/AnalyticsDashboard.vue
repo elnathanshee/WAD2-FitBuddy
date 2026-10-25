@@ -510,7 +510,9 @@ defineExpose({ load })
   border: 1px solid var(--fb-hairline);
 }
 
+/* One shrinkable column, so wide content (Chart.js canvases) can't stretch the page on small phones */
 .results {
+  grid-template-columns: minmax(0, 1fr);
   transition: opacity 150ms ease;
 }
 .results.is-loading {

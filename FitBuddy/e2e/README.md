@@ -5,7 +5,8 @@
 | `habits.spec.js` | Habit CRUD, daily check-ins, completion history, streaks, access control |
 | `navigation.spec.js` | Login lands on Home; Home sections; bottom navigation on every page; Dashboard is stats-only, in order, with a 3-colour calendar; logout in the account menu |
 | `coach-chat.spec.js` | AI coach button position, chat send/reply, multi-turn history, adding a suggested habit, error + retry (Gemini is mocked with `page.route`) |
-| `leaderboard.spec.js` | Cheer/nudge buttons, once-per-day lock (UI + reload), server 409 on a repeat, cheer and nudge limited separately |
+| `leaderboard.spec.js` | Cheer/nudge buttons, once-per-day lock (UI + reload), server 409 on a repeat, cheer and nudge limited separately; Global / Friends tabs (opens on Global, Friends shows only you + friends, re-ranked) |
+| `challenges.spec.js` | Only friends can be challenged: server 403 for a non-friend, the New challenge dropdown lists exactly your friends (read-only) |
 | `friends.spec.js` | User search, sending / cancelling a request, accepting + removing a friend, declining, a friend's profile (stats, week strip, habits), server rules (403 / 400 / 409, no emails), friend links on the leaderboard. Only `rival_david` is changed; his friendship is reset before and after each test |
 | `experience.spec.js` | Highlights carousel (buttons, dots, autoplay, pause on hover, no autoplay with reduced motion, slide links), background picker (persists after reload), 3D medal/trophy load or fall back, page titles |
 
@@ -94,6 +95,9 @@ Other pages:
 | `leaderboard-row` | One athlete | `data-user-id` is the athlete's id |
 | `cheer-btn` / `nudge-btn` | Inside a row | Disabled once sent today |
 | `leaderboard-toast` | Confirmation toast | |
+| `lb-tab-global` / `lb-tab-friends` | Leaderboard tabs | `aria-selected` marks the active one |
+| `lb-friends-empty` | Friends tab hint | Shown when you have no friends yet |
+| `challenge-opponent-select` / `challenge-no-friends` | New challenge modal (Home) | Dropdown of friends, or the no-friends message |
 | `leaderboard-friend-link` | Inside a row | Link on a friend's name to their profile |
 | `add-friend-btn` | Inside a row | Add friend / Accept / Requested; `aria-label` has the text |
 | `friends-search-input` / `friends-search-btn` / `friends-search-error` / `friends-search-empty` | Friends page search | |

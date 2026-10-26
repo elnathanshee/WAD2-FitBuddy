@@ -81,3 +81,32 @@ test('cheer and nudge are limited separately', async ({ request }) => {
   const after = (await weeklyEntries(request)).find((e) => e.userId === target.userId)
   expect(after.sentToday.nudge).toBe(true)
 })
+
+// Read-only: no cheers, nudges or friend requests are sent here
+test.describe('leaderboard tabs (Global / Friends)', () => {
+  test('opens on Global and lists everyone', async ({ page, request }) => {
+    const res = await request.get('/api/leaderboard/weekly', { headers: USER_HEADERS })
+    const { entries } = await res.json()
+
+    await page.goto('/leaderboard')
+    await expect(page.getByTestId('lb-tab-global')).toHaveAttribute('aria-selected', 'true')
+    await expect(page.getByTestId('leaderboard-row')).toHaveCount(entries.length)
+  })
+
+  test('Friends tab shows only you and your friends, ranked among themselves', async ({ page, request }) => {
+    const res = await request.get('/api/friends', { headers: USER_HEADERS })
+    const { friends } = await res.json()
+    const allowed = ['1', ...friends.map((f) => f.userId)]
+
+    await page.goto('/leaderboard')
+    await page.getByTestId('lb-tab-friends').click()
+    await expect(page.getByTestId('lb-tab-friends')).toHaveAttribute('aria-selected', 'true')
+
+    const rows = page.getByTestId('leaderboard-row')
+    await expect(rows).toHaveCount(1 + friends.length)
+    for (const id of await rows.evaluateAll((els) => els.map((el) => el.dataset.userId))) {
+      expect(allowed).toContain(id)
+    }
+    await expect(rows.first().locator('.lb-rank')).toHaveText('1')
+  })
+})

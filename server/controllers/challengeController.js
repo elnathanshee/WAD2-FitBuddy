@@ -2,10 +2,12 @@
 // [IS216 Project Addition: Challenge & Duels Controller with Neon PostgreSQL]
 // Technology: Express.js + Neon PostgreSQL
 //
-// Allows athletes to challenge rivals on the leaderboard to head-to-head habit sprints.
+// Lets athletes challenge their accepted friends to head-to-head habit sprints.
 // =============================================================================
 
 import { getDb } from '../config/neon.js'
+import { findPair } from './friendController.js'
+import { relationFor } from '../utils/friends.js'
 
 /**
  * GET /api/challenges
@@ -58,6 +60,12 @@ export async function createChallenge(req, res) {
   }
   if (!title || typeof title !== 'string' || title.trim().length === 0) {
     return res.status(400).json({ message: 'Challenge title is required.' })
+  }
+
+  // Challenges are only allowed between accepted friends
+  const pair = await findPair(req.userId, opponentId)
+  if (relationFor(pair, req.userId) !== 'friends') {
+    return res.status(403).json({ message: 'You can only challenge your friends.' })
   }
 
   const cleanTitle = title.trim().slice(0, 100)

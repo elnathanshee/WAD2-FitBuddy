@@ -1,5 +1,6 @@
 <!--
-  Friend challenges: head-to-head duels between two athletes.
+  Friend challenges: head-to-head duels between two athletes. You can only
+  challenge accepted friends (the server enforces this too).
   With `activeOnly` (Home page) finished duels are hidden.
 -->
 <template>
@@ -62,11 +63,20 @@
       <form id="challenge-form" @submit.prevent="submitChallenge">
         <div class="mb-3">
           <label class="form-label small fw-semibold" for="ch-opponent">Opponent</label>
-          <select id="ch-opponent" v-model="newChallenge.opponentId" class="form-select" required>
+          <p v-if="friendsLoaded && friends.length === 0" class="text-muted small mb-0" data-testid="challenge-no-friends">
+            You can only challenge friends.
+            <RouterLink to="/friends">Add some on the Friends page</RouterLink> first.
+          </p>
+          <select
+            v-else
+            id="ch-opponent"
+            v-model="newChallenge.opponentId"
+            class="form-select"
+            required
+            data-testid="challenge-opponent-select"
+          >
             <option disabled value="">Choose a friend…</option>
-            <option v-for="ath in availableOpponents" :key="ath.id" :value="ath.id">
-              {{ ath.name }} ({{ ath.email }})
-            </option>
+            <option v-for="f in friends" :key="f.userId" :value="f.userId">{{ f.displayName }}</option>
           </select>
         </div>
 
@@ -106,7 +116,7 @@
       </form>
       <template #footer>
         <button type="button" class="btn btn-outline-secondary px-3" @click="showCreateModal = false">Cancel</button>
-        <button type="submit" form="challenge-form" class="btn btn-primary px-4" :disabled="submitting">
+        <button type="submit" form="challenge-form" class="btn btn-primary px-4" :disabled="submitting || (friendsLoaded && friends.length === 0)">
           {{ submitting ? 'Sending…' : 'Send challenge' }}
         </button>
       </template>
@@ -119,7 +129,7 @@ import { computed, ref, onMounted } from 'vue'
 import AppModal from '../habits/AppModal.vue'
 import { challengeService } from '../../services/challengeService'
 import { errorMessage } from '../../services/habitService'
-import { authService } from '../../services/authService'
+import { friendService } from '../../services/friendService'
 import { celebrate } from '../../utils/celebrate'
 
 const props = defineProps({
@@ -146,15 +156,12 @@ const sides = (ch) => [
   { key: 'opponent', name: ch.opponent_name || 'Opponent', progress: ch.opponent_progress, colour: ch.opponent_color || '#FF9800' },
 ]
 
-const availableOpponents = ref([
-  { id: 'rival_charlie', name: 'Charlie Wong', email: 'charlie@fitbuddy.com' },
-  { id: 'rival_alex', name: 'Alex Tan', email: 'alex@fitbuddy.com' },
-  { id: 'rival_bernice', name: 'Bernice Lim', email: 'bernice@fitbuddy.com' },
-  { id: 'rival_david', name: 'David Lee', email: 'david@fitbuddy.com' },
-])
+// Only accepted friends can be challenged
+const friends = ref([])
+const friendsLoaded = ref(false)
 
 const newChallenge = ref({
-  opponentId: 'rival_charlie',
+  opponentId: '',
   title: '7-Day Water Hydration Sprint',
   habitCategory: 'water',
   targetDays: 7,
@@ -168,6 +175,16 @@ async function loadChallenges() {
     console.warn('Failed to load challenges:', err)
   } finally {
     loading.value = false
+  }
+}
+
+async function loadFriends() {
+  try {
+    const data = await friendService.list()
+    friends.value = data.friends || []
+    friendsLoaded.value = true
+  } catch (err) {
+    console.warn('Failed to load friends:', err)
   }
 }
 
@@ -199,20 +216,7 @@ async function advanceProgress(ch) {
   }
 }
 
-onMounted(async () => {
-  await loadChallenges()
-  try {
-    const demoUsers = await authService.getDemoUsers()
-    const currentUser = authService.getCurrentUser()
-    if (demoUsers.length) {
-      availableOpponents.value = demoUsers
-        .filter((u) => String(u.id) !== String(currentUser?.id))
-        .map((u) => ({ id: u.id, name: u.name, email: u.email }))
-    }
-  } catch (err) {
-    console.warn('Opponents load error:', err)
-  }
-})
+onMounted(() => Promise.all([loadChallenges(), loadFriends()]))
 </script>
 
 <style scoped>

@@ -1,6 +1,7 @@
 <!--
   Weekly leaderboard: points from habit check-ins, a podium for the top 3,
-  and cheers/nudges. Each cheer type can be sent to a person once per day
+  and cheers/nudges. Two tabs: Global (everyone) and Friends (you + your
+  friends, ranked again among themselves). Each cheer type can be sent to a person once per day
   (enforced by the server; `sentToday` tells the UI which buttons to lock).
 -->
 <template>
@@ -36,6 +37,24 @@
     </div>
 
     <div v-else-if="board" class="d-grid gap-4">
+      <!-- Global / Friends -->
+      <div class="segmented" role="tablist" aria-label="Leaderboard scope" :style="{ '--index': scope === 'friends' ? 1 : 0 }">
+        <span class="segmented-thumb" aria-hidden="true"></span>
+        <button
+          v-for="option in SCOPE_OPTIONS"
+          :key="option.value"
+          type="button"
+          role="tab"
+          class="segment"
+          :class="{ active: scope === option.value }"
+          :aria-selected="scope === option.value"
+          :data-testid="`lb-tab-${option.value}`"
+          @click="scope = option.value"
+        >
+          {{ option.label }}
+        </button>
+      </div>
+
       <!-- Your points -->
       <section v-if="me" class="surface my-points p-4">
         <Trophy3D class="my-trophy" />
@@ -57,14 +76,14 @@
           :key="entry.userId"
           v-tilt
           class="podium-spot"
-          :class="`place-${entry.rank}`"
+          :class="`place-${rankOf(entry)}`"
         >
           <span class="avatar podium-avatar" :style="{ backgroundColor: entry.avatarColor }">
             {{ entry.displayName.charAt(0).toUpperCase() }}
           </span>
           <div class="podium-name">{{ entry.displayName }}</div>
           <div class="podium-points">{{ entry.points }} pts</div>
-          <div class="podium-step display-num" aria-hidden="true">{{ entry.rank }}</div>
+          <div class="podium-step display-num" aria-hidden="true">{{ rankOf(entry) }}</div>
         </div>
       </section>
 
@@ -83,20 +102,20 @@
 
       <!-- Full ranking -->
       <section class="surface p-2 p-md-3">
-        <p v-if="board.entries.length === 0" class="text-muted text-center mb-0 py-4">
+        <p v-if="scope === 'global' && board.entries.length === 0" class="text-muted text-center mb-0 py-4">
           Nobody has any habits yet. Add one and check in to get on the board.
         </p>
 
         <ol class="list-unstyled mb-0 stagger">
           <li
-            v-for="entry in board.entries"
+            v-for="entry in visibleEntries"
             :key="entry.userId"
             class="lb-row"
             :class="{ 'is-me': entry.isCurrentUser }"
             data-testid="leaderboard-row"
             :data-user-id="entry.userId"
           >
-            <span class="lb-rank display-num" :class="`rank-${entry.rank}`">{{ entry.rank }}</span>
+            <span class="lb-rank display-num" :class="`rank-${rankOf(entry)}`">{{ rankOf(entry) }}</span>
 
             <span class="avatar" :style="{ width: '40px', height: '40px', backgroundColor: entry.avatarColor, fontSize: '16px' }">
               {{ entry.displayName.charAt(0).toUpperCase() }}
@@ -164,6 +183,11 @@
             </div>
           </li>
         </ol>
+
+        <p v-if="scope === 'friends' && visibleEntries.length <= 1" class="text-muted small text-center mb-0 py-3" data-testid="lb-friends-empty">
+          Add friends to compete with them here.
+          <RouterLink to="/friends">Find friends</RouterLink>
+        </p>
       </section>
 
       <p class="text-muted small text-center mb-0">
@@ -204,11 +228,39 @@ const FRIEND_BUTTONS = {
 }
 const CHEER_TEXT = { cheer: 'cheered you on', nudge: 'nudged you', fire: 'sent you a boost', celebrate: 'celebrated you' }
 
+const SCOPE_OPTIONS = [
+  { value: 'global', label: 'Global' },
+  { value: 'friends', label: 'Friends' },
+]
+const scope = ref('global')
+
+// The entries shown in the current tab. These are the original objects (not
+// copies) because cheering / friend actions update them in place.
+const visibleEntries = computed(() => {
+  const entries = board.value?.entries ?? []
+  return scope.value === 'friends'
+    ? entries.filter((e) => e.isCurrentUser || e.friendStatus === 'friends')
+    : entries
+})
+
+// Rank within the visible list: ties share a rank, like the server does
+const ranks = computed(() => {
+  const map = new Map()
+  let prev = null
+  visibleEntries.value.forEach((e, i) => {
+    if (prev === null || e.points !== prev.points) map.set(e.userId, i + 1)
+    else map.set(e.userId, map.get(prev.userId))
+    prev = e
+  })
+  return map
+})
+const rankOf = (entry) => ranks.value.get(entry.userId)
+
 // Podium order is 2nd, 1st, 3rd so the winner stands in the middle.
 // Only shown when the top three have distinct ranks (no ties).
 const podium = computed(() => {
-  const top = board.value?.entries.slice(0, 3) ?? []
-  if (top.length < 3 || new Set(top.map((e) => e.rank)).size < 3) return []
+  const top = visibleEntries.value.slice(0, 3)
+  if (top.length < 3 || new Set(top.map(rankOf)).size < 3) return []
   return [top[1], top[0], top[2]]
 })
 
@@ -301,6 +353,44 @@ onUnmounted(() => clearTimeout(toastTimer))
 }
 @keyframes spin {
   to { transform: rotate(360deg); }
+}
+
+/* Segmented control: one thumb slides under the selected segment */
+.segmented {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  padding: var(--s-1);
+  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.06);
+  max-width: 280px;
+}
+.segmented-thumb {
+  position: absolute;
+  top: var(--s-1);
+  bottom: var(--s-1);
+  left: var(--s-1);
+  width: calc((100% - 2 * var(--s-1)) / 2);
+  border-radius: 8px;
+  background: var(--fb-surface);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1), 0 2px 6px rgba(0, 0, 0, 0.06);
+  transform: translateX(calc(var(--index) * 100%));
+  transition: transform 240ms var(--ease-in-out);
+}
+.segment {
+  position: relative;
+  z-index: 1;
+  border: 0;
+  background: transparent;
+  padding: var(--s-2) var(--s-4);
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--fb-text-2);
+  border-radius: 8px;
+  transition: color 150ms ease;
+}
+.segment.active {
+  color: var(--fb-text);
 }
 
 /* Your points */

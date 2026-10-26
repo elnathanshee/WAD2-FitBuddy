@@ -24,7 +24,7 @@ function isRequestId(value) {
 }
 
 // The row between two people, whichever of them sent the request (or undefined)
-async function findPair(a, b) {
+export async function findPair(a, b) {
   const sql = getDb()
   const rows = await sql`
     SELECT id, requester_id, addressee_id, status, created_at, responded_at

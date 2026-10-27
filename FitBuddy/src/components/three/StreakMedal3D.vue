@@ -39,6 +39,7 @@ let faceTexture = null
 let backTexture = null
 let faceCanvas = null
 let disposed = false
+// Quarter-turn applied to the back texture so the number reads correctly on that side
 const BACK_ROTATION = Math.PI / 2
 
 // Draws the medal face (gold disc, number, label) onto a canvas texture
@@ -72,6 +73,7 @@ function drawFace() {
   ctx.fillStyle = '#6b3f05'
   ctx.fillText(props.label.toUpperCase().split('').join(String.fromCharCode(8202)), s / 2, s * 0.7)
   if (faceTexture) faceTexture.needsUpdate = true
+  // Redraw both faces so the front and back show the new streak
   if (backTexture) backTexture.needsUpdate = true
 }
 
@@ -141,6 +143,7 @@ async function build(THREE) {
     group.add(tail)
   }
 
+  // Lowered so the raised ribbon fits in view; the shadow floor follows
   group.position.y = -0.42
   return { object: group, floorY: -1.6 }
 }

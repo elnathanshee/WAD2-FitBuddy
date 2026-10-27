@@ -25,8 +25,10 @@
           :class="{ 'router-link-active': isActive(item) }"
           :data-testid="`tab-${item.name}`"
         >
+          <!-- Wrapper lets the badge sit on the icon's top-right corner -->
           <span class="tab-icon position-relative">
             <i class="bi" :class="isActive(item) ? item.iconActive : item.icon" aria-hidden="true"></i>
+            <!-- Badge: number of pending incoming friend requests (hidden at 0) -->
             <span
               v-if="item.name === 'friends' && incomingCount > 0"
               class="tab-badge position-absolute top-0 start-100 translate-middle badge rounded-pill text-bg-danger"
@@ -124,6 +126,7 @@ import BrandMark from './BrandMark.vue'
 const router = useRouter()
 const route = useRoute()
 const { background, setBackground, BACKGROUNDS } = useBackground()
+// Shared pending-request count that feeds the Friends tab badge
 const { incomingCount, refreshFriendRequests } = useFriendRequests()
 
 const navItems = [
@@ -181,10 +184,12 @@ watch(
   () => [route.path, isAuthenticated.value],
   () => {
     nextTick(placeIndicator)
+    // Keep the badge current as the user moves between pages (logged in only)
     if (isAuthenticated.value) refreshFriendRequests()
   },
 )
 onMounted(() => {
+  // Load the badge count on first render (logged in only)
   if (isAuthenticated.value) refreshFriendRequests()
   nextTick(placeIndicator)
   window.addEventListener('resize', placeIndicator)
@@ -333,6 +338,7 @@ const switchAthlete = async (email) => {
   line-height: 1;
 }
 .tab-icon {
+  /* position: relative (via class) lets the badge be placed against the icon */
   display: inline-flex;
 }
 /* Absolutely positioned, so it never changes the tab widths */

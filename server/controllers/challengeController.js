@@ -50,6 +50,7 @@ export async function listChallenges(req, res) {
     LIMIT 20
   `
 
+  // Hide challenges the user declined (the creator still sees them as declined)
   res.json({ challenges: rows.filter((ch) => visibleTo(ch, userId)) })
 }
 
@@ -80,6 +81,7 @@ export async function createChallenge(req, res) {
   const days = Number(targetDays) > 0 ? Number(targetDays) : 7
   const sql = getDb()
 
+  // New challenges start 'pending' until the invited friend accepts
   const inserted = await sql`
     INSERT INTO challenges (creator_id, opponent_id, title, habit_category, target_days, creator_progress, opponent_progress, status)
     VALUES (${req.userId}, ${opponentId}, ${cleanTitle}, ${habitCategory}, ${days}, 0, 0, 'pending')
@@ -108,6 +110,7 @@ export async function recordChallengeProgress(req, res) {
   }
 
   const ch = rows[0]
+  // Only participants can log progress, and only once the challenge is accepted
   const role = roleIn(ch, req.userId)
   if (!role) {
     return res.status(403).json({ message: 'You are not a participant in this challenge.' })

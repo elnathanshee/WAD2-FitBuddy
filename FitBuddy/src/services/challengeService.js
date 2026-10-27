@@ -20,6 +20,7 @@ export const challengeService = {
     return data
   },
 
+  // The invited friend answers a pending challenge
   async accept(challengeId) {
     const { data } = await api.post(`/challenges/${challengeId}/accept`)
     return data

@@ -13,6 +13,7 @@
         <h2 class="section-title">{{ activeOnly ? 'Active challenges' : 'Challenges' }}</h2>
         <div class="text-muted small">Head-to-head duels keep you accountable</div>
       </div>
+      <!-- Badge: how many challenge invites are waiting for my answer -->
       <span
         v-if="invites.length > 0"
         class="badge rounded-pill text-bg-danger align-self-start"
@@ -81,6 +82,7 @@
                 <template v-if="ch.status === 'completed'"> · Finished</template>
               </div>
             </div>
+            <!-- Only accepted (active) duels can be logged -->
             <button
               v-if="ch.status === 'active'"
               type="button"
@@ -112,6 +114,7 @@
       <form id="challenge-form" @submit.prevent="submitChallenge">
         <div class="mb-3">
           <label class="form-label small fw-semibold" for="ch-opponent">Opponent</label>
+          <!-- Shown instead of the dropdown when there is nobody to challenge -->
           <p v-if="friendsLoaded && friends.length === 0" class="text-muted small mb-0" data-testid="challenge-no-friends">
             You can only challenge friends.
             <RouterLink to="/friends">Add some on the Friends page</RouterLink> first.
@@ -165,6 +168,7 @@
       </form>
       <template #footer>
         <button type="button" class="btn btn-outline-secondary px-3" @click="showCreateModal = false">Cancel</button>
+        <!-- Can't send a challenge without any friends -->
         <button type="submit" form="challenge-form" class="btn btn-primary px-4" :disabled="submitting || (friendsLoaded && friends.length === 0)">
           {{ submitting ? 'Sending…' : 'Send challenge' }}
         </button>
@@ -194,8 +198,10 @@ const advancingId = ref(null)
 const showCreateModal = ref(false)
 const submitting = ref(false)
 
+// Id of the invite row whose buttons are disabled while its request runs
 const respondingId = ref(null)
 
+// Current user id, compared as strings since ids may be numbers or strings
 const myId = String(authService.getCurrentUser()?.id ?? '')
 const isMine = (id) => String(id) === myId
 
@@ -203,11 +209,13 @@ const isMine = (id) => String(id) === myId
 const invites = computed(() => challenges.value.filter((ch) => ch.status === 'pending' && isMine(ch.opponent_id)))
 const waiting = computed(() => challenges.value.filter((ch) => ch.status === 'pending' && isMine(ch.creator_id)))
 const declined = computed(() => challenges.value.filter((ch) => ch.status === 'declined' && isMine(ch.creator_id)))
+// Accepted and finished duels; finished ones are hidden on Home (activeOnly)
 const duels = computed(() =>
   challenges.value.filter(
     (ch) => (ch.status === 'active' || ch.status === 'completed') && !(props.activeOnly && ch.status === 'completed')
   )
 )
+// False when there are no rows at all, which shows the empty message
 const hasAnything = computed(
   () => invites.value.length + waiting.value.length + declined.value.length + duels.value.length > 0
 )
@@ -242,6 +250,7 @@ async function loadChallenges() {
   }
 }
 
+// Load accepted friends for the opponent dropdown
 async function loadFriends() {
   try {
     const data = await friendService.list()
@@ -308,6 +317,7 @@ async function removeChallenge(ch) {
   }
 }
 
+// Load challenges and friends in parallel
 onMounted(() => Promise.all([loadChallenges(), loadFriends()]))
 </script>
 

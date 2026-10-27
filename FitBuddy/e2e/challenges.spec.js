@@ -7,6 +7,7 @@
 import { test, expect } from '@playwright/test'
 import { login, USER_HEADERS } from './helpers.js'
 
+// API check: the server refuses to create a challenge against a non-friend
 test('the server rejects a challenge against someone who is not a friend (403)', async ({ request }) => {
   const weekly = await request.get('/api/leaderboard/weekly', { headers: USER_HEADERS })
   expect(weekly.ok(), await weekly.text()).toBeTruthy()
@@ -21,6 +22,7 @@ test('the server rejects a challenge against someone who is not a friend (403)',
   expect(res.status(), await res.text()).toBe(403)
 })
 
+// UI check: the opponent dropdown offers friends and nobody else
 test('the New challenge dropdown lists only friends', async ({ page, request }) => {
   const res = await request.get('/api/friends', { headers: USER_HEADERS })
   expect(res.ok(), await res.text()).toBeTruthy()
@@ -42,8 +44,10 @@ test('the New challenge dropdown lists only friends', async ({ page, request }) 
 
 // ---------- Invites: pending / declined / cancelled ----------
 
+// Marks every challenge these tests create so they can be found and cleaned up
 const CHALLENGE_TITLE_PREFIX = 'E2E '
 
+// First friend of the demo user, or null if there are none
 async function pickFriend(request) {
   const res = await request.get('/api/friends', { headers: USER_HEADERS })
   expect(res.ok(), await res.text()).toBeTruthy()
@@ -51,12 +55,14 @@ async function pickFriend(request) {
   return friends[0] || null
 }
 
+// The challenges the given user can see, via the API
 async function listChallenges(request, headers) {
   const res = await request.get('/api/challenges', { headers })
   expect(res.ok(), await res.text()).toBeTruthy()
   return (await res.json()).challenges
 }
 
+// Create a pending 'E2E' challenge through the API and return it
 async function createChallengeVia(request, headers, opponentId, label) {
   const title = `${CHALLENGE_TITLE_PREFIX}${label} ${Date.now()}`
   const res = await request.post('/api/challenges', {
@@ -80,6 +86,7 @@ test.describe('challenge invites', () => {
     }
   })
 
+  // Walks the API through create, decline and dismiss, and checks who may do what
   test('API: create, decline, dismiss and the permission rules', async ({ request }) => {
     const friend = await pickFriend(request)
     test.skip(!friend, 'The demo user has no friends')
@@ -115,6 +122,7 @@ test.describe('challenge invites', () => {
     expect((await listChallenges(request, USER_HEADERS)).some((c) => c.id === created.id)).toBe(false)
   })
 
+  // UI check: a friend's invite shows on Home and disappears once declined
   test('UI: declining an invite from a friend removes it from Home', async ({ page, request }) => {
     const friend = await pickFriend(request)
     test.skip(!friend, 'The demo user has no friends')
@@ -136,6 +144,7 @@ test.describe('challenge invites', () => {
     }
   })
 
+  // UI check: the creator can cancel a pending challenge from Home
   test('UI: cancelling a challenge I sent', async ({ page, request }) => {
     const friend = await pickFriend(request)
     test.skip(!friend, 'The demo user has no friends')
@@ -153,6 +162,7 @@ test.describe('challenge invites', () => {
 
 // ---------- Friend-request counters (read-only) ----------
 
+// UI check: the pending-request count matches in the navbar badge and on the Friends page
 test('the friend-request count shows in the navbar and on the Friends page', async ({ page, request }) => {
   const res = await request.get('/api/friends', { headers: USER_HEADERS })
   expect(res.ok(), await res.text()).toBeTruthy()

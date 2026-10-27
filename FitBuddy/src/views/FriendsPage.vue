@@ -120,6 +120,7 @@
       <section v-if="incoming.length || outgoing.length" class="surface p-3 px-md-4" data-testid="friend-requests">
         <h2 class="section-title mb-2">
           Friend requests
+          <!-- Badge: number of requests waiting for my answer -->
           <span
             v-if="incoming.length"
             class="badge rounded-pill text-bg-danger ms-1 align-middle"

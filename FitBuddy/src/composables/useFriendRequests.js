@@ -6,6 +6,7 @@ import { friendService } from '../services/friendService'
 // Shared across every component that uses it
 const incomingCount = ref(0)
 
+// Fetch the latest pending-request count from the server
 async function refreshFriendRequests() {
   try {
     const data = await friendService.list()
@@ -15,6 +16,7 @@ async function refreshFriendRequests() {
   }
 }
 
+// Set the count directly when a page already has the list (saves a request)
 function setIncomingCount(n) {
   incomingCount.value = n
 }

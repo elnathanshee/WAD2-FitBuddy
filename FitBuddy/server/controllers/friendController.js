@@ -24,6 +24,7 @@ function isRequestId(value) {
 }
 
 // The row between two people, whichever of them sent the request (or undefined)
+// Also used by challengeController for its friends-only check
 export async function findPair(a, b) {
   const sql = getDb()
   const rows = await sql`

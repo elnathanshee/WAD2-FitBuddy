@@ -84,6 +84,7 @@ test('cheer and nudge are limited separately', async ({ request }) => {
 
 // Read-only: no cheers, nudges or friend requests are sent here
 test.describe('leaderboard tabs (Global / Friends)', () => {
+  // The page opens on the Global tab and shows every athlete
   test('opens on Global and lists everyone', async ({ page, request }) => {
     const res = await request.get('/api/leaderboard/weekly', { headers: USER_HEADERS })
     const { entries } = await res.json()
@@ -93,6 +94,7 @@ test.describe('leaderboard tabs (Global / Friends)', () => {
     await expect(page.getByTestId('leaderboard-row')).toHaveCount(entries.length)
   })
 
+  // The Friends tab lists only me and my friends, ranked among themselves
   test('Friends tab shows only you and your friends, ranked among themselves', async ({ page, request }) => {
     const res = await request.get('/api/friends', { headers: USER_HEADERS })
     const { friends } = await res.json()

@@ -184,6 +184,7 @@
           </li>
         </ol>
 
+        <!-- Hint when the Friends tab has nobody but me -->
         <p v-if="scope === 'friends' && visibleEntries.length <= 1" class="text-muted small text-center mb-0 py-3" data-testid="lb-friends-empty">
           Add friends to compete with them here.
           <RouterLink to="/friends">Find friends</RouterLink>
@@ -231,6 +232,7 @@ const FRIEND_BUTTONS = {
 }
 const CHEER_TEXT = { cheer: 'cheered you on', nudge: 'nudged you', fire: 'sent you a boost', celebrate: 'celebrated you' }
 
+// The two tabs; the page opens on Global
 const SCOPE_OPTIONS = [
   { value: 'global', label: 'Global' },
   { value: 'friends', label: 'Friends' },
@@ -257,6 +259,7 @@ const ranks = computed(() => {
   })
   return map
 })
+// Rank shown for an entry in the current tab
 const rankOf = (entry) => ranks.value.get(entry.userId)
 
 // Podium order is 2nd, 1st, 3rd so the winner stands in the middle.
@@ -338,6 +341,7 @@ async function friendAction(athlete) {
     athlete.friendStatus = data.relation
     athlete.friendRequestId = data.requestId ?? athlete.friendRequestId
     showToast(data.message)
+    // Accepting a request changes the navbar badge
     refreshFriendRequests()
   } catch (err) {
     showToast(errorMessage(err), 'info')

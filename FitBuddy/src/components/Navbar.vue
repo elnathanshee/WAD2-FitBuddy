@@ -1,8 +1,8 @@
 <!--
   App navigation, always at the top inside one bar:
   - brand | page tabs | account menu (background, switch demo athlete, log out)
-  - The four tabs share the space between the brand and the account menu
-    equally. On phones they move to a second row of the same bar, full width.
+  - The five tabs share the space between the brand and the account menu
+    equally. On phones and tablets they move to a second row of the same bar, full width.
   - One indicator slides behind the active tab, so switching pages reads as
     one continuous motion.
 -->
@@ -22,9 +22,21 @@
           :key="item.to"
           :to="item.to"
           class="tab pressable"
+          :class="{ 'router-link-active': isActive(item) }"
           :data-testid="`tab-${item.name}`"
         >
-          <i class="bi" :class="isActive(item) ? item.iconActive : item.icon" aria-hidden="true"></i>
+          <!-- Wrapper lets the badge sit on the icon's top-right corner -->
+          <span class="tab-icon position-relative">
+            <i class="bi" :class="isActive(item) ? item.iconActive : item.icon" aria-hidden="true"></i>
+            <!-- Badge: number of pending incoming friend requests (hidden at 0) -->
+            <span
+              v-if="item.name === 'friends' && incomingCount > 0"
+              class="tab-badge position-absolute top-0 start-100 translate-middle badge rounded-pill text-bg-danger"
+              data-testid="friends-request-badge"
+            >
+              {{ incomingCount }}<span class="visually-hidden"> friend requests</span>
+            </span>
+          </span>
           <span>{{ item.label }}</span>
         </router-link>
       </nav>
@@ -108,17 +120,21 @@ import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { authService } from '../services/authService'
 import { useBackground } from '../composables/useBackground'
+import { useFriendRequests } from '../composables/useFriendRequests'
 import BrandMark from './BrandMark.vue'
 
 const router = useRouter()
 const route = useRoute()
 const { background, setBackground, BACKGROUNDS } = useBackground()
+// Shared pending-request count that feeds the Friends tab badge
+const { incomingCount, refreshFriendRequests } = useFriendRequests()
 
 const navItems = [
   { name: 'home', to: '/home', label: 'Home', icon: 'bi-house', iconActive: 'bi-house-fill' },
   { name: 'habits', to: '/habits', label: 'Habits', icon: 'bi-check2-square', iconActive: 'bi-check-square-fill' },
   { name: 'dashboard', to: '/dashboard', label: 'Dashboard', icon: 'bi-bar-chart', iconActive: 'bi-bar-chart-fill' },
   { name: 'leaderboard', to: '/leaderboard', label: 'Leaderboard', icon: 'bi-trophy', iconActive: 'bi-trophy-fill' },
+  { name: 'friends', to: '/friends', label: 'Friends', icon: 'bi-people', iconActive: 'bi-people-fill' },
 ]
 
 const demoAthletes = [
@@ -166,9 +182,15 @@ function placeIndicator() {
 
 watch(
   () => [route.path, isAuthenticated.value],
-  () => nextTick(placeIndicator),
+  () => {
+    nextTick(placeIndicator)
+    // Keep the badge current as the user moves between pages (logged in only)
+    if (isAuthenticated.value) refreshFriendRequests()
+  },
 )
 onMounted(() => {
+  // Load the badge count on first render (logged in only)
+  if (isAuthenticated.value) refreshFriendRequests()
   nextTick(placeIndicator)
   window.addEventListener('resize', placeIndicator)
   document.fonts?.ready.then(placeIndicator)
@@ -275,7 +297,7 @@ const switchAthlete = async (email) => {
   grid-area: tabs;
   position: relative;
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(5, 1fr);
   gap: var(--s-1);
   align-self: stretch;
   padding: var(--s-2) 0;
@@ -315,6 +337,16 @@ const switchAthlete = async (email) => {
   font-size: var(--fs-md);
   line-height: 1;
 }
+.tab-icon {
+  /* position: relative (via class) lets the badge be placed against the icon */
+  display: inline-flex;
+}
+/* Absolutely positioned, so it never changes the tab widths */
+.tab-badge {
+  font-size: 0.6rem;
+  padding: 0.25em 0.45em;
+  line-height: 1;
+}
 .tab.router-link-active {
   color: var(--fb-green-700);
 }
@@ -324,8 +356,8 @@ const switchAthlete = async (email) => {
   }
 }
 
-/* Phones: brand + account on the first row, tabs across the second */
-@media (max-width: 767.98px) {
+/* Phones and tablets: brand + account on the first row, tabs across the second */
+@media (max-width: 991.98px) {
   .topbar-inner.authed {
     grid-template-columns: 1fr auto;
     grid-template-areas:
@@ -342,7 +374,7 @@ const switchAthlete = async (email) => {
     flex-direction: column;
     gap: 2px;
     min-height: 48px;
-    font-size: var(--fs-xs);
+    font-size: 0.6875rem; /* 11px: fits "Leaderboard" so all five tabs stay equal width */
   }
   .tab i {
     font-size: var(--fs-lg);

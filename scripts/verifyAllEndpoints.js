@@ -136,8 +136,18 @@ async function verifyAll() {
         throw new Error('Cheer failed: ' + JSON.stringify(cheerData))
       }
 
+      // Test 11: Friends
+      console.log('12. Testing GET /api/friends...')
+      const friendsRes = await fetch(`${baseUrl}/api/friends`, { headers: authHeaders })
+      const friendsData = await friendsRes.json()
+      if (friendsRes.ok && Array.isArray(friendsData.friends)) {
+        console.log(`   ✅ GET /api/friends passed! Friends: ${friendsData.friends.length}, incoming requests: ${friendsData.incoming.length}, sent requests: ${friendsData.outgoing.length}`)
+      } else {
+        throw new Error('Friends failed: ' + JSON.stringify(friendsData))
+      }
+
       console.log('\n======================================================')
-      console.log('🎉 ALL 11 VERIFICATION TESTS PASSED SUCCESSFULLY! 🎉')
+      console.log('🎉 ALL 12 VERIFICATION TESTS PASSED SUCCESSFULLY! 🎉')
       console.log('======================================================\n')
     } catch (err) {
       console.error('\n❌ VERIFICATION TEST FAILED:', err)

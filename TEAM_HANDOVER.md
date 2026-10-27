@@ -31,6 +31,10 @@ Welcome team! **FitBuddy** is a full-stack social fitness and habit accountabili
 8. **Weekly Social Leaderboard & Confetti Cheers (`/leaderboard`):**
    - Live weekly points computed directly from PostgreSQL check-ins.
    - Gold/Silver/Bronze podium styling, cheer/nudge buttons with `canvas-confetti` animations, and activity inbox.
+   - Friends' names link to their profile, and other athletes get an Add friend / Accept / Requested button.
+9. **Social & Friends (`/friends`, `/friends/:id`):**
+   - Search athletes by name (or exact email), send friend requests, accept / decline / cancel them, and remove friends (with a confirm popup).
+   - A friend's profile shows their week's completion rate, perfect-day streak, points, a dot for each day, and every habit with its progress and streak. Only friends can open it (the API answers **403** otherwise) and emails are never sent to the browser.
 
 ---
 
@@ -83,12 +87,19 @@ npm --prefix FitBuddy run dev
 ```
 Open your browser at `http://localhost:5173`. Vite will automatically proxy `/api` requests to `http://localhost:3000`.
 
+#### Demo friendships (one-off)
+```bash
+# Adds the demo friends/request (additive, safe to repeat; never deletes anything)
+npm --prefix server run seed:friends
+```
+`seedNeon.js` also adds them when it re-seeds. `rival_david` is left unconnected so searching and "Add friend" can be demoed.
+
 #### Option B: Build & Test Production Bundle Locally
 ```bash
 # 1. Build production assets
 npm run build
 
-# 2. Run automated endpoint verification test suite (11 tests)
+# 2. Run automated endpoint verification test suite (12 tests)
 node --env-file-if-exists=.env.local scripts/verifyAllEndpoints.js
 ```
 
@@ -126,12 +137,14 @@ WAD2-FitBuddy/
 │   │   ├── healthSyncController.js     # Apple Health & Google Fit sync
 │   │   ├── analyticsController.js      # 7-day consistency calculation
 │   │   ├── challengeController.js      # Head-to-head friend duels
+│   │   ├── friendController.js         # Friend search, requests & friend profiles
 │   │   └── aiController.js             # Google Gemini 3.5 Flash Coach (suggest-habits + coach-chat)
 │   ├── middleware/
 │   │   └── requireUser.js     # Bearer token JWT verification
 │   ├── routes/                # Express API routes (/api/auth, /api/habits, etc.)
 │   ├── utils/
-│   │   └── auth.js            # scrypt password hashing & HMAC-SHA256 JWT
+│   │   ├── auth.js            # scrypt password hashing & HMAC-SHA256 JWT
+│   │   └── friends.js         # Pure friend helpers (relation, search pattern), unit-tested
 │   ├── app.js                 # Express application instance
 │   └── server.js              # Local Node server entrypoint
 │
@@ -140,10 +153,11 @@ WAD2-FitBuddy/
 │   │   ├── components/
 │   │   │   ├── auth/          # LoginPage.vue, SignupPage.vue
 │   │   │   ├── dashboard/     # FitnessTrackerWidget, ConsistencyMatrix, Challenges
+│   │   │   ├── friends/       # FriendRow (avatar, name, slot for buttons)
 │   │   │   ├── habits/        # HabitCard, AddHabitModal, AiGoalCoachModal
 │   │   │   ├── leaderboard/   # LeaderboardPodium, LeaderboardTable
 │   │   │   └── Navbar.vue     # Global top navigation & quick user switcher
-│   │   ├── views/             # HomePage.vue, Dashboard.vue, HabitsPage.vue, Leaderboard.vue
+│   │   ├── views/             # HomePage.vue, Dashboard.vue, HabitsPage.vue, Leaderboard.vue, FriendsPage.vue (/friends), FriendProfile.vue (/friends/:id)
 │   │   ├── services/          # api.js, authService.js
 │   │   ├── router/            # Vue Router 4 with route guards (requiresAuth)
 │   │   ├── App.vue
@@ -154,7 +168,7 @@ WAD2-FitBuddy/
 │
 ├── scripts/
 │   ├── build.js               # Production build script for Vercel
-│   ├── verifyAllEndpoints.js  # 11-step backend test suite
+│   ├── verifyAllEndpoints.js  # 12-step backend test suite
 │   ├── captureScreenshots.js  # Automated browser screenshot capture runner
 │   └── generatePdf.js         # Playwright PDF generator
 │
@@ -185,6 +199,9 @@ All tables are automatically verified and created on startup if they don't exist
    - Unique index on (`sender_id`, `recipient_id`, `type`, `sent_on`): each type can be sent to a person once per day.
 5. **`challenges`**:
    - `id` (SERIAL PK), `creator_id` (VARCHAR FK), `opponent_id` (VARCHAR FK), `title` (VARCHAR), `habit_category` (VARCHAR), `target_days` (INT), `creator_progress` (INT), `opponent_progress` (INT), `status` (VARCHAR: `active`, `completed`).
+6. **`friendships`**:
+   - `id` (SERIAL PK), `requester_id` (VARCHAR), `addressee_id` (VARCHAR), `status` (VARCHAR: `pending`, `accepted`), `created_at`, `responded_at`.
+   - One row per pair of people (unique index on the two ids in sorted order), whichever of them sent the request. Declining, cancelling and removing delete the row, so the same two people can start over.
 
 ---
 
@@ -203,6 +220,14 @@ All tables are automatically verified and created on startup if they don't exist
 | `GET` | `/api/leaderboard/weekly` | Yes (`Bearer`) | Dynamic weekly leaderboard rankings and points |
 | `POST` | `/api/leaderboard/cheer` | Yes (`Bearer`) | Sends a cheer/nudge to a fellow athlete. **409** if that type was already sent to them today |
 | `GET` | `/api/leaderboard/cheers` | Yes (`Bearer`) | Gets latest cheers received by current user |
+| `GET` | `/api/friends` | Yes (`Bearer`) | Your `friends`, `incoming` requests and `outgoing` requests |
+| `GET` | `/api/friends/search?q=` | Yes (`Bearer`) | Finds athletes by name or exact email (2+ characters, max 10, **400** if shorter). Each result has a `relation`: `none`, `friends`, `outgoing` or `incoming`; no emails returned |
+| `POST` | `/api/friends/requests` | Yes (`Bearer`) | Body `{ userId }`. Sends a request (**201**); if they already asked you, accepts it instead (**200**). **400** for yourself, **404** unknown user, **409** already friends / already sent |
+| `POST` | `/api/friends/requests/:id/accept` | Yes (`Bearer`) | Accepts a request addressed to you |
+| `POST` | `/api/friends/requests/:id/reject` | Yes (`Bearer`) | Declines a request addressed to you (deletes it) |
+| `DELETE` | `/api/friends/requests/:id` | Yes (`Bearer`) | Cancels a request you sent |
+| `DELETE` | `/api/friends/:userId` | Yes (`Bearer`) | Removes a friend (**404** if you aren't friends) |
+| `GET` | `/api/friends/:userId/profile?today=YYYY-MM-DD` | Yes (`Bearer`) | A friend's profile, weekly points and week analytics. **403** unless you are friends |
 | `POST` | `/api/health-sync/simulate` | Yes (`Bearer`) | Simulates Apple Health / Google Fit sync |
 | `GET` | `/api/analytics/summary?period=day\|week\|month&offset=0&today=YYYY-MM-DD` | Yes (`Bearer`) | Analytics Dashboard: completion rates, per-day breakdown, streaks, category counts |
 | `GET` | `/api/analytics/weekly-summary` | Yes (`Bearer`) | 7-day completion rates & category counts |

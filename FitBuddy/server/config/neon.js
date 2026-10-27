@@ -3,7 +3,7 @@
 // Technology: @neondatabase/serverless
 //
 // Optimized for Vercel Serverless Functions and local development.
-// Automatically initializes PostgreSQL tables (users, habits, check_ins, cheers, challenges).
+// Automatically initializes PostgreSQL tables (users, habits, check_ins, cheers, challenges, friendships).
 // =============================================================================
 
 import { neon } from '@neondatabase/serverless'
@@ -143,6 +143,35 @@ export async function initNeonSchema() {
 
   await sql`
     CREATE INDEX IF NOT EXISTS idx_challenges_participants ON challenges(creator_id, opponent_id);
+  `
+
+  // Friend requests and friendships share one table. Rejecting, cancelling or
+  // removing deletes the row, so the same two people can start over later.
+  await sql`
+    CREATE TABLE IF NOT EXISTS friendships (
+      id SERIAL PRIMARY KEY,
+      requester_id VARCHAR(100) NOT NULL,
+      addressee_id VARCHAR(100) NOT NULL,
+      status VARCHAR(20) NOT NULL DEFAULT 'pending',
+      created_at TIMESTAMPTZ DEFAULT NOW(),
+      responded_at TIMESTAMPTZ,
+      CHECK (requester_id <> addressee_id)
+    );
+  `
+
+  // An older copy of this table (made before responded_at existed) is brought up to date
+  await sql`
+    ALTER TABLE friendships ADD COLUMN IF NOT EXISTS responded_at TIMESTAMPTZ;
+  `
+
+  // One row per pair of people, whichever direction the request went
+  await sql`
+    CREATE UNIQUE INDEX IF NOT EXISTS uniq_friend_pair
+    ON friendships (LEAST(requester_id, addressee_id), GREATEST(requester_id, addressee_id));
+  `
+
+  await sql`
+    CREATE INDEX IF NOT EXISTS idx_friendships_addressee ON friendships(addressee_id, status);
   `
 
   console.log('✅ Neon PostgreSQL schema verified and ready.')

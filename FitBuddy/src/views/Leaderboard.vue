@@ -1,6 +1,7 @@
 <!--
   Weekly leaderboard: points from habit check-ins, a podium for the top 3,
-  and cheers/nudges. Each cheer type can be sent to a person once per day
+  and cheers/nudges. Two tabs: Global (everyone) and Friends (you + your
+  friends, ranked again among themselves). Each cheer type can be sent to a person once per day
   (enforced by the server; `sentToday` tells the UI which buttons to lock).
 -->
 <template>
@@ -36,6 +37,24 @@
     </div>
 
     <div v-else-if="board" class="d-grid gap-4">
+      <!-- Global / Friends -->
+      <div class="segmented" role="tablist" aria-label="Leaderboard scope" :style="{ '--index': scope === 'friends' ? 1 : 0 }">
+        <span class="segmented-thumb" aria-hidden="true"></span>
+        <button
+          v-for="option in SCOPE_OPTIONS"
+          :key="option.value"
+          type="button"
+          role="tab"
+          class="segment"
+          :class="{ active: scope === option.value }"
+          :aria-selected="scope === option.value"
+          :data-testid="`lb-tab-${option.value}`"
+          @click="scope = option.value"
+        >
+          {{ option.label }}
+        </button>
+      </div>
+
       <!-- Your points -->
       <section v-if="me" class="surface my-points p-4">
         <Trophy3D class="my-trophy" />
@@ -57,14 +76,14 @@
           :key="entry.userId"
           v-tilt
           class="podium-spot"
-          :class="`place-${entry.rank}`"
+          :class="`place-${rankOf(entry)}`"
         >
           <span class="avatar podium-avatar" :style="{ backgroundColor: entry.avatarColor }">
             {{ entry.displayName.charAt(0).toUpperCase() }}
           </span>
           <div class="podium-name">{{ entry.displayName }}</div>
           <div class="podium-points">{{ entry.points }} pts</div>
-          <div class="podium-step display-num" aria-hidden="true">{{ entry.rank }}</div>
+          <div class="podium-step display-num" aria-hidden="true">{{ rankOf(entry) }}</div>
         </div>
       </section>
 
@@ -83,20 +102,20 @@
 
       <!-- Full ranking -->
       <section class="surface p-2 p-md-3">
-        <p v-if="board.entries.length === 0" class="text-muted text-center mb-0 py-4">
+        <p v-if="scope === 'global' && board.entries.length === 0" class="text-muted text-center mb-0 py-4">
           Nobody has any habits yet. Add one and check in to get on the board.
         </p>
 
         <ol class="list-unstyled mb-0 stagger">
           <li
-            v-for="entry in board.entries"
+            v-for="entry in visibleEntries"
             :key="entry.userId"
             class="lb-row"
             :class="{ 'is-me': entry.isCurrentUser }"
             data-testid="leaderboard-row"
             :data-user-id="entry.userId"
           >
-            <span class="lb-rank display-num" :class="`rank-${entry.rank}`">{{ entry.rank }}</span>
+            <span class="lb-rank display-num" :class="`rank-${rankOf(entry)}`">{{ rankOf(entry) }}</span>
 
             <span class="avatar" :style="{ width: '40px', height: '40px', backgroundColor: entry.avatarColor, fontSize: '16px' }">
               {{ entry.displayName.charAt(0).toUpperCase() }}
@@ -104,7 +123,13 @@
 
             <div class="lb-info">
               <div class="lb-name">
-                {{ entry.displayName }}
+                <RouterLink
+                  v-if="entry.friendStatus === 'friends'"
+                  :to="`/friends/${entry.userId}`"
+                  class="lb-friend-link"
+                  data-testid="leaderboard-friend-link"
+                >{{ entry.displayName }}</RouterLink>
+                <template v-else>{{ entry.displayName }}</template>
                 <span v-if="entry.isCurrentUser" class="badge rounded-pill text-bg-primary">You</span>
                 <span v-if="entry.cheersCount > 0" class="cheer-count" :title="`${entry.cheersCount} cheers received`">
                   <i class="bi bi-heart-fill" aria-hidden="true"></i>{{ entry.cheersCount }}
@@ -140,13 +165,35 @@
                   <span v-else key="ready"><i class="bi" :class="action.icon" aria-hidden="true"></i> {{ action.label }}</span>
                 </Transition>
               </button>
+
+              <!-- Add friend / Accept / Requested (nothing if the server doesn't report a status) -->
+              <button
+                v-if="FRIEND_BUTTONS[entry.friendStatus]"
+                type="button"
+                class="btn btn-sm cheer-btn friend-btn"
+                :disabled="entry.friendStatus === 'outgoing' || sendingKey === `${entry.userId}-friend`"
+                :aria-label="FRIEND_BUTTONS[entry.friendStatus].label"
+                :title="FRIEND_BUTTONS[entry.friendStatus].label"
+                data-testid="add-friend-btn"
+                @click="friendAction(entry)"
+              >
+                <i class="bi me-sm-1" :class="FRIEND_BUTTONS[entry.friendStatus].icon" aria-hidden="true"></i>
+                <span class="d-none d-sm-inline">{{ FRIEND_BUTTONS[entry.friendStatus].label }}</span>
+              </button>
             </div>
           </li>
         </ol>
+
+        <!-- Hint when the Friends tab has nobody but me -->
+        <p v-if="scope === 'friends' && visibleEntries.length <= 1" class="text-muted small text-center mb-0 py-3" data-testid="lb-friends-empty">
+          Add friends to compete with them here.
+          <RouterLink to="/friends">Find friends</RouterLink>
+        </p>
       </section>
 
       <p class="text-muted small text-center mb-0">
         Points come from completed habit check-ins. You can send each friend one cheer and one nudge a day.
+        Tap a friend's name to see their progress.
       </p>
     </div>
   </div>
@@ -155,11 +202,15 @@
 <script setup>
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { leaderboardService } from '../services/leaderboardService'
+import { friendService } from '../services/friendService'
+import { useFriendRequests } from '../composables/useFriendRequests'
 import { errorMessage } from '../services/habitService'
 import { toDateKey, fromDateKey } from '../utils/dates'
 import { celebrate } from '../utils/celebrate'
 import CountUp from '../components/CountUp.vue'
 import Trophy3D from '../components/three/Trophy3D.vue'
+
+const { refreshFriendRequests } = useFriendRequests()
 
 const board = ref(null)
 const me = ref(null)
@@ -173,13 +224,49 @@ const ACTIONS = [
   { type: 'cheer', icon: 'bi-heart', label: 'Cheer', doneLabel: 'Cheered', title: 'Cheer on this athlete!' },
   { type: 'nudge', icon: 'bi-bell', label: 'Nudge', doneLabel: 'Nudged', title: 'Send a friendly nudge!' },
 ]
+// The friend button for each friendStatus ('friends' and 'self' have none)
+const FRIEND_BUTTONS = {
+  none: { icon: 'bi-person-plus', label: 'Add friend' },
+  incoming: { icon: 'bi-person-check', label: 'Accept' },
+  outgoing: { icon: 'bi-hourglass-split', label: 'Requested' },
+}
 const CHEER_TEXT = { cheer: 'cheered you on', nudge: 'nudged you', fire: 'sent you a boost', celebrate: 'celebrated you' }
+
+// The two tabs; the page opens on Global
+const SCOPE_OPTIONS = [
+  { value: 'global', label: 'Global' },
+  { value: 'friends', label: 'Friends' },
+]
+const scope = ref('global')
+
+// The entries shown in the current tab. These are the original objects (not
+// copies) because cheering / friend actions update them in place.
+const visibleEntries = computed(() => {
+  const entries = board.value?.entries ?? []
+  return scope.value === 'friends'
+    ? entries.filter((e) => e.isCurrentUser || e.friendStatus === 'friends')
+    : entries
+})
+
+// Rank within the visible list: ties share a rank, like the server does
+const ranks = computed(() => {
+  const map = new Map()
+  let prev = null
+  visibleEntries.value.forEach((e, i) => {
+    if (prev === null || e.points !== prev.points) map.set(e.userId, i + 1)
+    else map.set(e.userId, map.get(prev.userId))
+    prev = e
+  })
+  return map
+})
+// Rank shown for an entry in the current tab
+const rankOf = (entry) => ranks.value.get(entry.userId)
 
 // Podium order is 2nd, 1st, 3rd so the winner stands in the middle.
 // Only shown when the top three have distinct ranks (no ties).
 const podium = computed(() => {
-  const top = board.value?.entries.slice(0, 3) ?? []
-  if (top.length < 3 || new Set(top.map((e) => e.rank)).size < 3) return []
+  const top = visibleEntries.value.slice(0, 3)
+  if (top.length < 3 || new Set(top.map(rankOf)).size < 3) return []
   return [top[1], top[0], top[2]]
 })
 
@@ -244,6 +331,25 @@ async function cheerAthlete(athlete, type) {
   }
 }
 
+async function friendAction(athlete) {
+  sendingKey.value = `${athlete.userId}-friend`
+  try {
+    const data =
+      athlete.friendStatus === 'incoming'
+        ? await friendService.accept(athlete.friendRequestId)
+        : await friendService.sendRequest(athlete.userId)
+    athlete.friendStatus = data.relation
+    athlete.friendRequestId = data.requestId ?? athlete.friendRequestId
+    showToast(data.message)
+    // Accepting a request changes the navbar badge
+    refreshFriendRequests()
+  } catch (err) {
+    showToast(errorMessage(err), 'info')
+  } finally {
+    sendingKey.value = null
+  }
+}
+
 onMounted(load)
 onUnmounted(() => clearTimeout(toastTimer))
 </script>
@@ -255,6 +361,44 @@ onUnmounted(() => clearTimeout(toastTimer))
 }
 @keyframes spin {
   to { transform: rotate(360deg); }
+}
+
+/* Segmented control: one thumb slides under the selected segment */
+.segmented {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  padding: var(--s-1);
+  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.06);
+  max-width: 280px;
+}
+.segmented-thumb {
+  position: absolute;
+  top: var(--s-1);
+  bottom: var(--s-1);
+  left: var(--s-1);
+  width: calc((100% - 2 * var(--s-1)) / 2);
+  border-radius: 8px;
+  background: var(--fb-surface);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1), 0 2px 6px rgba(0, 0, 0, 0.06);
+  transform: translateX(calc(var(--index) * 100%));
+  transition: transform 240ms var(--ease-in-out);
+}
+.segment {
+  position: relative;
+  z-index: 1;
+  border: 0;
+  background: transparent;
+  padding: var(--s-2) var(--s-4);
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--fb-text-2);
+  border-radius: 8px;
+  transition: color 150ms ease;
+}
+.segment.active {
+  color: var(--fb-text);
 }
 
 /* Your points */
@@ -417,6 +561,14 @@ onUnmounted(() => clearTimeout(toastTimer))
   gap: var(--s-2);
   font-weight: 700;
 }
+.lb-friend-link {
+  color: inherit;
+  text-decoration: none;
+}
+.lb-friend-link:hover {
+  color: inherit;
+  text-decoration: underline;
+}
 .lb-sub {
   font-size: 0.8rem;
   color: var(--fb-text-2);
@@ -532,6 +684,16 @@ onUnmounted(() => clearTimeout(toastTimer))
 }
 
 @media (max-width: 575.98px) {
+  /* Three buttons share the row on phones: shrink the cheer/nudge minimum, keep the friend button icon-sized */
+  .lb-actions .cheer-btn {
+    min-width: 0;
+    padding: var(--s-1) var(--s-2);
+    white-space: nowrap;
+  }
+  .lb-actions .friend-btn {
+    flex: 0 0 auto;
+    min-width: 44px;
+  }
   .podium {
     gap: var(--s-2);
   }
@@ -544,7 +706,7 @@ onUnmounted(() => clearTimeout(toastTimer))
     width: 54px;
     height: 54px;
   }
-  .lb-actions .cheer-btn {
+  .lb-actions .cheer-btn:not(.friend-btn) {
     flex: 1;
   }
 }

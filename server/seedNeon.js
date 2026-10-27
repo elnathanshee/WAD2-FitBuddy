@@ -7,6 +7,7 @@
 import { getDb, initNeonSchema } from './config/neon.js'
 import { toDateKey, addDays } from './utils/dates.js'
 import { hashPassword } from './utils/auth.js'
+import { insertDemoFriendships } from './seedFriends.js'
 
 export const DEMO_USER_ID = '1'
 const HISTORY_DAYS = 60
@@ -82,6 +83,7 @@ export async function seedNeon() {
   await sql`DELETE FROM check_ins WHERE user_id = ANY(${allUserIds})`
   await sql`DELETE FROM habits WHERE user_id = ANY(${allUserIds})`
   await sql`DELETE FROM users WHERE user_id = ANY(${allUserIds})`
+  await sql`DELETE FROM friendships WHERE requester_id = ANY(${allUserIds}) OR addressee_id = ANY(${allUserIds})`
 
   const defaultPasswordHash = hashPassword('password123')
 
@@ -139,6 +141,9 @@ export async function seedNeon() {
       `
     }
   }
+
+  // Seed a few friendships and a pending request between the demo user and rivals
+  await insertDemoFriendships(sql)
 
   console.log(`✅ Seeded ${demoHabits.length} habits and ${checkInsCount} check-ins for demo user, plus rivals!`)
 }

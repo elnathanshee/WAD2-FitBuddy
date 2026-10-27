@@ -13,6 +13,7 @@ import {
   POINTS,
 } from '../services/pointsService.js'
 import { toDateKey, addDays, weekStart } from '../utils/dates.js'
+import { relationFor, otherUserId } from '../utils/friends.js'
 
 function resolveToday(value) {
   return typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value) ? value : toDateKey()
@@ -41,8 +42,8 @@ export async function weeklyLeaderboard(req, res) {
     GROUP BY c.user_id, c.habit_id, c.date, h.frequency, h.target_amount
   `
 
-  // 2. Fetch all habits & user profiles & cheers
-  const [habitRows, profileRows, cheerCounts, sentRows] = await Promise.all([
+  // 2. Fetch all habits & user profiles & cheers & the current user's friendships
+  const [habitRows, profileRows, cheerCounts, sentRows, friendRows] = await Promise.all([
     sql`SELECT id::text, user_id, frequency FROM habits`,
     sql`SELECT user_id, display_name, avatar_color FROM users`,
     sql`
@@ -57,6 +58,12 @@ export async function weeklyLeaderboard(req, res) {
       WHERE sender_id = ${req.userId}
         AND sent_on = (NOW() AT TIME ZONE 'Asia/Singapore')::date
     `.catch(() => []),
+    // Friend requests and friendships involving the current user
+    sql`
+      SELECT id, requester_id, addressee_id, status
+      FROM friendships
+      WHERE requester_id = ${req.userId} OR addressee_id = ${req.userId}
+    `.catch(() => []),
   ])
 
   const cheersByRecipient = new Map(cheerCounts.map((c) => [c.recipient_id, c.count]))
@@ -65,6 +72,9 @@ export async function weeklyLeaderboard(req, res) {
     if (!sentTodayTypes.has(row.recipient_id)) sentTodayTypes.set(row.recipient_id, new Set())
     sentTodayTypes.get(row.recipient_id).add(row.type)
   }
+
+  // The other person's id → my friendships row with them
+  const friendshipByUser = new Map(friendRows.map((f) => [otherUserId(f, req.userId), f]))
 
   const userIds = new Set([
     ...profileRows.map((p) => p.user_id),
@@ -102,6 +112,8 @@ export async function weeklyLeaderboard(req, res) {
       dailyHabitIds: dailyHabitsByUser.get(userId) ?? [],
     })
     const profile = profileByUser.get(userId)
+    const isCurrentUser = req.userId != null && String(userId) === String(req.userId)
+    const friendship = friendshipByUser.get(userId)
     return {
       userId,
       displayName: profile?.display_name ?? `User ${userId}`,
@@ -113,7 +125,9 @@ export async function weeklyLeaderboard(req, res) {
         cheer: sentTodayTypes.get(userId)?.has('cheer') ?? false,
         nudge: sentTodayTypes.get(userId)?.has('nudge') ?? false,
       },
-      isCurrentUser: req.userId != null && String(userId) === String(req.userId),
+      isCurrentUser,
+      friendStatus: isCurrentUser ? 'self' : relationFor(friendship, req.userId),
+      friendRequestId: friendship?.id ?? null,
     }
   })
 
@@ -137,10 +151,9 @@ export async function weeklyLeaderboard(req, res) {
   })
 }
 
-// GET /api/leaderboard/me
-export async function myScore(req, res) {
+// The weekly points breakdown for one user (also used for friends' profiles)
+export async function weeklyBreakdown(userId, today) {
   const sql = getDb()
-  const today = resolveToday(req.query.today)
   const weekStartKey = weekStart(today)
   const { from, to } = historyRange(weekStartKey)
 
@@ -155,11 +168,11 @@ export async function myScore(req, res) {
         h.target_amount::float AS target
       FROM check_ins c
       JOIN habits h ON c.habit_id = h.id
-      WHERE c.user_id = ${req.userId} AND c.date >= ${from} AND c.date <= ${to}
+      WHERE c.user_id = ${userId} AND c.date >= ${from} AND c.date <= ${to}
       GROUP BY c.user_id, c.habit_id, c.date, h.frequency, h.target_amount
     `,
     sql`
-      SELECT id::text, frequency FROM habits WHERE user_id = ${req.userId}
+      SELECT id::text, frequency FROM habits WHERE user_id = ${userId}
     `,
   ])
 
@@ -178,7 +191,13 @@ export async function myScore(req, res) {
     dailyHabitIds: habitRows.filter((h) => h.frequency !== 'weekly').map((h) => h.id),
   })
 
-  res.json({ userId: req.userId, weekStart: weekStartKey, ...breakdown, rules: POINTS })
+  return { weekStart: weekStartKey, ...breakdown, rules: POINTS }
+}
+
+// GET /api/leaderboard/me
+export async function myScore(req, res) {
+  const result = await weeklyBreakdown(req.userId, resolveToday(req.query.today))
+  res.json({ userId: req.userId, ...result })
 }
 
 // PUT /api/leaderboard/profile

@@ -36,8 +36,11 @@ const stageEl = ref(null)
 const state = ref('loading') // loading | ready | fallback
 let stage = null
 let faceTexture = null
+let backTexture = null
 let faceCanvas = null
 let disposed = false
+// Quarter-turn applied to the back texture so the number reads correctly on that side
+const BACK_ROTATION = Math.PI / 2
 
 // Draws the medal face (gold disc, number, label) onto a canvas texture
 function drawFace() {
@@ -70,6 +73,8 @@ function drawFace() {
   ctx.fillStyle = '#6b3f05'
   ctx.fillText(props.label.toUpperCase().split('').join(String.fromCharCode(8202)), s / 2, s * 0.7)
   if (faceTexture) faceTexture.needsUpdate = true
+  // Redraw both faces so the front and back show the new streak
+  if (backTexture) backTexture.needsUpdate = true
 }
 
 // One full extra turn with ease-out, e.g. when the streak changes
@@ -106,12 +111,21 @@ async function build(THREE) {
   faceTexture.center.set(0.5, 0.5)
   faceTexture.rotation = Math.PI / 2
 
+  // The back cap's UVs run the other way round, so it gets its own copy of the
+  // canvas with the opposite quarter-turn (checked frame by frame while spinning)
+  backTexture = new THREE.CanvasTexture(faceCanvas)
+  backTexture.colorSpace = THREE.SRGBColorSpace
+  backTexture.anisotropy = 4
+  backTexture.center.set(0.5, 0.5)
+  backTexture.rotation = BACK_ROTATION
+
   const group = new THREE.Group()
   const gold = new THREE.MeshStandardMaterial({ color: 0xd9a23a, metalness: 0.9, roughness: 0.28 })
   const face = new THREE.MeshStandardMaterial({ map: faceTexture, metalness: 0.55, roughness: 0.35 })
+  const backFace = new THREE.MeshStandardMaterial({ map: backTexture, metalness: 0.55, roughness: 0.35 })
 
-  // Coin: cylinder turned to face the camera. Groups: 0 side, 1 front cap (the face), 2 back cap (plain gold, so the number never shows mirrored)
-  const coin = new THREE.Mesh(new THREE.CylinderGeometry(1, 1, 0.16, 96), [gold, face, gold])
+  // Coin: cylinder turned to face the camera. Groups: 0 side, 1 front cap (the face), 2 back cap (the same face, so the number reads correctly when the coin turns around)
+  const coin = new THREE.Mesh(new THREE.CylinderGeometry(1, 1, 0.16, 96), [gold, face, backFace])
   coin.rotation.x = Math.PI / 2
   group.add(coin)
 
@@ -119,17 +133,19 @@ async function build(THREE) {
   const rim = new THREE.Mesh(new THREE.TorusGeometry(1, 0.08, 24, 120), gold)
   group.add(rim)
 
-  // Ribbon tails in the brand green, behind the medal
+  // Ribbon tails in the brand green, attached at the top edge of the rim in the
+  // coin's mid-plane (never over the face), so front and back look alike
   const ribbonMat = new THREE.MeshStandardMaterial({ color: 0x1b6343, roughness: 0.75, metalness: 0 })
   for (const side of [-1, 1]) {
-    const tail = new THREE.Mesh(new THREE.BoxGeometry(0.42, 1.1, 0.04), ribbonMat)
-    tail.position.set(side * 0.28, 1.15, -0.12)
+    const tail = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.9, 0.04), ribbonMat)
+    tail.position.set(side * 0.28, 1.5, 0)
     tail.rotation.z = side * -0.32
     group.add(tail)
   }
 
-  group.position.y = -0.15
-  return { object: group, floorY: -1.35 }
+  // Lowered so the raised ribbon fits in view; the shadow floor follows
+  group.position.y = -0.42
+  return { object: group, floorY: -1.6 }
 }
 
 onMounted(async () => {

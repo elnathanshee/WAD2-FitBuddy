@@ -1,5 +1,9 @@
 <!--
-  Friend challenges: head-to-head duels between two athletes.
+  Friend challenges: head-to-head duels between two athletes. You can only
+  challenge accepted friends (the server enforces this too).
+  A new challenge is an invite: the friend accepts or declines, and until then
+  the sender sees it as "waiting" and can cancel it (or dismiss it if declined).
+  Rows, in order: invites for me, invites I sent, declined invites, then duels.
   With `activeOnly` (Home page) finished duels are hidden.
 -->
 <template>
@@ -9,6 +13,13 @@
         <h2 class="section-title">{{ activeOnly ? 'Active challenges' : 'Challenges' }}</h2>
         <div class="text-muted small">Head-to-head duels keep you accountable</div>
       </div>
+      <!-- Badge: how many challenge invites are waiting for my answer -->
+      <span
+        v-if="invites.length > 0"
+        class="badge rounded-pill text-bg-danger align-self-start"
+        data-testid="challenge-invite-count"
+        :aria-label="`${invites.length} challenge ${invites.length === 1 ? 'invite' : 'invites'}`"
+      >{{ invites.length }}</span>
     </div>
 
     <div v-if="loading" class="d-grid gap-3">
@@ -16,13 +27,53 @@
     </div>
 
     <template v-else>
-      <p v-if="visibleChallenges.length === 0" class="text-muted mb-3" data-testid="challenges-empty">
+      <p v-if="!hasAnything" class="text-muted mb-3" data-testid="challenges-empty">
         No active challenges. Challenge a friend to stay on track.
       </p>
 
-      <!-- One row per duel, separated by hairlines -->
+      <!-- One row per invite or duel, separated by hairlines -->
       <ul v-else class="duels divided list-unstyled mb-3 stagger">
-        <li v-for="ch in visibleChallenges" :key="ch.id" class="duel" data-testid="challenge-card">
+        <!-- Invites for me -->
+        <li v-for="ch in invites" :key="`invite-${ch.id}`" class="duel" data-testid="challenge-invite">
+          <div class="duel-head invite-head mb-0">
+            <div class="min-w-0">
+              <div class="duel-meta">{{ ch.creator_name || 'A friend' }} challenged you</div>
+              <h3 class="duel-title">{{ ch.title }}</h3>
+              <div class="duel-meta">
+                <span class="text-capitalize">{{ ch.habit_category }}</span> · {{ ch.target_days }}-day duel
+              </div>
+            </div>
+            <div class="d-flex gap-2 flex-shrink-0">
+              <button type="button" class="btn btn-sm btn-primary px-3" data-testid="challenge-accept-btn" :disabled="respondingId === ch.id" @click="respond(ch, 'accept')">Accept</button>
+              <button type="button" class="btn btn-sm btn-outline-secondary px-3" data-testid="challenge-decline-btn" :disabled="respondingId === ch.id" @click="respond(ch, 'decline')">Decline</button>
+            </div>
+          </div>
+        </li>
+
+        <!-- Invites I sent, waiting for an answer -->
+        <li v-for="ch in waiting" :key="`pending-${ch.id}`" class="duel" data-testid="challenge-pending">
+          <div class="duel-head mb-0">
+            <div class="min-w-0">
+              <h3 class="duel-title">{{ ch.title }}</h3>
+              <div class="duel-meta">Waiting for {{ ch.opponent_name || 'your friend' }} to accept</div>
+            </div>
+            <button type="button" class="btn btn-sm btn-outline-secondary px-3 flex-shrink-0" data-testid="challenge-cancel-btn" :disabled="respondingId === ch.id" @click="removeChallenge(ch)">Cancel</button>
+          </div>
+        </li>
+
+        <!-- Invites I sent that were declined -->
+        <li v-for="ch in declined" :key="`declined-${ch.id}`" class="duel" data-testid="challenge-declined">
+          <div class="duel-head mb-0">
+            <div class="min-w-0">
+              <h3 class="duel-title">{{ ch.title }}</h3>
+              <div class="duel-meta">Declined by {{ ch.opponent_name || 'your friend' }}</div>
+            </div>
+            <button type="button" class="btn btn-sm btn-outline-secondary px-3 flex-shrink-0" data-testid="challenge-dismiss-btn" :disabled="respondingId === ch.id" @click="removeChallenge(ch)">Dismiss</button>
+          </div>
+        </li>
+
+        <!-- Accepted and finished duels -->
+        <li v-for="ch in duels" :key="ch.id" class="duel" data-testid="challenge-card">
           <div class="duel-head">
             <div class="min-w-0">
               <h3 class="duel-title">{{ ch.title }}</h3>
@@ -31,8 +82,9 @@
                 <template v-if="ch.status === 'completed'"> · Finished</template>
               </div>
             </div>
+            <!-- Only accepted (active) duels can be logged -->
             <button
-              v-if="ch.status !== 'completed'"
+              v-if="ch.status === 'active'"
               type="button"
               class="btn btn-sm btn-outline-success px-3"
               :disabled="advancingId === ch.id"
@@ -62,11 +114,21 @@
       <form id="challenge-form" @submit.prevent="submitChallenge">
         <div class="mb-3">
           <label class="form-label small fw-semibold" for="ch-opponent">Opponent</label>
-          <select id="ch-opponent" v-model="newChallenge.opponentId" class="form-select" required>
+          <!-- Shown instead of the dropdown when there is nobody to challenge -->
+          <p v-if="friendsLoaded && friends.length === 0" class="text-muted small mb-0" data-testid="challenge-no-friends">
+            You can only challenge friends.
+            <RouterLink to="/friends">Add some on the Friends page</RouterLink> first.
+          </p>
+          <select
+            v-else
+            id="ch-opponent"
+            v-model="newChallenge.opponentId"
+            class="form-select"
+            required
+            data-testid="challenge-opponent-select"
+          >
             <option disabled value="">Choose a friend…</option>
-            <option v-for="ath in availableOpponents" :key="ath.id" :value="ath.id">
-              {{ ath.name }} ({{ ath.email }})
-            </option>
+            <option v-for="f in friends" :key="f.userId" :value="f.userId">{{ f.displayName }}</option>
           </select>
         </div>
 
@@ -106,7 +168,8 @@
       </form>
       <template #footer>
         <button type="button" class="btn btn-outline-secondary px-3" @click="showCreateModal = false">Cancel</button>
-        <button type="submit" form="challenge-form" class="btn btn-primary px-4" :disabled="submitting">
+        <!-- Can't send a challenge without any friends -->
+        <button type="submit" form="challenge-form" class="btn btn-primary px-4" :disabled="submitting || (friendsLoaded && friends.length === 0)">
           {{ submitting ? 'Sending…' : 'Send challenge' }}
         </button>
       </template>
@@ -119,6 +182,7 @@ import { computed, ref, onMounted } from 'vue'
 import AppModal from '../habits/AppModal.vue'
 import { challengeService } from '../../services/challengeService'
 import { errorMessage } from '../../services/habitService'
+import { friendService } from '../../services/friendService'
 import { authService } from '../../services/authService'
 import { celebrate } from '../../utils/celebrate'
 
@@ -134,8 +198,26 @@ const advancingId = ref(null)
 const showCreateModal = ref(false)
 const submitting = ref(false)
 
-const visibleChallenges = computed(() =>
-  props.activeOnly ? challenges.value.filter((ch) => ch.status !== 'completed') : challenges.value
+// Id of the invite row whose buttons are disabled while its request runs
+const respondingId = ref(null)
+
+// Current user id, compared as strings since ids may be numbers or strings
+const myId = String(authService.getCurrentUser()?.id ?? '')
+const isMine = (id) => String(id) === myId
+
+// The list in display order: invites for me, invites I sent, declined, then duels
+const invites = computed(() => challenges.value.filter((ch) => ch.status === 'pending' && isMine(ch.opponent_id)))
+const waiting = computed(() => challenges.value.filter((ch) => ch.status === 'pending' && isMine(ch.creator_id)))
+const declined = computed(() => challenges.value.filter((ch) => ch.status === 'declined' && isMine(ch.creator_id)))
+// Accepted and finished duels; finished ones are hidden on Home (activeOnly)
+const duels = computed(() =>
+  challenges.value.filter(
+    (ch) => (ch.status === 'active' || ch.status === 'completed') && !(props.activeOnly && ch.status === 'completed')
+  )
+)
+// False when there are no rows at all, which shows the empty message
+const hasAnything = computed(
+  () => invites.value.length + waiting.value.length + declined.value.length + duels.value.length > 0
 )
 
 const share = (progress, target) => (target > 0 ? Math.min(1, progress / target) : 0)
@@ -146,15 +228,12 @@ const sides = (ch) => [
   { key: 'opponent', name: ch.opponent_name || 'Opponent', progress: ch.opponent_progress, colour: ch.opponent_color || '#FF9800' },
 ]
 
-const availableOpponents = ref([
-  { id: 'rival_charlie', name: 'Charlie Wong', email: 'charlie@fitbuddy.com' },
-  { id: 'rival_alex', name: 'Alex Tan', email: 'alex@fitbuddy.com' },
-  { id: 'rival_bernice', name: 'Bernice Lim', email: 'bernice@fitbuddy.com' },
-  { id: 'rival_david', name: 'David Lee', email: 'david@fitbuddy.com' },
-])
+// Only accepted friends can be challenged
+const friends = ref([])
+const friendsLoaded = ref(false)
 
 const newChallenge = ref({
-  opponentId: 'rival_charlie',
+  opponentId: '',
   title: '7-Day Water Hydration Sprint',
   habitCategory: 'water',
   targetDays: 7,
@@ -168,6 +247,17 @@ async function loadChallenges() {
     console.warn('Failed to load challenges:', err)
   } finally {
     loading.value = false
+  }
+}
+
+// Load accepted friends for the opponent dropdown
+async function loadFriends() {
+  try {
+    const data = await friendService.list()
+    friends.value = data.friends || []
+    friendsLoaded.value = true
+  } catch (err) {
+    console.warn('Failed to load friends:', err)
   }
 }
 
@@ -199,20 +289,36 @@ async function advanceProgress(ch) {
   }
 }
 
-onMounted(async () => {
-  await loadChallenges()
+// Accept or decline an invite sent to me
+async function respond(ch, action) {
+  respondingId.value = ch.id
+  error.value = ''
   try {
-    const demoUsers = await authService.getDemoUsers()
-    const currentUser = authService.getCurrentUser()
-    if (demoUsers.length) {
-      availableOpponents.value = demoUsers
-        .filter((u) => String(u.id) !== String(currentUser?.id))
-        .map((u) => ({ id: u.id, name: u.name, email: u.email }))
-    }
+    await (action === 'accept' ? challengeService.accept(ch.id) : challengeService.decline(ch.id))
+    await loadChallenges()
   } catch (err) {
-    console.warn('Opponents load error:', err)
+    error.value = errorMessage(err)
+  } finally {
+    respondingId.value = null
   }
-})
+}
+
+// Cancel an invite I sent, or dismiss one that was declined
+async function removeChallenge(ch) {
+  respondingId.value = ch.id
+  error.value = ''
+  try {
+    await challengeService.remove(ch.id)
+    await loadChallenges()
+  } catch (err) {
+    error.value = errorMessage(err)
+  } finally {
+    respondingId.value = null
+  }
+}
+
+// Load challenges and friends in parallel
+onMounted(() => Promise.all([loadChallenges(), loadFriends()]))
 </script>
 
 <style scoped>
@@ -231,6 +337,13 @@ onMounted(async () => {
   justify-content: space-between;
   gap: var(--s-3);
   margin-bottom: var(--s-3);
+}
+/* Invites: the buttons drop below the text when the row is narrow */
+.invite-head {
+  flex-wrap: wrap;
+}
+.invite-head > .min-w-0 {
+  flex: 1 1 14rem;
 }
 .duel-title {
   font-size: 1.2rem;

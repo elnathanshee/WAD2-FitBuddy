@@ -6,6 +6,8 @@ import HomePage from '../views/HomePage.vue'
 import Dashboard from '../views/Dashboard.vue'
 import HabitsPage from '../views/HabitsPage.vue'
 import Leaderboard from '../views/Leaderboard.vue'
+import FriendsPage from '../views/FriendsPage.vue'
+import FriendProfile from '../views/FriendProfile.vue'
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -39,6 +41,18 @@ const router = createRouter({
       name: 'leaderboard',
       component: Leaderboard,
       meta: { requiresAuth: true, title: 'Leaderboard', description: "This week's points, rankings, and cheers between friends." }
+    },
+    {
+      path: '/friends',
+      name: 'friends',
+      component: FriendsPage,
+      meta: { requiresAuth: true, title: 'Friends', description: "Find athletes, manage friend requests and follow your friends' progress." }
+    },
+    {
+      path: '/friends/:id',
+      name: 'friend-profile',
+      component: FriendProfile,
+      meta: { requiresAuth: true, title: 'Friend profile', description: "A friend's habits, streaks and progress this week." }
     },
     // Unknown URLs go back to the entry point
     { path: '/:pathMatch(.*)*', redirect: '/' }

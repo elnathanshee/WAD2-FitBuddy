@@ -80,12 +80,16 @@ test.describe('Navigation', () => {
     await expect(page).toHaveURL(/\/leaderboard$/)
     await expect(page.getByRole('heading', { name: 'Leaderboard' })).toBeVisible()
 
+    await navLink(page, 'friends').click()
+    await expect(page).toHaveURL(/\/friends$/)
+    await expect(page.getByRole('heading', { name: 'Friends', level: 1 })).toBeVisible()
+
     await navLink(page, 'home').click()
     await expect(page).toHaveURL(/\/home$/)
   })
 
   test('the page tabs sit inside the top bar on every page, equally wide', async ({ page }) => {
-    for (const path of ['/home', '/habits', '/dashboard', '/leaderboard']) {
+    for (const path of ['/home', '/habits', '/dashboard', '/leaderboard', '/friends']) {
       await page.goto(path)
       const navbar = await page.getByTestId('navbar').boundingBox()
       const bar = page.getByTestId('tabbar')
@@ -94,7 +98,7 @@ test.describe('Navigation', () => {
       expect(box.y).toBeGreaterThanOrEqual(navbar.y)
       expect(box.y + box.height).toBeLessThanOrEqual(navbar.y + navbar.height + 1) // inside the top bar
       const links = bar.getByRole('link')
-      await expect(links).toHaveCount(4)
+      await expect(links).toHaveCount(5)
       const widths = await links.evaluateAll((els) => els.map((el) => el.getBoundingClientRect().width))
       expect(Math.max(...widths) - Math.min(...widths)).toBeLessThan(1) // equal spacing
     }

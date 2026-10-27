@@ -76,3 +76,24 @@ export async function deleteTestHabits(request, headers = USER_HEADERS) {
     }
   }
 }
+
+// --- Friends: the seed (server/seedFriends.js) leaves rival_david unconnected,
+// --- so the friend tests only ever change the demo user ↔ David relationship.
+export const DAVID = 'rival_david'
+export const DAVID_HEADERS = { 'x-user-id': DAVID }
+
+// Back to "not connected" whatever state an earlier (maybe failed) test left behind
+export async function resetFriendship(request) {
+  const res = await request.get('/api/friends', { headers: USER_HEADERS })
+  if (!res.ok()) return
+  const { friends, incoming, outgoing } = await res.json()
+  if (friends.some((f) => f.userId === DAVID)) {
+    await request.delete(`/api/friends/${DAVID}`, { headers: USER_HEADERS })
+  }
+  for (const r of outgoing.filter((r) => r.userId === DAVID)) {
+    await request.delete(`/api/friends/requests/${r.requestId}`, { headers: USER_HEADERS })
+  }
+  for (const r of incoming.filter((r) => r.userId === DAVID)) {
+    await request.post(`/api/friends/requests/${r.requestId}/reject`, { headers: USER_HEADERS })
+  }
+}

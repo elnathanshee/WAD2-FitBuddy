@@ -202,11 +202,14 @@
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { leaderboardService } from '../services/leaderboardService'
 import { friendService } from '../services/friendService'
+import { useFriendRequests } from '../composables/useFriendRequests'
 import { errorMessage } from '../services/habitService'
 import { toDateKey, fromDateKey } from '../utils/dates'
 import { celebrate } from '../utils/celebrate'
 import CountUp from '../components/CountUp.vue'
 import Trophy3D from '../components/three/Trophy3D.vue'
+
+const { refreshFriendRequests } = useFriendRequests()
 
 const board = ref(null)
 const me = ref(null)
@@ -335,6 +338,7 @@ async function friendAction(athlete) {
     athlete.friendStatus = data.relation
     athlete.friendRequestId = data.requestId ?? athlete.friendRequestId
     showToast(data.message)
+    refreshFriendRequests()
   } catch (err) {
     showToast(errorMessage(err), 'info')
   } finally {

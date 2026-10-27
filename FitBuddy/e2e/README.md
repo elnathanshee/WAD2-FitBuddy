@@ -6,7 +6,7 @@
 | `navigation.spec.js` | Login lands on Home; Home sections; bottom navigation on every page; Dashboard is stats-only, in order, with a 3-colour calendar; logout in the account menu |
 | `coach-chat.spec.js` | AI coach button position, chat send/reply, multi-turn history, adding a suggested habit, error + retry (Gemini is mocked with `page.route`) |
 | `leaderboard.spec.js` | Cheer/nudge buttons, once-per-day lock (UI + reload), server 409 on a repeat, cheer and nudge limited separately; Global / Friends tabs (opens on Global, Friends shows only you + friends, re-ranked) |
-| `challenges.spec.js` | Only friends can be challenged: server 403 for a non-friend, the New challenge dropdown lists exactly your friends (read-only) |
+| `challenges.spec.js` | Only friends can be challenged: server 403 for a non-friend, the New challenge dropdown lists exactly your friends (read-only). Invites: a new challenge is pending, the friend declines, the creator dismisses, permission rules (403 / 400), declining an invite and cancelling a sent one in the UI, and the friend-request count badges (navbar + Friends page). Test challenges are titled `E2E ...` and deleted again; none are ever accepted |
 | `friends.spec.js` | User search, sending / cancelling a request, accepting + removing a friend, declining, a friend's profile (stats, week strip, habits), server rules (403 / 400 / 409, no emails), friend links on the leaderboard. Only `rival_david` is changed; his friendship is reset before and after each test |
 | `experience.spec.js` | Highlights carousel (buttons, dots, autoplay, pause on hover, no autoplay with reduced motion, slide links), background picker (persists after reload), 3D medal/trophy load or fall back, page titles |
 

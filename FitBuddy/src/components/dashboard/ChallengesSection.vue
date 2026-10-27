@@ -1,6 +1,9 @@
 <!--
   Friend challenges: head-to-head duels between two athletes. You can only
   challenge accepted friends (the server enforces this too).
+  A new challenge is an invite: the friend accepts or declines, and until then
+  the sender sees it as "waiting" and can cancel it (or dismiss it if declined).
+  Rows, in order: invites for me, invites I sent, declined invites, then duels.
   With `activeOnly` (Home page) finished duels are hidden.
 -->
 <template>
@@ -10,6 +13,12 @@
         <h2 class="section-title">{{ activeOnly ? 'Active challenges' : 'Challenges' }}</h2>
         <div class="text-muted small">Head-to-head duels keep you accountable</div>
       </div>
+      <span
+        v-if="invites.length > 0"
+        class="badge rounded-pill text-bg-danger align-self-start"
+        data-testid="challenge-invite-count"
+        :aria-label="`${invites.length} challenge ${invites.length === 1 ? 'invite' : 'invites'}`"
+      >{{ invites.length }}</span>
     </div>
 
     <div v-if="loading" class="d-grid gap-3">
@@ -17,13 +26,53 @@
     </div>
 
     <template v-else>
-      <p v-if="visibleChallenges.length === 0" class="text-muted mb-3" data-testid="challenges-empty">
+      <p v-if="!hasAnything" class="text-muted mb-3" data-testid="challenges-empty">
         No active challenges. Challenge a friend to stay on track.
       </p>
 
-      <!-- One row per duel, separated by hairlines -->
+      <!-- One row per invite or duel, separated by hairlines -->
       <ul v-else class="duels divided list-unstyled mb-3 stagger">
-        <li v-for="ch in visibleChallenges" :key="ch.id" class="duel" data-testid="challenge-card">
+        <!-- Invites for me -->
+        <li v-for="ch in invites" :key="`invite-${ch.id}`" class="duel" data-testid="challenge-invite">
+          <div class="duel-head invite-head mb-0">
+            <div class="min-w-0">
+              <div class="duel-meta">{{ ch.creator_name || 'A friend' }} challenged you</div>
+              <h3 class="duel-title">{{ ch.title }}</h3>
+              <div class="duel-meta">
+                <span class="text-capitalize">{{ ch.habit_category }}</span> · {{ ch.target_days }}-day duel
+              </div>
+            </div>
+            <div class="d-flex gap-2 flex-shrink-0">
+              <button type="button" class="btn btn-sm btn-primary px-3" data-testid="challenge-accept-btn" :disabled="respondingId === ch.id" @click="respond(ch, 'accept')">Accept</button>
+              <button type="button" class="btn btn-sm btn-outline-secondary px-3" data-testid="challenge-decline-btn" :disabled="respondingId === ch.id" @click="respond(ch, 'decline')">Decline</button>
+            </div>
+          </div>
+        </li>
+
+        <!-- Invites I sent, waiting for an answer -->
+        <li v-for="ch in waiting" :key="`pending-${ch.id}`" class="duel" data-testid="challenge-pending">
+          <div class="duel-head mb-0">
+            <div class="min-w-0">
+              <h3 class="duel-title">{{ ch.title }}</h3>
+              <div class="duel-meta">Waiting for {{ ch.opponent_name || 'your friend' }} to accept</div>
+            </div>
+            <button type="button" class="btn btn-sm btn-outline-secondary px-3 flex-shrink-0" data-testid="challenge-cancel-btn" :disabled="respondingId === ch.id" @click="removeChallenge(ch)">Cancel</button>
+          </div>
+        </li>
+
+        <!-- Invites I sent that were declined -->
+        <li v-for="ch in declined" :key="`declined-${ch.id}`" class="duel" data-testid="challenge-declined">
+          <div class="duel-head mb-0">
+            <div class="min-w-0">
+              <h3 class="duel-title">{{ ch.title }}</h3>
+              <div class="duel-meta">Declined by {{ ch.opponent_name || 'your friend' }}</div>
+            </div>
+            <button type="button" class="btn btn-sm btn-outline-secondary px-3 flex-shrink-0" data-testid="challenge-dismiss-btn" :disabled="respondingId === ch.id" @click="removeChallenge(ch)">Dismiss</button>
+          </div>
+        </li>
+
+        <!-- Accepted and finished duels -->
+        <li v-for="ch in duels" :key="ch.id" class="duel" data-testid="challenge-card">
           <div class="duel-head">
             <div class="min-w-0">
               <h3 class="duel-title">{{ ch.title }}</h3>
@@ -33,7 +82,7 @@
               </div>
             </div>
             <button
-              v-if="ch.status !== 'completed'"
+              v-if="ch.status === 'active'"
               type="button"
               class="btn btn-sm btn-outline-success px-3"
               :disabled="advancingId === ch.id"
@@ -130,6 +179,7 @@ import AppModal from '../habits/AppModal.vue'
 import { challengeService } from '../../services/challengeService'
 import { errorMessage } from '../../services/habitService'
 import { friendService } from '../../services/friendService'
+import { authService } from '../../services/authService'
 import { celebrate } from '../../utils/celebrate'
 
 const props = defineProps({
@@ -144,8 +194,22 @@ const advancingId = ref(null)
 const showCreateModal = ref(false)
 const submitting = ref(false)
 
-const visibleChallenges = computed(() =>
-  props.activeOnly ? challenges.value.filter((ch) => ch.status !== 'completed') : challenges.value
+const respondingId = ref(null)
+
+const myId = String(authService.getCurrentUser()?.id ?? '')
+const isMine = (id) => String(id) === myId
+
+// The list in display order: invites for me, invites I sent, declined, then duels
+const invites = computed(() => challenges.value.filter((ch) => ch.status === 'pending' && isMine(ch.opponent_id)))
+const waiting = computed(() => challenges.value.filter((ch) => ch.status === 'pending' && isMine(ch.creator_id)))
+const declined = computed(() => challenges.value.filter((ch) => ch.status === 'declined' && isMine(ch.creator_id)))
+const duels = computed(() =>
+  challenges.value.filter(
+    (ch) => (ch.status === 'active' || ch.status === 'completed') && !(props.activeOnly && ch.status === 'completed')
+  )
+)
+const hasAnything = computed(
+  () => invites.value.length + waiting.value.length + declined.value.length + duels.value.length > 0
 )
 
 const share = (progress, target) => (target > 0 ? Math.min(1, progress / target) : 0)
@@ -216,6 +280,34 @@ async function advanceProgress(ch) {
   }
 }
 
+// Accept or decline an invite sent to me
+async function respond(ch, action) {
+  respondingId.value = ch.id
+  error.value = ''
+  try {
+    await (action === 'accept' ? challengeService.accept(ch.id) : challengeService.decline(ch.id))
+    await loadChallenges()
+  } catch (err) {
+    error.value = errorMessage(err)
+  } finally {
+    respondingId.value = null
+  }
+}
+
+// Cancel an invite I sent, or dismiss one that was declined
+async function removeChallenge(ch) {
+  respondingId.value = ch.id
+  error.value = ''
+  try {
+    await challengeService.remove(ch.id)
+    await loadChallenges()
+  } catch (err) {
+    error.value = errorMessage(err)
+  } finally {
+    respondingId.value = null
+  }
+}
+
 onMounted(() => Promise.all([loadChallenges(), loadFriends()]))
 </script>
 
@@ -235,6 +327,13 @@ onMounted(() => Promise.all([loadChallenges(), loadFriends()]))
   justify-content: space-between;
   gap: var(--s-3);
   margin-bottom: var(--s-3);
+}
+/* Invites: the buttons drop below the text when the row is narrow */
+.invite-head {
+  flex-wrap: wrap;
+}
+.invite-head > .min-w-0 {
+  flex: 1 1 14rem;
 }
 .duel-title {
   font-size: 1.2rem;

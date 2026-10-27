@@ -118,7 +118,15 @@
 
       <!-- Friend requests -->
       <section v-if="incoming.length || outgoing.length" class="surface p-3 px-md-4" data-testid="friend-requests">
-        <h2 class="section-title mb-2">Friend requests</h2>
+        <h2 class="section-title mb-2">
+          Friend requests
+          <span
+            v-if="incoming.length"
+            class="badge rounded-pill text-bg-danger ms-1 align-middle"
+            style="font-size: 0.7rem"
+            data-testid="friend-requests-count"
+          >{{ incoming.length }}<span class="visually-hidden"> pending</span></span>
+        </h2>
 
         <template v-if="incoming.length">
           <div class="eyebrow mt-2">For you</div>
@@ -217,8 +225,9 @@
 </template>
 
 <script setup>
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { friendService } from '../services/friendService'
+import { useFriendRequests } from '../composables/useFriendRequests'
 import { errorMessage } from '../services/habitService'
 import FriendRow from '../components/friends/FriendRow.vue'
 import AppModal from '../components/habits/AppModal.vue'
@@ -273,6 +282,10 @@ function friendsSinceLabel(iso) {
   return `Friends since ${new Date(iso).toLocaleDateString(undefined, { month: 'short', year: 'numeric' })}`
 }
 
+// Keep the navbar badge in step with the list on this page
+const { setIncomingCount } = useFriendRequests()
+watch(() => incoming.value.length, setIncomingCount)
+
 async function load() {
   loading.value = true
   error.value = ''
@@ -281,6 +294,7 @@ async function load() {
     friends.value = data.friends
     incoming.value = data.incoming
     outgoing.value = data.outgoing
+    setIncomingCount(data.incoming.length)
     loaded.value = true
   } catch (err) {
     error.value = errorMessage(err)

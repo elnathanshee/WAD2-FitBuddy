@@ -25,7 +25,16 @@
           :class="{ 'router-link-active': isActive(item) }"
           :data-testid="`tab-${item.name}`"
         >
-          <i class="bi" :class="isActive(item) ? item.iconActive : item.icon" aria-hidden="true"></i>
+          <span class="tab-icon position-relative">
+            <i class="bi" :class="isActive(item) ? item.iconActive : item.icon" aria-hidden="true"></i>
+            <span
+              v-if="item.name === 'friends' && incomingCount > 0"
+              class="tab-badge position-absolute top-0 start-100 translate-middle badge rounded-pill text-bg-danger"
+              data-testid="friends-request-badge"
+            >
+              {{ incomingCount }}<span class="visually-hidden"> friend requests</span>
+            </span>
+          </span>
           <span>{{ item.label }}</span>
         </router-link>
       </nav>
@@ -109,11 +118,13 @@ import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { authService } from '../services/authService'
 import { useBackground } from '../composables/useBackground'
+import { useFriendRequests } from '../composables/useFriendRequests'
 import BrandMark from './BrandMark.vue'
 
 const router = useRouter()
 const route = useRoute()
 const { background, setBackground, BACKGROUNDS } = useBackground()
+const { incomingCount, refreshFriendRequests } = useFriendRequests()
 
 const navItems = [
   { name: 'home', to: '/home', label: 'Home', icon: 'bi-house', iconActive: 'bi-house-fill' },
@@ -168,9 +179,13 @@ function placeIndicator() {
 
 watch(
   () => [route.path, isAuthenticated.value],
-  () => nextTick(placeIndicator),
+  () => {
+    nextTick(placeIndicator)
+    if (isAuthenticated.value) refreshFriendRequests()
+  },
 )
 onMounted(() => {
+  if (isAuthenticated.value) refreshFriendRequests()
   nextTick(placeIndicator)
   window.addEventListener('resize', placeIndicator)
   document.fonts?.ready.then(placeIndicator)
@@ -315,6 +330,15 @@ const switchAthlete = async (email) => {
 }
 .tab i {
   font-size: var(--fs-md);
+  line-height: 1;
+}
+.tab-icon {
+  display: inline-flex;
+}
+/* Absolutely positioned, so it never changes the tab widths */
+.tab-badge {
+  font-size: 0.6rem;
+  padding: 0.25em 0.45em;
   line-height: 1;
 }
 .tab.router-link-active {

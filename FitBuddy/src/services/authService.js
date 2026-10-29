@@ -4,6 +4,7 @@
 // =============================================================================
 
 import api from './api'
+import { loginToOneSignal, logoutFromOneSignal } from './notificationService'
 
 export const authService = {
   /**
@@ -14,6 +15,7 @@ export const authService = {
     const { user, token } = response.data
     localStorage.setItem('fitbuddy_token', token)
     localStorage.setItem('fitbuddy_user', JSON.stringify(user))
+    if (user?.id) loginToOneSignal(user.id)
     return response.data
   },
 
@@ -25,6 +27,7 @@ export const authService = {
     const { user, token } = response.data
     localStorage.setItem('fitbuddy_token', token)
     localStorage.setItem('fitbuddy_user', JSON.stringify(user))
+    if (user?.id) loginToOneSignal(user.id)
     return response.data
   },
 
@@ -32,6 +35,7 @@ export const authService = {
    * Logs out the user and clears stored session tokens
    */
   logout() {
+    logoutFromOneSignal()
     localStorage.removeItem('fitbuddy_token')
     localStorage.removeItem('fitbuddy_user')
   },

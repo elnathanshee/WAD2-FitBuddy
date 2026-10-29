@@ -41,6 +41,19 @@
         </router-link>
       </nav>
 
+      <!-- Notifications Bell Button -->
+      <button
+        v-if="isAuthenticated"
+        type="button"
+        class="btn btn-icon pressable text-muted me-1"
+        style="width: 38px; height: 38px; border-radius: 50%;"
+        title="Reminders & Notifications"
+        aria-label="Reminders and Notifications"
+        @click="showNotificationsModal = true"
+      >
+        <i class="bi bi-bell fs-5"></i>
+      </button>
+
       <!-- Account menu -->
       <div v-if="isAuthenticated" class="dropdown account">
         <button
@@ -64,6 +77,12 @@
           <li class="px-2 pt-1 pb-2">
             <div class="fw-semibold small">{{ currentUser?.name || 'Athlete' }}</div>
             <div class="text-muted" style="font-size: 12px">{{ currentUser?.email }}</div>
+          </li>
+          <li><hr class="dropdown-divider" /></li>
+          <li>
+            <button class="dropdown-item small d-flex align-items-center gap-2" @click="showNotificationsModal = true">
+              <i class="bi bi-bell text-primary" aria-hidden="true"></i>Reminders & Notifications
+            </button>
           </li>
           <li><hr class="dropdown-divider" /></li>
           <li><h6 class="dropdown-header px-2">Background</h6></li>
@@ -113,6 +132,7 @@
     </div>
   </header>
 
+  <NotificationModal v-if="showNotificationsModal" @close="showNotificationsModal = false" />
 </template>
 
 <script setup>
@@ -122,6 +142,9 @@ import { authService } from '../services/authService'
 import { useBackground } from '../composables/useBackground'
 import { useFriendRequests } from '../composables/useFriendRequests'
 import BrandMark from './BrandMark.vue'
+import NotificationModal from './notifications/NotificationModal.vue'
+
+const showNotificationsModal = ref(false)
 
 const router = useRouter()
 const route = useRoute()

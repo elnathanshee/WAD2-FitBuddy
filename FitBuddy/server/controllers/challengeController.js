@@ -15,6 +15,7 @@ import { getDb } from '../config/neon.js'
 import { findPair } from './friendController.js'
 import { relationFor } from '../utils/friends.js'
 import { canRespond, canDelete, canLogProgress, roleIn, visibleTo } from '../utils/challenges.js'
+import { sendChallengeNotification } from '../services/notificationService.js'
 
 /**
  * GET /api/challenges
@@ -87,6 +88,18 @@ export async function createChallenge(req, res) {
     VALUES (${req.userId}, ${opponentId}, ${cleanTitle}, ${habitCategory}, ${days}, 0, 0, 'pending')
     RETURNING id, creator_id, opponent_id, title, habit_category, target_days, creator_progress, opponent_progress, status, created_at
   `
+
+  // Trigger OneSignal push notification to opponent
+  try {
+    const [creator] = await sql`SELECT display_name FROM users WHERE user_id = ${req.userId}`
+    sendChallengeNotification(opponentId, {
+      creatorName: creator?.display_name || 'An athlete',
+      title: cleanTitle,
+      targetDays: days,
+    }).catch((err) => console.warn('[OneSignal Challenge Notification Warning]', err?.message))
+  } catch (notifyErr) {
+    // Non-blocking
+  }
 
   res.status(201).json({
     message: 'Challenge sent! Waiting for your friend to accept.',

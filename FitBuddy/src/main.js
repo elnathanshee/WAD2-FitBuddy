@@ -7,6 +7,7 @@ import App from './App.vue'
 import router from './router'
 import { vReveal, vTilt } from './directives/motion'
 import './composables/useBackground' // applies the saved background before first paint
+import { initOneSignal } from './services/notificationService'
 
 import 'bootstrap/dist/js/bootstrap.bundle.min.js'
 
@@ -17,3 +18,6 @@ app.directive('reveal', vReveal)
 app.directive('tilt', vTilt)
 
 app.mount('#app')
+
+// Initialize OneSignal Web Push SDK
+initOneSignal()

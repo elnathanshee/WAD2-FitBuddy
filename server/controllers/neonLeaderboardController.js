@@ -14,6 +14,7 @@ import {
 } from '../services/pointsService.js'
 import { toDateKey, addDays, weekStart } from '../utils/dates.js'
 import { relationFor, otherUserId } from '../utils/friends.js'
+import { sendCheerNotification } from '../services/notificationService.js'
 
 function resolveToday(value) {
   return typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value) ? value : toDateKey()
@@ -258,6 +259,18 @@ export async function sendCheer(req, res) {
     return res.status(409).json({
       message: `You've already sent a ${cheerType} to ${name} today. Try again tomorrow!`,
     })
+  }
+
+  // Asynchronously trigger OneSignal push notification to the recipient
+  try {
+    const [sender] = await sql`SELECT display_name FROM users WHERE user_id = ${req.userId}`
+    sendCheerNotification(recipientId, {
+      senderName: sender?.display_name || 'An athlete',
+      cheerType,
+      message: cleanMsg,
+    }).catch((err) => console.warn('[OneSignal Cheer Notification Warning]', err?.message))
+  } catch (notifyErr) {
+    // Non-blocking
   }
 
   res.json({ success: true, message: `Sent ${cheerType}!` })

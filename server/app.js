@@ -10,6 +10,7 @@ import challengeRoutes from './routes/challenges.js'
 import healthSyncRoutes from './routes/healthSync.js'
 import analyticsRoutes from './routes/analytics.js'
 import friendRoutes from './routes/friends.js'
+import notificationRoutes from './routes/notifications.js'
 import { requireUser } from './middleware/requireUser.js'
 
 // The Express app is created here (without listening) so tests can import it.
@@ -31,6 +32,7 @@ app.use(['/api/ai', '/ai'], requireUser, aiRoutes)
 app.use(['/api/challenges', '/challenges'], challengeRoutes)
 app.use(['/api/health-sync', '/health-sync'], healthSyncRoutes)
 app.use(['/api/analytics', '/analytics'], analyticsRoutes)
+app.use(['/api/notifications', '/notifications'], requireUser, notificationRoutes)
 
 app.use((req, res) => {
   res.status(404).json({ message: `Route not found: ${req.method} ${req.originalUrl}` })

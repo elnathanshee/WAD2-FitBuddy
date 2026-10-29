@@ -7,6 +7,8 @@ console.log('Build script running from:', process.cwd())
 function copyDirSync(src, dest) {
   fs.mkdirSync(dest, { recursive: true })
   for (const entry of fs.readdirSync(src, { withFileTypes: true })) {
+    if (entry.name === 'node_modules' || entry.name === '.git' || entry.name === '.env') continue
+    if (entry.isSymbolicLink && entry.isSymbolicLink()) continue
     const srcPath = path.join(src, entry.name)
     const destPath = path.join(dest, entry.name)
     if (entry.isDirectory()) {

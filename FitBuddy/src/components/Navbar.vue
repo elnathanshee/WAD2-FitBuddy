@@ -85,9 +85,29 @@
             </button>
           </li>
           <li><hr class="dropdown-divider" /></li>
-          <li><h6 class="dropdown-header px-2">Background</h6></li>
+          <li><h6 class="dropdown-header px-2">Appearance</h6></li>
           <li class="px-2 pb-2">
-            <div class="bg-picker" role="radiogroup" aria-label="Background" data-testid="bg-picker">
+            <div class="appearance-mode-picker" role="radiogroup" aria-label="Appearance mode">
+              <button
+                v-for="mode in APPEARANCE_MODES"
+                :key="mode.value"
+                type="button"
+                role="radio"
+                class="appearance-mode pressable"
+                :class="{ selected: themeMode === mode.value }"
+                :aria-checked="themeMode === mode.value"
+                :data-testid="`appearance-${mode.value}`"
+                @click="setThemeMode(mode.value)"
+              >
+                <i class="bi" :class="mode.icon" aria-hidden="true"></i>
+                <span>{{ mode.label }}</span>
+              </button>
+            </div>
+            <p class="appearance-hint small text-muted mb-0 mt-2">Auto switches to dark at 8 PM and back to light at 6 AM. Choose Light or Dark to override it.</p>
+          </li>
+          <li><h6 class="dropdown-header px-2">{{ isDark ? 'Dark' : 'Light' }} backgrounds</h6></li>
+          <li class="px-2 pb-2">
+            <div class="bg-picker" role="radiogroup" :aria-label="`${isDark ? 'Dark' : 'Light'} background`" data-testid="bg-picker">
               <button
                 v-for="bg in BACKGROUNDS"
                 :key="bg.id"
@@ -148,7 +168,7 @@ const showNotificationsModal = ref(false)
 
 const router = useRouter()
 const route = useRoute()
-const { background, setBackground, BACKGROUNDS } = useBackground()
+const { background, setBackground, BACKGROUNDS, themeMode, setThemeMode, isDark } = useBackground()
 // Shared pending-request count that feeds the Friends tab badge
 const { incomingCount, refreshFriendRequests } = useFriendRequests()
 
@@ -159,6 +179,12 @@ const navItems = [
   { name: 'leaderboard', to: '/leaderboard', label: 'Leaderboard', icon: 'bi-trophy', iconActive: 'bi-trophy-fill' },
   { name: 'friends', to: '/friends', label: 'Friends', icon: 'bi-people', iconActive: 'bi-people-fill' },
   { name: 'groups', to: '/groups', label: 'Groups', icon: 'bi-people', iconActive: 'bi-people-fill' },
+]
+
+const APPEARANCE_MODES = [
+  { value: 'light', label: 'Light', icon: 'bi-sun' },
+  { value: 'dark', label: 'Dark', icon: 'bi-moon-stars' },
+  { value: 'auto', label: 'Auto · 8 PM', icon: 'bi-clock' },
 ]
 
 const demoAthletes = [
@@ -289,8 +315,44 @@ const switchAthlete = async (email) => {
   color: var(--fb-text);
 }
 .account-menu {
-  min-width: 230px;
+  min-width: 290px;
   transform-origin: top right;
+}
+.appearance-mode-picker {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--s-1);
+  padding: var(--s-1);
+  border-radius: var(--r-md);
+  background: var(--fb-bg);
+}
+.appearance-mode {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  min-width: 0;
+  padding: var(--s-2) var(--s-1);
+  border: 1px solid transparent;
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--fb-text-2);
+  font-size: .72rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.appearance-mode.selected {
+  border-color: var(--fb-hairline);
+  background: var(--fb-surface);
+  color: var(--fb-text);
+  box-shadow: var(--fb-shadow-sm);
+}
+.appearance-mode i {
+  font-size: 1rem;
+}
+.appearance-hint {
+  line-height: 1.35;
 }
 .bg-picker {
   display: grid;

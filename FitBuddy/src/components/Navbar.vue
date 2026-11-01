@@ -158,6 +158,7 @@ const navItems = [
   { name: 'dashboard', to: '/dashboard', label: 'Dashboard', icon: 'bi-bar-chart', iconActive: 'bi-bar-chart-fill' },
   { name: 'leaderboard', to: '/leaderboard', label: 'Leaderboard', icon: 'bi-trophy', iconActive: 'bi-trophy-fill' },
   { name: 'friends', to: '/friends', label: 'Friends', icon: 'bi-people', iconActive: 'bi-people-fill' },
+  { name: 'groups', to: '/groups', label: 'Groups', icon: 'bi-people', iconActive: 'bi-people-fill' },
 ]
 
 const demoAthletes = [
@@ -320,7 +321,7 @@ const switchAthlete = async (email) => {
   grid-area: tabs;
   position: relative;
   display: grid;
-  grid-template-columns: repeat(5, 1fr);
+  grid-template-columns: repeat(6, 1fr);
   gap: var(--s-1);
   align-self: stretch;
   padding: var(--s-2) 0;

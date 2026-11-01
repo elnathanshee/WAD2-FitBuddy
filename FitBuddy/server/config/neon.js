@@ -174,5 +174,40 @@ export async function initNeonSchema() {
     CREATE INDEX IF NOT EXISTS idx_friendships_addressee ON friendships(addressee_id, status);
   `
 
+  await sql`CREATE TABLE IF NOT EXISTS habit_groups (
+    id SERIAL PRIMARY KEY,
+    name VARCHAR(60) NOT NULL,
+    owner_id VARCHAR(100) NOT NULL,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+  )`
+  await sql`CREATE TABLE IF NOT EXISTS habit_group_members (
+    group_id INTEGER NOT NULL REFERENCES habit_groups(id) ON DELETE CASCADE,
+    user_id VARCHAR(100) NOT NULL,
+    joined_at TIMESTAMPTZ DEFAULT NOW(),
+    PRIMARY KEY (group_id, user_id)
+  )`
+  await sql`CREATE TABLE IF NOT EXISTS group_activities (
+    id SERIAL PRIMARY KEY,
+    group_id INTEGER NOT NULL REFERENCES habit_groups(id) ON DELETE CASCADE,
+    title VARCHAR(80) NOT NULL,
+    start_date DATE NOT NULL,
+    end_date DATE NOT NULL,
+    points INTEGER NOT NULL CHECK (points BETWEEN 1 AND 1000),
+    created_by VARCHAR(100) NOT NULL,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    CHECK (end_date >= start_date)
+  )`
+  await sql`CREATE TABLE IF NOT EXISTS group_checkins (
+    id SERIAL PRIMARY KEY,
+    activity_id INTEGER NOT NULL REFERENCES group_activities(id) ON DELETE CASCADE,
+    group_id INTEGER NOT NULL REFERENCES habit_groups(id) ON DELETE CASCADE,
+    user_id VARCHAR(100) NOT NULL,
+    checkin_date DATE NOT NULL,
+    points INTEGER NOT NULL,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    UNIQUE (activity_id, user_id, checkin_date)
+  )`
+  await sql`CREATE INDEX IF NOT EXISTS idx_group_checkins_group_date ON group_checkins(group_id, checkin_date)`
+
   console.log('✅ Neon PostgreSQL schema verified and ready.')
 }

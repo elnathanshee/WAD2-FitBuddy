@@ -76,6 +76,16 @@ export const authService = {
   },
 
   /**
+   * Updates the display name and avatar colour, then stores the fresh user
+   * so the navbar and every other page show the new details right away.
+   */
+  async updateProfile(name, avatarColor) {
+    const { data } = await api.put('/auth/profile', { name, avatarColor })
+    localStorage.setItem('fitbuddy_user', JSON.stringify(data.user))
+    return data.user
+  },
+
+  /**
    * Fetches the available demo accounts for 1-click test logins
    */
   async getDemoUsers() {

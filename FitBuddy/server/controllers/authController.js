@@ -238,3 +238,49 @@ export async function getDemoUsers(req, res) {
   res.json({ demoAccounts })
 }
 
+
+/**
+ * PUT /api/auth/profile
+ * Body: { name, avatarColor }
+ *
+ * Lets a signed-in user rename themselves and pick an avatar colour. Only those
+ * two fields can be changed here - the email and the password hash are never
+ * read from the body, so a request cannot overwrite them.
+ */
+export async function updateProfile(req, res) {
+  const name = typeof req.body?.name === 'string' ? req.body.name.trim() : ''
+  const avatarColor = typeof req.body?.avatarColor === 'string' ? req.body.avatarColor.trim() : ''
+
+  if (name.length < 2) {
+    return res.status(400).json({ message: 'Your name needs at least 2 characters.' })
+  }
+  if (name.length > 60) {
+    return res.status(400).json({ message: 'Your name must be 60 characters or fewer.' })
+  }
+  // Only one of the colours we actually offer is accepted, so nothing
+  // unexpected can be stored and shown back on the page.
+  if (!AVATAR_COLORS.includes(avatarColor)) {
+    return res.status(400).json({ message: 'Please choose one of the avatar colours.' })
+  }
+
+  const sql = getDb()
+  const rows = await sql`
+    UPDATE users
+    SET display_name = ${name}, avatar_color = ${avatarColor}, updated_at = NOW()
+    WHERE user_id = ${req.userId}
+    RETURNING user_id, display_name, email, avatar_color
+  `
+  if (!rows.length) return res.status(404).json({ message: 'User not found.' })
+
+  res.json({
+    user: {
+      id: rows[0].user_id,
+      name: rows[0].display_name,
+      email: rows[0].email,
+      avatarColor: rows[0].avatar_color,
+    },
+  })
+}
+
+// The colours the profile form offers, so the page and the check above agree.
+export { AVATAR_COLORS }

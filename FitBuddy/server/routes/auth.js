@@ -8,7 +8,7 @@
 // =============================================================================
 
 import { Router } from 'express'
-import { signup, login, getCurrentUser, getDemoUsers, getGoal, updateGoal } from '../controllers/authController.js'
+import { signup, login, getCurrentUser, getDemoUsers, updateProfile, getGoal, updateGoal } from '../controllers/authController.js'
 import { requireUser } from '../middleware/requireUser.js'
 
 const router = Router()
@@ -18,6 +18,7 @@ router.post('/login', login)
 router.get('/me', requireUser, getCurrentUser)
 router.get('/goal', requireUser, getGoal)
 router.put('/goal', requireUser, updateGoal)
+router.put('/profile', requireUser, updateProfile)
 router.get('/demo-users', getDemoUsers)
 
 export default router

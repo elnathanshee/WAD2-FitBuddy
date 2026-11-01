@@ -109,10 +109,20 @@ export async function createActivity(req, res) {
 export async function checkIn(req, res) {
   const sql = getDb()
   const activityId = Number(req.params.activityId)
-  const activityRows = await sql`SELECT a.*, (NOW() AT TIME ZONE 'Asia/Singapore')::date::text AS today FROM group_activities a WHERE a.id = ${activityId}`
+  // The dates are cast to text (like listGroups does), so they come back as
+  // 'YYYY-MM-DD' strings. Without the cast the driver returns Date objects, and
+  // String(date).slice(0, 10) gives 'Mon Nov 0' instead of '2026-11-02', which
+  // made the date check below reject every activity.
+  const activityRows = await sql`
+    SELECT a.id, a.group_id, a.points,
+      a.start_date::text AS start_date,
+      a.end_date::text AS end_date,
+      (NOW() AT TIME ZONE 'Asia/Singapore')::date::text AS today
+    FROM group_activities a WHERE a.id = ${activityId}`
   const activity = activityRows[0]
   if (!activity || !(await requireMember(sql, activity.group_id, req.userId))) return res.status(404).json({ message: 'Group activity not found.' })
-  if (activity.today < String(activity.start_date).slice(0, 10) || activity.today > String(activity.end_date).slice(0, 10)) return res.status(400).json({ message: 'This activity is outside its check-in dates.' })
+  // 'YYYY-MM-DD' strings compare correctly with < and >, so no date maths needed
+  if (activity.today < activity.start_date || activity.today > activity.end_date) return res.status(400).json({ message: 'This activity is outside its check-in dates.' })
   const selected = [...new Set(Array.isArray(req.body?.userIds) ? req.body.userIds.filter(id => typeof id === 'string') : [])]
   if (!selected.includes(req.userId) || selected.length > 20) return res.status(400).json({ message: 'Include yourself and select up to 20 activity participants.' })
   const members = await sql`SELECT user_id FROM group_activity_members WHERE activity_id = ${activity.id}`

@@ -9,6 +9,7 @@ import authRoutes from './routes/auth.js'
 import challengeRoutes from './routes/challenges.js'
 import healthSyncRoutes from './routes/healthSync.js'
 import analyticsRoutes from './routes/analytics.js'
+import achievementsRoutes from './routes/achievements.js'
 import friendRoutes from './routes/friends.js'
 import notificationRoutes from './routes/notifications.js'
 import groupRoutes from './routes/groups.js'
@@ -34,6 +35,7 @@ app.use(['/api/ai', '/ai'], requireUser, aiRoutes)
 app.use(['/api/challenges', '/challenges'], challengeRoutes)
 app.use(['/api/health-sync', '/health-sync'], healthSyncRoutes)
 app.use(['/api/analytics', '/analytics'], analyticsRoutes)
+app.use(['/api/achievements', '/achievements'], requireUser, achievementsRoutes)
 app.use(['/api/notifications', '/notifications'], requireUser, notificationRoutes)
 
 app.use((req, res) => {

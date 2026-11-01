@@ -89,6 +89,16 @@
               <i class="bi bi-bullseye text-primary" aria-hidden="true"></i>My goal & habit plan
             </router-link>
           </li>
+          <li>
+            <router-link class="dropdown-item small d-flex align-items-center gap-2" to="/achievements" data-testid="achievements-link">
+              <i class="bi bi-award text-primary" aria-hidden="true"></i>Achievements
+            </router-link>
+          </li>
+          <li>
+            <button class="dropdown-item small d-flex align-items-center gap-2" data-testid="edit-profile-btn" @click="showEditProfileModal = true">
+              <i class="bi bi-person-gear text-primary" aria-hidden="true"></i>Edit profile
+            </button>
+          </li>
           <li><hr class="dropdown-divider" /></li>
           <li><h6 class="dropdown-header px-2">Appearance</h6></li>
           <li class="px-2 pb-2">
@@ -172,6 +182,13 @@
   </header>
 
   <NotificationModal v-if="showNotificationsModal" @close="showNotificationsModal = false" />
+
+  <EditProfileModal
+    v-if="showEditProfileModal && currentUser"
+    :user="currentUser"
+    @saved="onProfileSaved"
+    @close="showEditProfileModal = false"
+  />
 </template>
 
 <script setup>
@@ -182,8 +199,10 @@ import { useBackground } from '../composables/useBackground'
 import { useFriendRequests } from '../composables/useFriendRequests'
 import BrandMark from './BrandMark.vue'
 import NotificationModal from './notifications/NotificationModal.vue'
+import EditProfileModal from './profile/EditProfileModal.vue'
 
 const showNotificationsModal = ref(false)
+const showEditProfileModal = ref(false)
 
 const router = useRouter()
 const route = useRoute()
@@ -218,10 +237,20 @@ const isAuthenticated = computed(() => {
   return authService.isAuthenticated()
 })
 
+// Bumped after the profile is saved, so the computed below re-reads the stored
+// user and the name and avatar in the bar update straight away.
+const profileVersion = ref(0)
+
 const currentUser = computed(() => {
   route.path
+  profileVersion.value
   return authService.getCurrentUser()
 })
+
+const onProfileSaved = () => {
+  showEditProfileModal.value = false
+  profileVersion.value++
+}
 
 const isActive = (item) => route.path.startsWith(item.to)
 
@@ -335,6 +364,14 @@ const switchAthlete = async (email) => {
 .account-menu {
   min-width: 290px;
   transform-origin: top right;
+  /* The menu is tall (appearance + backgrounds + demo athletes + log out), so on a
+     short window it used to run past the bottom of the screen and Log out could not
+     be reached. Cap it to the space under the navbar and let it scroll instead.
+     dvh is used so mobile browser chrome does not hide the last item. */
+  max-height: calc(100vh - 4.5rem);
+  max-height: calc(100dvh - 4.5rem);
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 .appearance-mode-picker {
   display: grid;

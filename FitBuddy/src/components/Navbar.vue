@@ -84,6 +84,11 @@
               <i class="bi bi-bell text-primary" aria-hidden="true"></i>Reminders & Notifications
             </button>
           </li>
+          <li>
+            <router-link class="dropdown-item small d-flex align-items-center gap-2" to="/goals">
+              <i class="bi bi-bullseye text-primary" aria-hidden="true"></i>My goal & habit plan
+            </router-link>
+          </li>
           <li><hr class="dropdown-divider" /></li>
           <li><h6 class="dropdown-header px-2">Appearance</h6></li>
           <li class="px-2 pb-2">
@@ -103,7 +108,21 @@
                 <span>{{ mode.label }}</span>
               </button>
             </div>
-            <p class="appearance-hint small text-muted mb-0 mt-2">Auto switches to dark at 8 PM and back to light at 6 AM. Choose Light or Dark to override it.</p>
+            <label class="auto-night-toggle d-flex align-items-center justify-content-between gap-3 mt-3">
+              <span>
+                <span class="d-block fw-semibold small">Switch to night mode automatically</span>
+                <span class="d-block appearance-hint small text-muted">Dark at 8 PM · light at 6 AM</span>
+              </span>
+              <input
+                class="form-check-input m-0"
+                type="checkbox"
+                role="switch"
+                aria-label="Switch to night mode automatically"
+                data-testid="appearance-auto-toggle"
+                :checked="themeMode === 'auto'"
+                @change="setThemeMode($event.target.checked ? 'auto' : 'light')"
+              />
+            </label>
           </li>
           <li><h6 class="dropdown-header px-2">{{ isDark ? 'Dark' : 'Light' }} backgrounds</h6></li>
           <li class="px-2 pb-2">
@@ -184,7 +203,6 @@ const navItems = [
 const APPEARANCE_MODES = [
   { value: 'light', label: 'Light', icon: 'bi-sun' },
   { value: 'dark', label: 'Dark', icon: 'bi-moon-stars' },
-  { value: 'auto', label: 'Auto · 8 PM', icon: 'bi-clock' },
 ]
 
 const demoAthletes = [
@@ -320,7 +338,7 @@ const switchAthlete = async (email) => {
 }
 .appearance-mode-picker {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: var(--s-1);
   padding: var(--s-1);
   border-radius: var(--r-md);

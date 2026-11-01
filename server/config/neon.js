@@ -62,6 +62,9 @@ export async function initNeonSchema() {
   await sql`
     ALTER TABLE users ADD COLUMN IF NOT EXISTS password_hash VARCHAR(255);
   `
+  await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS primary_goal VARCHAR(40);`
+  await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS goal_target VARCHAR(80);`
+  await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS goal_updated_at TIMESTAMPTZ;`
 
   await sql`
     CREATE TABLE IF NOT EXISTS habits (

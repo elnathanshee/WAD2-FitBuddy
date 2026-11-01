@@ -9,6 +9,7 @@ import Leaderboard from '../views/Leaderboard.vue'
 import FriendsPage from '../views/FriendsPage.vue'
 import FriendProfile from '../views/FriendProfile.vue'
 import GroupsPage from '../views/GroupsPage.vue'
+import GoalPlanner from '../views/GoalPlanner.vue'
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -55,6 +56,7 @@ const router = createRouter({
       component: GroupsPage,
       meta: { requiresAuth: true, title: 'Habit groups', description: 'Check in with friends and compare points on your group leaderboard.' }
     },
+    { path: '/goals', name: 'goals', component: GoalPlanner, meta: { requiresAuth: true, title: 'My goal', description: 'Choose a personal goal and get a matching habit plan.' } },
     {
       path: '/friends/:id',
       name: 'friend-profile',

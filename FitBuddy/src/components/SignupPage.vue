@@ -41,6 +41,18 @@
             <label for="confirmPassword">Confirm Password</label>
             <div class="invalid-feedback">Passwords do not match.</div>
           </div>
+
+          <div class="surface p-3 mb-3">
+            <label for="primaryGoal" class="form-label fw-semibold mb-2">What’s your main goal?</label>
+            <select id="primaryGoal" class="form-select" v-model="form.primaryGoal">
+              <option v-for="goal in GOAL_OPTIONS" :key="goal.value" :value="goal.value">{{ goal.label }}</option>
+            </select>
+            <div v-if="selectedGoal?.targetLabel" class="form-floating mt-3">
+              <input id="goalTarget" v-model="form.goalTarget" class="form-control" maxlength="80" placeholder="Your target">
+              <label for="goalTarget">{{ selectedGoal.targetLabel }}</label>
+            </div>
+            <p class="small text-muted mb-0 mt-2">We’ll add a few matching habits to get you started. You can edit or remove them anytime.</p>
+          </div>
           
           <div class="form-check mb-4">
             <input class="form-check-input" type="checkbox" id="terms" v-model="form.terms" required>
@@ -68,6 +80,7 @@ import BrandMark from './BrandMark.vue'
 import { ref, reactive, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { authService } from '../services/authService'
+import { GOAL_OPTIONS } from '../utils/goalOptions'
 
 const router = useRouter()
 const form = reactive({
@@ -76,6 +89,8 @@ const form = reactive({
   password: '',
   confirmPassword: '',
   terms: false,
+  primaryGoal: 'wellness',
+  goalTarget: '',
 })
 const loading = ref(false)
 const errorMsg = ref('')
@@ -83,13 +98,14 @@ const errorMsg = ref('')
 const passwordMismatch = computed(() => {
   return form.password && form.confirmPassword && form.password !== form.confirmPassword
 })
+const selectedGoal = computed(() => GOAL_OPTIONS.find((goal) => goal.value === form.primaryGoal))
 
 const handleSignup = async () => {
   if (passwordMismatch.value) return
   errorMsg.value = ''
   loading.value = true
   try {
-    await authService.signup({ name: form.name, email: form.email, password: form.password })
+    await authService.signup({ name: form.name, email: form.email, password: form.password, primaryGoal: form.primaryGoal, goalTarget: form.goalTarget })
     router.push('/home')
   } catch (err) {
     errorMsg.value = err.response?.data?.message || 'An error occurred during signup.'

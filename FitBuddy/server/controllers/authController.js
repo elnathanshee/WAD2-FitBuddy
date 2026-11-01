@@ -22,6 +22,9 @@ const AVATAR_COLORS = [
  */
 export async function signup(req, res) {
   const { name, email, password } = req.body || {}
+  const allowedGoals = ['wellness', 'weight-loss', 'muscle-gain', 'cardio', 'strength', 'mobility', 'sleep']
+  const primaryGoal = allowedGoals.includes(req.body?.primaryGoal) ? req.body.primaryGoal : 'wellness'
+  const goalTarget = typeof req.body?.goalTarget === 'string' ? req.body.goalTarget.trim().slice(0, 80) : ''
 
   if (!name || typeof name !== 'string' || name.trim().length === 0) {
     return res.status(400).json({ message: 'Full name is required.' })
@@ -51,18 +54,14 @@ export async function signup(req, res) {
   const randomColor = AVATAR_COLORS[Math.floor(Math.random() * AVATAR_COLORS.length)]
 
   const inserted = await sql`
-    INSERT INTO users (user_id, display_name, email, password_hash, avatar_color)
-    VALUES (${userId}, ${cleanName}, ${cleanEmail}, ${passwordHash}, ${randomColor})
+    INSERT INTO users (user_id, display_name, email, password_hash, avatar_color, primary_goal, goal_target, goal_updated_at)
+    VALUES (${userId}, ${cleanName}, ${cleanEmail}, ${passwordHash}, ${randomColor}, ${primaryGoal}, ${goalTarget || null}, NOW())
     RETURNING user_id, display_name, email, avatar_color
   `
   const newUser = inserted[0]
 
   // 3. Bootstrap starter habits so new user has actionable cards immediately
-  const starterHabits = [
-    { name: 'Morning Stretch', category: 'exercise', frequency: 'daily', targetAmount: 10, targetUnit: 'minutes', icon: '🧘' },
-    { name: 'Hydration Goal', category: 'water', frequency: 'daily', targetAmount: 8, targetUnit: 'glasses', icon: '💧' },
-    { name: 'Daily Brisk Walk', category: 'exercise', frequency: 'daily', targetAmount: 30, targetUnit: 'minutes', icon: '🚶' },
-  ]
+  const starterHabits = getGoalHabits(primaryGoal)
 
   for (const h of starterHabits) {
     await sql`
@@ -88,6 +87,51 @@ export async function signup(req, res) {
       avatarColor: newUser.avatar_color,
     },
   })
+}
+
+function getGoalHabits(goal) {
+  const common = {
+    wellness: [
+      ['Drink water', 'water', 8, 'glasses', '💧'], ['Take a mindful break', 'mindfulness', 10, 'minutes', '🌿'], ['Go for a walk', 'exercise', 20, 'minutes', '🚶'],
+    ],
+    'weight-loss': [
+      ['Take a brisk walk', 'exercise', 30, 'minutes', '🚶'], ['Drink water', 'water', 8, 'glasses', '💧'], ['Log a balanced meal', 'nutrition', 1, 'times', '🥗'],
+    ],
+    'muscle-gain': [
+      ['Strength training', 'exercise', 1, 'times', '🏋️'], ['Eat a protein-rich meal', 'nutrition', 1, 'times', '🍽️'], ['Sleep well', 'sleep', 8, 'hours', '😴'],
+    ],
+    cardio: [
+      ['Cardio workout', 'exercise', 30, 'minutes', '❤️‍🔥'], ['Take a brisk walk', 'exercise', 20, 'minutes', '🚶'], ['Stretch', 'exercise', 5, 'minutes', '🧘'],
+    ],
+    strength: [
+      ['Strength training', 'exercise', 1, 'times', '🏋️'], ['Warm up', 'exercise', 5, 'minutes', '🔥'], ['Stretch', 'exercise', 5, 'minutes', '🧘'],
+    ],
+    mobility: [
+      ['Morning stretch', 'exercise', 10, 'minutes', '🧘'], ['Take a movement break', 'exercise', 5, 'minutes', '🤸'], ['Practice yoga', 'exercise', 15, 'minutes', '🌱'],
+    ],
+    sleep: [
+      ['Keep a bedtime routine', 'sleep', 1, 'times', '🌙'], ['Avoid screens before bed', 'sleep', 30, 'minutes', '📵'], ['Get morning daylight', 'wellness', 10, 'minutes', '☀️'],
+    ],
+  }
+  return common[goal].map(([name, category, targetAmount, targetUnit, icon]) => ({ name, category, frequency: 'daily', targetAmount, targetUnit, icon }))
+}
+
+export async function getGoal(req, res) {
+  const sql = getDb()
+  const rows = await sql`SELECT primary_goal, goal_target, goal_updated_at FROM users WHERE user_id = ${req.userId} LIMIT 1`
+  if (!rows.length) return res.status(404).json({ message: 'User not found.' })
+  res.json({ goal: { primaryGoal: rows[0].primary_goal || 'wellness', goalTarget: rows[0].goal_target || '', updatedAt: rows[0].goal_updated_at } })
+}
+
+export async function updateGoal(req, res) {
+  const allowedGoals = ['wellness', 'weight-loss', 'muscle-gain', 'cardio', 'strength', 'mobility', 'sleep']
+  const primaryGoal = req.body?.primaryGoal
+  if (!allowedGoals.includes(primaryGoal)) return res.status(400).json({ message: 'Choose a valid goal.' })
+  const goalTarget = typeof req.body?.goalTarget === 'string' ? req.body.goalTarget.trim().slice(0, 80) : ''
+  const sql = getDb()
+  const rows = await sql`UPDATE users SET primary_goal = ${primaryGoal}, goal_target = ${goalTarget || null}, goal_updated_at = NOW(), updated_at = NOW() WHERE user_id = ${req.userId} RETURNING primary_goal, goal_target, goal_updated_at`
+  if (!rows.length) return res.status(404).json({ message: 'User not found.' })
+  res.json({ goal: { primaryGoal: rows[0].primary_goal, goalTarget: rows[0].goal_target || '', updatedAt: rows[0].goal_updated_at } })
 }
 
 /**

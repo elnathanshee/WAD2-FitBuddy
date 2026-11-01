@@ -37,8 +37,8 @@
           <summary class="fw-semibold"><i class="bi bi-plus-circle me-2"></i>Create a group activity</summary>
           <form class="row g-2 mt-2" @submit.prevent="addActivity(group)">
             <div class="col-md-4"><label class="form-label small" :for="`activity-title-${group.id}`">Activity</label><input :id="`activity-title-${group.id}`" v-model="activityForms[group.id].title" class="form-control form-control-sm" placeholder="Daily walk" maxlength="80" required /></div>
-            <div class="col-6 col-md-2"><label class="form-label small">Starts</label><input v-model="activityForms[group.id].startDate" type="date" class="form-control form-control-sm" required /></div>
-            <div class="col-6 col-md-2"><label class="form-label small">Ends</label><input v-model="activityForms[group.id].endDate" type="date" class="form-control form-control-sm" required /></div>
+            <div class="col-6 col-md-2"><label class="form-label small">Starts</label><input v-model="activityForms[group.id].startDate" type="date" class="form-control form-control-sm" required @change="syncSuggestedEndDate(group.id)" /></div>
+            <div class="col-6 col-md-2"><label class="form-label small">Ends</label><input v-model="activityForms[group.id].endDate" type="date" class="form-control form-control-sm" required @input="markEndDateEdited(group.id)" /></div>
             <div class="col-6 col-md-2"><label class="form-label small">Points each day</label><input v-model.number="activityForms[group.id].points" type="number" min="1" max="1000" class="form-control form-control-sm" required /></div>
             <div class="col-6 col-md-2 d-flex align-items-end"><button class="btn btn-sm btn-primary w-100" :disabled="busy || activityForms[group.id].memberIds.length === 0">Add activity</button></div>
             <div class="col-12">
@@ -99,7 +99,7 @@ const loading = ref(false), loaded = ref(false), creating = ref(false), busy = r
 const error = ref(''), notice = ref(''), noticeError = ref(false)
 const currentUserId = String(authService.getCurrentUser()?.id ?? '')
 
-function makeActivityForm(group) { const today = toDateKey(); const end = new Date(`${today}T12:00:00`); end.setDate(end.getDate() + 6); return { title: '', startDate: today, endDate: toDateKey(end), points: 10, memberIds: group.members.map(member => member.userId) } }
+function makeActivityForm(group) { const today = toDateKey(); return { title: '', startDate: today, endDate: today, endDateEdited: false, points: 10, memberIds: group.members.map(member => member.userId) } }
 function setupForms() {
   for (const group of groups.value) {
     if (!activityForms.value[group.id]) activityForms.value[group.id] = makeActivityForm(group)
@@ -123,7 +123,7 @@ async function createGroup() {
 }
 async function addActivity(group) {
   busy.value = true
-  try { const result = await groupService.createActivity(group.id, activityForms.value[group.id]); showNotice(result.message); activityForms.value[group.id] = makeActivityForm(group); await load() }
+  try { const { endDateEdited, ...activity } = activityForms.value[group.id]; const result = await groupService.createActivity(group.id, activity); showNotice(result.message); activityForms.value[group.id] = makeActivityForm(group); await load() }
   catch (err) { showNotice(errorMessage(err), true) } finally { busy.value = false }
 }
 async function checkIn(activity) {
@@ -134,6 +134,8 @@ async function checkIn(activity) {
 function dateLabel(value) { return new Date(`${value}T12:00:00`).toLocaleDateString(undefined, { day: 'numeric', month: 'short' }) }
 function activeToday(activity) { const today = toDateKey(); return today >= activity.startDate && today <= activity.endDate }
 function isParticipant(activity) { return activity.participants.some(member => member.userId === currentUserId) }
+function syncSuggestedEndDate(groupId) { const form = activityForms.value[groupId]; if (form && !form.endDateEdited) form.endDate = form.startDate }
+function markEndDateEdited(groupId) { if (activityForms.value[groupId]) activityForms.value[groupId].endDateEdited = true }
 onMounted(load)
 </script>
 

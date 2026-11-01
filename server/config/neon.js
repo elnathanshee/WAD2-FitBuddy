@@ -197,6 +197,16 @@ export async function initNeonSchema() {
     created_at TIMESTAMPTZ DEFAULT NOW(),
     CHECK (end_date >= start_date)
   )`
+  await sql`CREATE TABLE IF NOT EXISTS group_activity_members (
+    activity_id INTEGER NOT NULL REFERENCES group_activities(id) ON DELETE CASCADE,
+    user_id VARCHAR(100) NOT NULL,
+    PRIMARY KEY (activity_id, user_id)
+  )`
+  // Existing activities remain group-wide by default during this migration.
+  await sql`INSERT INTO group_activity_members (activity_id, user_id)
+    SELECT a.id, m.user_id FROM group_activities a
+    JOIN habit_group_members m ON m.group_id = a.group_id
+    ON CONFLICT DO NOTHING`
   await sql`CREATE TABLE IF NOT EXISTS group_checkins (
     id SERIAL PRIMARY KEY,
     activity_id INTEGER NOT NULL REFERENCES group_activities(id) ON DELETE CASCADE,

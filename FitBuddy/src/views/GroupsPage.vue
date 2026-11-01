@@ -40,9 +40,19 @@
             <div class="col-6 col-md-2"><label class="form-label small">Starts</label><input v-model="activityForms[group.id].startDate" type="date" class="form-control form-control-sm" required /></div>
             <div class="col-6 col-md-2"><label class="form-label small">Ends</label><input v-model="activityForms[group.id].endDate" type="date" class="form-control form-control-sm" required /></div>
             <div class="col-6 col-md-2"><label class="form-label small">Points each day</label><input v-model.number="activityForms[group.id].points" type="number" min="1" max="1000" class="form-control form-control-sm" required /></div>
-            <div class="col-6 col-md-2 d-flex align-items-end"><button class="btn btn-sm btn-primary w-100" :disabled="busy">Add activity</button></div>
+            <div class="col-6 col-md-2 d-flex align-items-end"><button class="btn btn-sm btn-primary w-100" :disabled="busy || activityForms[group.id].memberIds.length === 0">Add activity</button></div>
+            <div class="col-12">
+              <div class="small fw-semibold mb-1">Participants</div>
+              <p class="small text-muted mb-2">The whole group is selected by default. Adjust who’s taking part in this activity.</p>
+              <div class="member-strip">
+                <label v-for="member in group.members" :key="member.userId" class="member-chip checkin-member">
+                  <input v-model="activityForms[group.id].memberIds" type="checkbox" :value="member.userId" />
+                  <span class="avatar" :style="{ backgroundColor: member.avatarColor }">{{ member.displayName.charAt(0).toUpperCase() }}</span>{{ member.displayName }}
+                </label>
+              </div>
+            </div>
           </form>
-          <p class="small text-muted mb-0 mt-2">Each selected member gets the same points for that day. A member can check in once per day during the activity.</p>
+          <p class="small text-muted mb-0 mt-2">Each selected participant gets the same points for a check-in. They can check in once per day during the activity.</p>
         </details>
 
         <div v-if="group.activities.length" class="d-grid gap-3 mb-4">
@@ -51,11 +61,13 @@
               <div><h3 class="h6 fw-bold mb-1">{{ activity.title }}</h3><div class="small text-muted">{{ dateLabel(activity.startDate) }} – {{ dateLabel(activity.endDate) }} · {{ activity.points }} points per member, per day</div></div>
               <span v-if="activity.checkedInToday" class="badge text-bg-success align-self-start">You checked in today</span>
             </div>
-            <div v-if="!activity.checkedInToday && activeToday(activity)" class="checkin-box mt-3">
+            <div class="small text-muted mt-2">Participants: {{ activity.participants.map((member) => member.displayName).join(', ') }}</div>
+            <div v-if="!activity.checkedInToday && activeToday(activity) && isParticipant(activity)" class="checkin-box mt-3">
               <div class="small fw-semibold mb-2">Select everyone who checked in today</div>
-              <div class="member-strip mb-2"><label v-for="member in group.members" :key="member.userId" class="member-chip checkin-member"><input v-model="selectedForActivity[activity.id]" type="checkbox" :value="member.userId" :disabled="member.userId === currentUserId" /><span class="avatar" :style="{ backgroundColor: member.avatarColor }">{{ member.displayName.charAt(0).toUpperCase() }}</span>{{ member.displayName }}<span v-if="member.userId === currentUserId" class="text-muted">(you)</span></label></div>
+              <div class="member-strip mb-2"><label v-for="member in activity.participants" :key="member.userId" class="member-chip checkin-member"><input v-model="selectedForActivity[activity.id]" type="checkbox" :value="member.userId" :disabled="member.userId === currentUserId" /><span class="avatar" :style="{ backgroundColor: member.avatarColor }">{{ member.displayName.charAt(0).toUpperCase() }}</span>{{ member.displayName }}<span v-if="member.userId === currentUserId" class="text-muted">(you)</span></label></div>
               <button class="btn btn-sm btn-tinted" :disabled="busy || !(selectedForActivity[activity.id] || []).length" @click="checkIn(activity)"><i class="bi bi-check2-circle me-1"></i>Check in {{ (selectedForActivity[activity.id] || []).length }} {{ (selectedForActivity[activity.id] || []).length === 1 ? 'member' : 'members' }}</button>
             </div>
+            <div v-else-if="!activity.checkedInToday && activeToday(activity) && !isParticipant(activity)" class="small text-muted mt-2">You aren’t selected for this activity.</div>
             <div v-else-if="!activity.checkedInToday" class="small text-muted mt-2">Check-ins are available during the activity dates.</div>
           </article>
         </div>
@@ -64,7 +76,7 @@
         <div class="eyebrow mb-2">Points leaderboard</div>
         <ol class="group-ranking list-unstyled mb-0">
           <li v-for="entry in group.leaderboard" :key="entry.userId" class="ranking-row" :class="{ 'ranking-me': entry.isCurrentUser }">
-            <span class="ranking-place">{{ entry.rank }}</span><span class="avatar" :style="{ backgroundColor: entry.avatarColor }">{{ entry.displayName.charAt(0).toUpperCase() }}</span><span class="ranking-name">{{ entry.displayName }} <span v-if="entry.isCurrentUser" class="badge rounded-pill text-bg-success">You</span><small class="d-block text-muted">{{ entry.checkins }} group check-ins</small></span><strong>{{ entry.points }} <small>pts</small></strong>
+            <span class="ranking-place">{{ entry.rank }}</span><span class="avatar" :style="{ backgroundColor: entry.avatarColor }">{{ entry.displayName.charAt(0).toUpperCase() }}</span><span class="ranking-name">{{ entry.displayName }} <span v-if="entry.isCurrentUser" class="badge rounded-pill text-bg-success">You</span><small class="d-block text-muted">{{ entry.activities }} {{ entry.activities === 1 ? 'group activity' : 'group activities' }}</small></span><strong>{{ entry.points }} <small>pts</small></strong>
           </li>
         </ol>
       </section>
@@ -87,10 +99,10 @@ const loading = ref(false), loaded = ref(false), creating = ref(false), busy = r
 const error = ref(''), notice = ref(''), noticeError = ref(false)
 const currentUserId = String(authService.getCurrentUser()?.id ?? '')
 
-function makeActivityForm() { const today = toDateKey(); const end = new Date(`${today}T12:00:00`); end.setDate(end.getDate() + 6); return { title: '', startDate: today, endDate: toDateKey(end), points: 10 } }
+function makeActivityForm(group) { const today = toDateKey(); const end = new Date(`${today}T12:00:00`); end.setDate(end.getDate() + 6); return { title: '', startDate: today, endDate: toDateKey(end), points: 10, memberIds: group.members.map(member => member.userId) } }
 function setupForms() {
   for (const group of groups.value) {
-    if (!activityForms.value[group.id]) activityForms.value[group.id] = makeActivityForm()
+    if (!activityForms.value[group.id]) activityForms.value[group.id] = makeActivityForm(group)
     for (const activity of group.activities) {
       if (!selectedForActivity.value[activity.id]) selectedForActivity.value[activity.id] = [currentUserId]
     }
@@ -111,7 +123,7 @@ async function createGroup() {
 }
 async function addActivity(group) {
   busy.value = true
-  try { const result = await groupService.createActivity(group.id, activityForms.value[group.id]); showNotice(result.message); activityForms.value[group.id] = makeActivityForm(); await load() }
+  try { const result = await groupService.createActivity(group.id, activityForms.value[group.id]); showNotice(result.message); activityForms.value[group.id] = makeActivityForm(group); await load() }
   catch (err) { showNotice(errorMessage(err), true) } finally { busy.value = false }
 }
 async function checkIn(activity) {
@@ -121,6 +133,7 @@ async function checkIn(activity) {
 }
 function dateLabel(value) { return new Date(`${value}T12:00:00`).toLocaleDateString(undefined, { day: 'numeric', month: 'short' }) }
 function activeToday(activity) { const today = toDateKey(); return today >= activity.startDate && today <= activity.endDate }
+function isParticipant(activity) { return activity.participants.some(member => member.userId === currentUserId) }
 onMounted(load)
 </script>
 

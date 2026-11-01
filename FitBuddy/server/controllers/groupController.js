@@ -23,22 +23,43 @@ export async function listGroups(req, res) {
     groups.get(row.id).members.push({ userId: row.member_id, displayName: row.display_name, avatarColor: row.avatar_color })
   }
   for (const group of groups.values()) {
-    const [activities, scores] = await Promise.all([
+    const [activityRows, scores] = await Promise.all([
       sql`SELECT a.id, a.title, a.start_date::text, a.end_date::text, a.points,
-        EXISTS(SELECT 1 FROM group_checkins c WHERE c.activity_id = a.id AND c.user_id = ${req.userId} AND c.checkin_date = (NOW() AT TIME ZONE 'Asia/Singapore')::date) AS checked_in_today
-        FROM group_activities a WHERE a.group_id = ${group.id} ORDER BY a.end_date DESC, a.id DESC`,
+        EXISTS(SELECT 1 FROM group_checkins c WHERE c.activity_id = a.id AND c.user_id = ${req.userId} AND c.checkin_date = (NOW() AT TIME ZONE 'Asia/Singapore')::date) AS checked_in_today,
+        am.user_id AS participant_id, pu.display_name AS participant_name, pu.avatar_color AS participant_color
+        FROM group_activities a
+        LEFT JOIN group_activity_members am ON am.activity_id = a.id
+        LEFT JOIN users pu ON pu.user_id = am.user_id
+        WHERE a.group_id = ${group.id} ORDER BY a.end_date DESC, a.id DESC, pu.display_name`,
       sql`SELECT m.user_id, u.display_name, u.avatar_color, COALESCE(SUM(c.points), 0)::int AS points,
-        COUNT(c.id)::int AS checkins
+        COUNT(DISTINCT c.activity_id)::int AS activities
         FROM habit_group_members m JOIN users u ON u.user_id = m.user_id
         LEFT JOIN group_checkins c ON c.group_id = m.group_id AND c.user_id = m.user_id
         WHERE m.group_id = ${group.id} GROUP BY m.user_id, u.display_name, u.avatar_color
         ORDER BY points DESC, u.display_name`,
     ])
-    group.activities = activities.map(a => ({ id: a.id, title: a.title, startDate: a.start_date, endDate: a.end_date, points: a.points, checkedInToday: a.checked_in_today }))
+    const activityById = new Map()
+    for (const row of activityRows) {
+      if (!activityById.has(row.id)) activityById.set(row.id, {
+        id: row.id,
+        title: row.title,
+        startDate: row.start_date,
+        endDate: row.end_date,
+        points: row.points,
+        checkedInToday: row.checked_in_today,
+        participants: [],
+      })
+      if (row.participant_id) activityById.get(row.id).participants.push({
+        userId: row.participant_id,
+        displayName: row.participant_name,
+        avatarColor: row.participant_color,
+      })
+    }
+    group.activities = [...activityById.values()]
     let rank = 0, previous = null
     group.leaderboard = scores.map((entry, index) => {
       if (entry.points !== previous) { rank = index + 1; previous = entry.points }
-      return { userId: entry.user_id, displayName: entry.display_name, avatarColor: entry.avatar_color, points: entry.points, checkins: entry.checkins, rank, isCurrentUser: entry.user_id === req.userId }
+      return { userId: entry.user_id, displayName: entry.display_name, avatarColor: entry.avatar_color, points: entry.points, activities: entry.activities, rank, isCurrentUser: entry.user_id === req.userId }
     })
   }
   res.json({ groups: [...groups.values()] })
@@ -68,7 +89,18 @@ export async function createActivity(req, res) {
   if (typeof title !== 'string' || !title.trim() || title.trim().length > 80 || !validDate(startDate) || !validDate(endDate) || endDate < startDate || !Number.isInteger(points) || points < 1 || points > 1000) {
     return res.status(400).json({ message: 'Add an activity name, valid dates, and 1–1000 points per check-in.' })
   }
+  const groupMembers = await sql`SELECT user_id FROM habit_group_members WHERE group_id = ${groupId}`
+  const groupMemberIds = new Set(groupMembers.map(member => member.user_id))
+  const requestedParticipants = Array.isArray(req.body?.memberIds)
+    ? [...new Set(req.body.memberIds.filter(id => typeof id === 'string' && id))]
+    : [...groupMemberIds]
+  if (requestedParticipants.length < 1 || requestedParticipants.length > 20 || requestedParticipants.some(id => !groupMemberIds.has(id))) {
+    return res.status(400).json({ message: 'Choose at least one participant from this group.' })
+  }
   const rows = await sql`INSERT INTO group_activities (group_id, title, start_date, end_date, points, created_by) VALUES (${groupId}, ${title.trim()}, ${startDate}, ${endDate}, ${points}, ${req.userId}) RETURNING id`
+  for (const userId of requestedParticipants) {
+    await sql`INSERT INTO group_activity_members (activity_id, user_id) VALUES (${rows[0].id}, ${userId}) ON CONFLICT DO NOTHING`
+  }
   res.status(201).json({ activityId: rows[0].id, message: 'Group activity created.' })
 }
 
@@ -80,10 +112,10 @@ export async function checkIn(req, res) {
   if (!activity || !(await requireMember(sql, activity.group_id, req.userId))) return res.status(404).json({ message: 'Group activity not found.' })
   if (activity.today < String(activity.start_date).slice(0, 10) || activity.today > String(activity.end_date).slice(0, 10)) return res.status(400).json({ message: 'This activity is outside its check-in dates.' })
   const selected = [...new Set(Array.isArray(req.body?.userIds) ? req.body.userIds.filter(id => typeof id === 'string') : [])]
-  if (!selected.includes(req.userId) || selected.length > 20) return res.status(400).json({ message: 'Include yourself and select up to 20 group members.' })
-  const members = await sql`SELECT user_id FROM habit_group_members WHERE group_id = ${activity.group_id}`
+  if (!selected.includes(req.userId) || selected.length > 20) return res.status(400).json({ message: 'Include yourself and select up to 20 activity participants.' })
+  const members = await sql`SELECT user_id FROM group_activity_members WHERE activity_id = ${activity.id}`
   const memberIds = new Set(members.map(m => m.user_id))
-  if (selected.some(id => !memberIds.has(id))) return res.status(403).json({ message: 'Only group members can check in.' })
+  if (!memberIds.has(req.userId) || selected.some(id => !memberIds.has(id))) return res.status(403).json({ message: 'Only selected activity participants can check in.' })
   let added = 0
   for (const userId of selected) {
     const inserted = await sql`INSERT INTO group_checkins (activity_id, group_id, user_id, checkin_date, points)

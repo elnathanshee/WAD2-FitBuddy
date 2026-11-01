@@ -27,11 +27,14 @@
           placeholder="e.g. Drink water"
           data-testid="habit-name-input"
         />
+        <div v-if="nameSuggestion" class="form-text text-success mt-1" data-testid="habit-name-suggestion">
+          <i class="bi bi-magic me-1" aria-hidden="true"></i>Suggested {{ nameSuggestion }} from the name. You can change any field.
+        </div>
       </div>
 
       <div class="mb-3">
         <span class="form-label fw-semibold d-block">Emoji</span>
-        <EmojiPickerField v-model="form.icon" />
+        <EmojiPickerField :model-value="form.icon" @update:model-value="updateIcon" />
       </div>
 
       <div class="row g-3 mb-3">
@@ -42,6 +45,7 @@
             v-model="form.category"
             class="form-select"
             data-testid="habit-category-select"
+            @change="markEdited('category')"
           >
             <option v-for="c in CATEGORIES" :key="c.value" :value="c.value">{{ c.label }}</option>
           </select>
@@ -53,6 +57,7 @@
             v-model="form.frequency"
             class="form-select"
             data-testid="habit-frequency-select"
+            @change="markEdited('frequency')"
           >
             <option value="daily">Daily</option>
             <option value="weekly">Weekly</option>
@@ -70,6 +75,7 @@
           maxlength="30"
           placeholder="e.g. Meditation, Finance, Reading"
           data-testid="habit-custom-category-input"
+          @input="markEdited('customCategory')"
         />
       </div>
 
@@ -88,6 +94,7 @@
             class="form-control"
             aria-label="Target amount"
             data-testid="habit-target-amount-input"
+            @input="markEdited('targetAmount')"
           />
           <select
             id="habit-target-unit"
@@ -95,6 +102,7 @@
             class="form-select"
             aria-label="Unit"
             data-testid="habit-target-unit-select"
+            @change="markEdited('targetUnit')"
           >
             <optgroup v-for="group in UNIT_GROUPS" :key="group.label" :label="group.label">
               <option v-for="unit in group.units" :key="unit" :value="unit">{{ unit }}</option>
@@ -111,6 +119,7 @@
           placeholder="Your unit, e.g. laps"
           aria-label="Custom unit"
           data-testid="habit-custom-unit-input"
+          @input="markEdited('customUnit')"
         />
         <div class="form-text">
           <template v-if="form.frequency === 'weekly'">
@@ -132,12 +141,13 @@
 </template>
 
 <script setup>
-import { computed, reactive, ref } from 'vue'
+import { computed, reactive, ref, watch } from 'vue'
 import AppModal from './AppModal.vue'
 import EmojiPickerField from './EmojiPickerField.vue'
 import { habitService, errorMessage } from '../../services/habitService'
 import {
   CATEGORIES, PRESET_CATEGORY_VALUES, UNIT_GROUPS, ALL_UNITS, CUSTOM, roundAmount,
+  suggestHabitSettings,
 } from '../../utils/habitOptions'
 
 const props = defineProps({
@@ -165,6 +175,62 @@ const form = reactive({
   customUnit: isPresetUnit ? '' : savedUnit,
   icon: props.habit?.icon ?? '✅',
 })
+
+const defaults = {
+  category: form.category,
+  customCategory: form.customCategory,
+  frequency: form.frequency,
+  targetAmount: form.targetAmount,
+  targetUnit: form.targetUnit,
+  customUnit: form.customUnit,
+  icon: form.icon,
+}
+const manuallyEdited = reactive({
+  category: false,
+  customCategory: false,
+  frequency: false,
+  targetAmount: false,
+  targetUnit: false,
+  customUnit: false,
+  icon: false,
+})
+const nameSuggestion = ref('')
+
+const FIELD_LABELS = {
+  icon: 'emoji', category: 'category', customCategory: 'custom category',
+  frequency: 'frequency', targetAmount: 'target', targetUnit: 'unit', customUnit: 'custom unit',
+}
+
+function markEdited(field) {
+  manuallyEdited[field] = true
+}
+
+function updateIcon(value) {
+  form.icon = value
+  markEdited('icon')
+}
+
+function applyNameSuggestion(name) {
+  const suggestion = suggestHabitSettings(name)
+  nameSuggestion.value = suggestion
+    ? `${suggestion.icon} ${suggestion.category === 'other' ? suggestion.customCategory : suggestion.category}, ${suggestion.frequency}, ${suggestion.amount} ${suggestion.unit}`
+    : ''
+
+  const values = {
+    icon: suggestion?.icon ?? defaults.icon,
+    category: suggestion?.category ?? defaults.category,
+    customCategory: suggestion?.customCategory ?? defaults.customCategory,
+    frequency: suggestion?.frequency ?? defaults.frequency,
+    targetAmount: suggestion?.amount ?? defaults.targetAmount,
+    targetUnit: suggestion?.unit ?? defaults.targetUnit,
+    customUnit: defaults.customUnit,
+  }
+  for (const [field, value] of Object.entries(values)) {
+    if (!manuallyEdited[field]) form[field] = value
+  }
+}
+
+watch(() => form.name, applyNameSuggestion)
 
 const error = ref('')
 const nameError = ref(false)

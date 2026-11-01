@@ -10,6 +10,31 @@ export const CATEGORIES = [
 ]
 export const PRESET_CATEGORY_VALUES = CATEGORIES.map((c) => c.value).filter((v) => v !== 'other')
 
+// Lightweight name-based defaults for new habits. These only prefill the form;
+// every suggested field stays editable by the user.
+const HABIT_SUGGESTIONS = [
+  { match: /\b(water\s+plants?|gardening)\b/, icon: '🪴', category: 'other', customCategory: 'Gardening', frequency: 'daily', amount: 1, unit: 'sessions' },
+  { match: /\b(water|hydration|hydrate|hydrating)\b/, icon: '💧', category: 'water', frequency: 'daily', amount: 8, unit: 'glasses' },
+  { match: /\b(sleep|sleeping|bedtime)\b/, icon: '😴', category: 'sleep', frequency: 'daily', amount: 8, unit: 'hours' },
+  { match: /\b(walk|walking|steps)\b/, icon: '🚶', category: 'exercise', frequency: 'daily', amount: 10000, unit: 'steps' },
+  { match: /\b(gym|gymming)\b/, icon: '🏋️', category: 'exercise', frequency: 'weekly', amount: 3, unit: 'sessions' },
+  { match: /\b(run|running|jog|jogging)\b/, icon: '🏃', category: 'exercise', frequency: 'daily', amount: 30, unit: 'minutes' },
+  { match: /\b(yoga|stretch|stretching)\b/, icon: '🧘', category: 'exercise', frequency: 'daily', amount: 15, unit: 'minutes' },
+  { match: /\b(workout|exercise|training)\b/, icon: '💪', category: 'exercise', frequency: 'daily', amount: 30, unit: 'minutes' },
+  { match: /\b(study|studying|read|reading|book)\b/, icon: '📚', category: 'study', frequency: 'daily', amount: 30, unit: 'minutes' },
+  { match: /\b(meditat|mindful|breathing|breathwork)\w*\b/, icon: '🧘', category: 'other', customCategory: 'Mindfulness', frequency: 'daily', amount: 10, unit: 'minutes' },
+  { match: /\b(journal|journaling|gratitude)\b/, icon: '📓', category: 'other', customCategory: 'Journaling', frequency: 'daily', amount: 1, unit: 'sessions' },
+  { match: /\b(vegetable|vegetables|fruit|fruits|healthy eating)\b/, icon: '🥗', category: 'other', customCategory: 'Nutrition', frequency: 'daily', amount: 5, unit: 'servings' },
+]
+
+export function suggestHabitSettings(name) {
+  const normalizedName = String(name ?? '').trim().toLowerCase()
+  const suggestion = HABIT_SUGGESTIONS.find(({ match }) => match.test(normalizedName))
+  if (!suggestion) return null
+  const { match, ...settings } = suggestion
+  return settings
+}
+
 // Common units of measurement, grouped for the <optgroup>s in the dropdown.
 export const UNIT_GROUPS = [
   { label: 'Count', units: ['times', 'reps', 'sets', 'steps', 'pages', 'glasses', 'cups', 'servings', 'sessions'] },

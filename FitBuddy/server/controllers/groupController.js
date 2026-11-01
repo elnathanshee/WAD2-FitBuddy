@@ -25,6 +25,7 @@ export async function listGroups(req, res) {
   for (const group of groups.values()) {
     const [activityRows, scores] = await Promise.all([
       sql`SELECT a.id, a.title, a.start_date::text, a.end_date::text, a.points,
+        a.created_by,
         EXISTS(SELECT 1 FROM group_checkins c WHERE c.activity_id = a.id AND c.user_id = ${req.userId} AND c.checkin_date = (NOW() AT TIME ZONE 'Asia/Singapore')::date) AS checked_in_today,
         am.user_id AS participant_id, pu.display_name AS participant_name, pu.avatar_color AS participant_color
         FROM group_activities a
@@ -46,6 +47,7 @@ export async function listGroups(req, res) {
         startDate: row.start_date,
         endDate: row.end_date,
         points: row.points,
+        createdBy: row.created_by,
         checkedInToday: row.checked_in_today,
         participants: [],
       })
@@ -124,4 +126,24 @@ export async function checkIn(req, res) {
     added += inserted.length
   }
   res.json({ added, message: added ? `Checked in ${added} ${added === 1 ? 'member' : 'members'} for ${activity.points} points each.` : 'Those members already checked in today.' })
+}
+
+export async function deleteActivity(req, res) {
+  const sql = getDb()
+  const groupId = Number(req.params.groupId)
+  const activityId = Number(req.params.activityId)
+  if (!Number.isInteger(groupId) || !Number.isInteger(activityId)) return res.status(404).json({ message: 'Group activity not found.' })
+  const rows = await sql`
+    SELECT a.id, a.created_by, g.owner_id
+    FROM group_activities a
+    JOIN habit_groups g ON g.id = a.group_id
+    WHERE a.id = ${activityId} AND a.group_id = ${groupId}
+  `
+  const activity = rows[0]
+  if (!activity) return res.status(404).json({ message: 'Group activity not found.' })
+  if (activity.created_by !== req.userId && activity.owner_id !== req.userId) {
+    return res.status(403).json({ message: 'Only the activity creator or group owner can delete this activity.' })
+  }
+  await sql`DELETE FROM group_activities WHERE id = ${activityId} AND group_id = ${groupId}`
+  res.json({ message: 'Group activity deleted. Its points were removed from the leaderboard.' })
 }

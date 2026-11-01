@@ -59,11 +59,15 @@
           <article v-for="activity in group.activities" :key="activity.id" class="activity-card">
             <div class="d-flex justify-content-between gap-3 flex-wrap">
               <div><h3 class="h6 fw-bold mb-1">{{ activity.title }}</h3><div class="small text-muted">{{ dateLabel(activity.startDate) }} – {{ dateLabel(activity.endDate) }} · {{ activity.points }} points per member, per day</div></div>
-              <span v-if="activity.checkedInToday" class="badge text-bg-success align-self-start">You checked in today</span>
+              <div class="d-flex align-items-start gap-2">
+                <span v-if="activity.checkedInToday" class="badge text-bg-success">You checked in today</span>
+                <button v-if="activity.createdBy === currentUserId || group.ownerId === currentUserId" type="button" class="btn btn-sm btn-outline-danger" :aria-label="`Delete ${activity.title}`" @click="deletingActivity = { group, activity }"><i class="bi bi-trash" aria-hidden="true"></i><span class="visually-hidden">Delete activity</span></button>
+              </div>
             </div>
             <div class="small text-muted mt-2">Participants: {{ activity.participants.map((member) => member.displayName).join(', ') }}</div>
             <div v-if="!activity.checkedInToday && activeToday(activity) && isParticipant(activity)" class="checkin-box mt-3">
-              <div class="small fw-semibold mb-2">Select everyone who checked in today</div>
+              <div class="small fw-semibold mb-1">Participants checking in today</div>
+              <div class="small text-muted mb-2">Everyone in this activity is selected by default. Uncheck anyone who didn’t participate today.</div>
               <div class="member-strip mb-2"><label v-for="member in activity.participants" :key="member.userId" class="member-chip checkin-member"><input v-model="selectedForActivity[activity.id]" type="checkbox" :value="member.userId" :disabled="member.userId === currentUserId" /><span class="avatar" :style="{ backgroundColor: member.avatarColor }">{{ member.displayName.charAt(0).toUpperCase() }}</span>{{ member.displayName }}<span v-if="member.userId === currentUserId" class="text-muted">(you)</span></label></div>
               <button class="btn btn-sm btn-tinted" :disabled="busy || !(selectedForActivity[activity.id] || []).length" @click="checkIn(activity)"><i class="bi bi-check2-circle me-1"></i>Check in {{ (selectedForActivity[activity.id] || []).length }} {{ (selectedForActivity[activity.id] || []).length === 1 ? 'member' : 'members' }}</button>
             </div>
@@ -81,6 +85,14 @@
         </ol>
       </section>
     </div>
+
+    <AppModal v-if="deletingActivity" :title="`Delete ${deletingActivity.activity.title}?`" size="sm" @close="deletingActivity = null">
+      <p class="mb-0">This removes the activity, its check-ins, and the points it added to the group leaderboard.</p>
+      <template #footer>
+        <button type="button" class="btn btn-light" @click="deletingActivity = null">Cancel</button>
+        <button type="button" class="btn btn-danger" :disabled="busy" @click="removeActivity">Delete activity</button>
+      </template>
+    </AppModal>
   </div>
 </template>
 
@@ -92,9 +104,11 @@ import { friendService } from '../services/friendService'
 import { groupService } from '../services/groupService'
 import { errorMessage } from '../services/habitService'
 import { toDateKey } from '../utils/dates'
+import AppModal from '../components/habits/AppModal.vue'
 
 const groups = ref([]), friends = ref([]), selectedFriends = ref([]), newGroupName = ref('')
 const activityForms = ref({}), selectedForActivity = ref({})
+const deletingActivity = ref(null)
 const loading = ref(false), loaded = ref(false), creating = ref(false), busy = ref(false)
 const error = ref(''), notice = ref(''), noticeError = ref(false)
 const currentUserId = String(authService.getCurrentUser()?.id ?? '')
@@ -104,7 +118,7 @@ function setupForms() {
   for (const group of groups.value) {
     if (!activityForms.value[group.id]) activityForms.value[group.id] = makeActivityForm(group)
     for (const activity of group.activities) {
-      if (!selectedForActivity.value[activity.id]) selectedForActivity.value[activity.id] = [currentUserId]
+      if (!selectedForActivity.value[activity.id]) selectedForActivity.value[activity.id] = activity.participants.map(member => member.userId)
     }
   }
 }
@@ -130,6 +144,17 @@ async function checkIn(activity) {
   busy.value = true
   try { const result = await groupService.checkIn(activity.id, selectedForActivity.value[activity.id]); showNotice(result.message); await load() }
   catch (err) { showNotice(errorMessage(err), true) } finally { busy.value = false }
+}
+async function removeActivity() {
+  if (!deletingActivity.value) return
+  busy.value = true
+  try {
+    const { group, activity } = deletingActivity.value
+    const result = await groupService.deleteActivity(group.id, activity.id)
+    deletingActivity.value = null
+    showNotice(result.message)
+    await load()
+  } catch (err) { showNotice(errorMessage(err), true) } finally { busy.value = false }
 }
 function dateLabel(value) { return new Date(`${value}T12:00:00`).toLocaleDateString(undefined, { day: 'numeric', month: 'short' }) }
 function activeToday(activity) { const today = toDateKey(); return today >= activity.startDate && today <= activity.endDate }

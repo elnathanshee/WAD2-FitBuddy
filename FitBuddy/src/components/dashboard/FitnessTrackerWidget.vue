@@ -1,7 +1,6 @@
 <!--
   Google Health card (Home page).
-  Health data is simulated: "Sync" sends made-up steps/minutes to
-  POST /api/health-sync/simulate, which checks in matching habits for today.
+  Connects to Google Health with the user's permission and reads real activity.
   Shows today's metrics plus a "Latest updates" list from the last sync.
 -->
 <template>
@@ -18,12 +17,12 @@
         <button type="button" class="btn btn-sm btn-outline-secondary px-2" data-testid="health-sync-settings" :aria-expanded="showSettings" @click="showSettings = !showSettings">
           <i class="bi bi-sliders2" aria-hidden="true"></i><span class="visually-hidden">Edit sync targets</span>
         </button>
-        <button
+        <button v-if="connected"
           type="button"
           class="btn btn-sm btn-tinted px-3 sync-btn"
           :disabled="syncState === 'syncing'"
           data-testid="health-sync-btn"
-          @click="syncDevice('Google Health')"
+          @click="syncDevice"
         >
           <Transition name="morph" mode="out-in">
             <span v-if="syncState === 'syncing'" key="syncing" class="d-inline-flex align-items-center gap-1">
@@ -37,16 +36,21 @@
             </span>
           </Transition>
         </button>
+        <button v-else type="button" class="btn btn-sm btn-tinted px-3" :disabled="!configured || connecting" @click="connectGoogle">{{ connecting ? 'Opening…' : 'Connect' }}</button>
       </div>
     </div>
 
+    <p v-if="!connected" class="text-muted small mb-3">Connect your Google Health account to read steps, active minutes, distance, and activity calories. FitBuddy uses them to show your progress and update only the habits you select.</p>
+
     <div v-if="showSettings" class="sync-settings surface-soft p-3 mb-3" data-testid="health-sync-settings-panel">
       <label class="d-flex align-items-center gap-2 fw-semibold small mb-2">
-        <input v-model="autoSync" class="form-check-input mt-0" type="checkbox" data-testid="health-auto-sync" @change="saveAutoSync" />
+        <input v-model="autoSync" class="form-check-input mt-0" type="checkbox" data-testid="health-auto-sync" :disabled="!connected" @change="saveAutoSync" />
         Automatically sync every 10 minutes while the app is open
       </label>
-      <p class="small text-muted mb-2">This project currently syncs demo readings. A real Google Health connection needs provider sign-in and credentials.</p>
-      <p class="small text-muted mb-2">Choose which habits each measurement can update. Each habit can be linked to one measurement.</p>
+      <p class="small text-muted mb-2">{{ connected ? 'Live data is read from your linked Google Health account after your permission.' : configured ? 'Connect your Google Health account to read activity from your connected devices.' : 'Google Health is waiting for Google Cloud OAuth settings.' }}</p>
+      <p v-if="!connected" class="small text-muted mb-2">FitBuddy requests read access to steps, active minutes, distance, and activity calories. It uses them to show your metrics and update only the habits you select below.</p>
+      <button v-if="connected" type="button" class="btn btn-sm btn-outline-danger mb-2" :disabled="disconnecting" @click="disconnectGoogle">{{ disconnecting ? 'Disconnecting…' : 'Disconnect Google Health' }}</button>
+      <p class="small text-muted mb-2">Choose which real measurements can update your habits. Water stays manually tracked in FitBuddy.</p>
       <div v-for="source in syncSources" :key="source.key" class="sync-source mb-2">
         <div class="small fw-semibold mb-1">{{ source.label }}</div>
         <label v-for="habit in source.habits" :key="habit._id" class="sync-habit small">
@@ -59,7 +63,7 @@
     </div>
 
     <!-- Today's metrics: same layout for all four, each with its own colour -->
-    <div class="metrics">
+    <div v-if="connected" class="metrics">
       <div v-for="m in metricRows" :key="m.key" class="metric" :style="{ '--metric': m.colour }" :data-testid="`health-${m.key}`">
         <div class="metric-label"><i class="bi" :class="m.icon" aria-hidden="true"></i>{{ m.label }}</div>
         <div class="metric-value display-num"><CountUp :value="m.raw" :decimals="m.decimals" /><small> {{ m.unit }}</small></div>
@@ -67,6 +71,7 @@
         <div class="metric-foot">of {{ m.goalLabel }} {{ m.unit }}</div>
       </div>
     </div>
+    <div v-else class="surface-soft p-3 text-muted small"><i class="bi bi-shield-lock me-2" aria-hidden="true"></i>Connect Google Health to show real activity from your account. FitBuddy will not generate sample readings.</div>
 
     <!-- Latest updates from the most recent sync -->
     <div class="mt-4 flex-grow-1">
@@ -78,7 +83,7 @@
           <span class="text-muted small text-nowrap">{{ u.time }}</span>
         </li>
       </TransitionGroup>
-      <p v-else class="text-muted small mb-0">Sync to pull in your latest activity and auto-check matching habits.</p>
+      <p v-else class="text-muted small mb-0">{{ connected ? 'Sync your Google Health activity to refresh this list.' : 'Your recent real syncs will appear here after connecting.' }}</p>
     </div>
 
     <p v-if="syncError" class="text-danger small mt-3 mb-0" role="alert">{{ syncError }}</p>
@@ -114,7 +119,11 @@ const syncState = ref('idle') // idle | syncing | done
 const syncError = ref('')
 const syncSettingsError = ref('')
 const showSettings = ref(false)
-const autoSync = ref(true)
+const connected = ref(false)
+const configured = ref(false)
+const connecting = ref(false)
+const disconnecting = ref(false)
+const autoSync = ref(false)
 const availableHabits = ref([])
 const mappings = ref({ steps: [], activeMinutes: [], water: [] })
 const updates = sharedUpdates
@@ -124,7 +133,6 @@ const settingsKey = `fitbuddy_health_sync_${authService.getCurrentUser()?.id || 
 const syncSources = computed(() => [
   { key: 'steps', label: 'Step tracker', habits: availableHabits.value.filter((h) => h.target?.unit === 'steps' || /step/i.test(h.name)) },
   { key: 'activeMinutes', label: 'Active minutes tracker', habits: availableHabits.value.filter((h) => h.category === 'exercise' || h.target?.unit === 'minutes') },
-  { key: 'water', label: 'Water tracker', habits: availableHabits.value.filter((h) => h.category === 'water') },
 ])
 
 function mappedElsewhere(habit, sourceKey) {
@@ -140,10 +148,10 @@ function saveMappings() {
 function saveAutoSync() {
   localStorage.setItem(`${settingsKey}_auto`, String(autoSync.value))
   if (autoSyncTimer) clearInterval(autoSyncTimer)
-  if (autoSync.value) {
-    syncDevice('Google Health')
+  if (autoSync.value && connected.value) {
+    syncDevice()
     autoSyncTimer = setInterval(() => {
-      if (!document.hidden) syncDevice('Google Health')
+      if (!document.hidden) syncDevice()
     }, 10 * 60 * 1000)
   }
 }
@@ -177,7 +185,11 @@ const lastSyncedLabel = computed(() => {
 async function loadMetrics() {
   try {
     const data = await healthSyncService.getTodayMetrics()
-    if (data) metrics.value = { ...metrics.value, ...data }
+    connected.value = Boolean(data?.connected)
+    if (data?.metrics) {
+      metrics.value = { ...metrics.value, ...data.metrics }
+      lastSyncedAt.value = data.metrics.lastSynced ? new Date(data.metrics.lastSynced) : null
+    }
   } catch (err) {
     console.warn('Could not load health metrics:', err)
   }
@@ -185,33 +197,36 @@ async function loadMetrics() {
 
 async function loadSyncSettings() {
   try {
-    availableHabits.value = await habitService.list()
+    const [habits, status] = await Promise.all([habitService.list(), healthSyncService.getGoogleStatus()])
+    availableHabits.value = habits
+    configured.value = Boolean(status.configured)
+    connected.value = Boolean(status.connected)
+    await loadMetrics()
     const saved = JSON.parse(localStorage.getItem(`${settingsKey}_mappings`) || 'null')
     if (saved && typeof saved === 'object') {
       const eligibleIds = {
         steps: new Set(availableHabits.value.filter((h) => h.target?.unit === 'steps' || /step/i.test(h.name)).map((h) => String(h.id ?? h._id))),
         activeMinutes: new Set(availableHabits.value.filter((h) => h.category === 'exercise' || h.target?.unit === 'minutes').map((h) => String(h.id ?? h._id))),
-        water: new Set(availableHabits.value.filter((h) => h.category === 'water').map((h) => String(h.id ?? h._id))),
       }
       mappings.value = {
         steps: (saved.steps || []).map(String).filter((id) => eligibleIds.steps.has(id)),
         activeMinutes: (saved.activeMinutes || []).map(String).filter((id) => eligibleIds.activeMinutes.has(id)),
-        water: (saved.water || []).map(String).filter((id) => eligibleIds.water.has(id)),
+        water: [],
       }
       saveMappings()
     } else {
       mappings.value = {
         steps: availableHabits.value.filter((h) => h.target?.unit === 'steps' || /step/i.test(h.name)).map((h) => String(h.id ?? h._id)),
         activeMinutes: availableHabits.value.filter((h) => h.category === 'exercise' && h.target?.unit === 'minutes').map((h) => String(h.id ?? h._id)),
-        water: availableHabits.value.filter((h) => h.category === 'water').map((h) => String(h.id ?? h._id)),
+        water: [],
       }
       saveMappings()
     }
-    autoSync.value = localStorage.getItem(`${settingsKey}_auto`) !== 'false'
-    if (autoSync.value) {
-      await syncDevice('Google Health')
+    autoSync.value = localStorage.getItem(`${settingsKey}_auto`) === 'true'
+    if (autoSync.value && connected.value) {
+      await syncDevice()
       autoSyncTimer = setInterval(() => {
-        if (!document.hidden) syncDevice('Google Health')
+        if (!document.hidden) syncDevice()
       }, 10 * 60 * 1000)
     }
   } catch (err) {
@@ -219,24 +234,13 @@ async function loadSyncSettings() {
   }
 }
 
-async function syncDevice(deviceType) {
+async function syncDevice() {
+  if (!connected.value) return
   syncState.value = 'syncing'
   syncError.value = ''
   try {
-    const randomSteps = Math.floor(Math.random() * 2500) + 8000
-    const randomMins = Math.floor(Math.random() * 25) + 35
-    const res = await healthSyncService.simulateSync({
-      deviceType,
-      steps: randomSteps,
-      activeMinutes: randomMins,
-      waterGlasses: 8,
-      mappings: mappings.value,
-    })
-
-    metrics.value.steps = randomSteps
-    metrics.value.activeMinutes = randomMins
-    metrics.value.distanceKm = (randomSteps * 0.00078).toFixed(2)
-    metrics.value.caloriesBurned = Math.round(randomSteps * 0.042)
+    const res = await healthSyncService.syncGoogle(mappings.value)
+    metrics.value = { ...metrics.value, ...res.metrics }
 
     const now = new Date()
     lastSyncedAt.value = now
@@ -247,7 +251,7 @@ async function syncDevice(deviceType) {
       time,
     }))
     updates.value = [
-      { id: `${now.getTime()}-steps`, text: `${randomSteps.toLocaleString()} steps · ${randomMins} active min`, time },
+      { id: `${now.getTime()}-steps`, text: `${Number(metrics.value.steps).toLocaleString()} steps · ${metrics.value.activeMinutes} active min from Google Health`, time },
       ...habitUpdates,
       ...updates.value,
     ].slice(0, 8)
@@ -261,9 +265,36 @@ async function syncDevice(deviceType) {
   }
 }
 
+async function connectGoogle() {
+  connecting.value = true
+  syncError.value = ''
+  try { await healthSyncService.beginGoogleConnect() }
+  catch (err) { syncError.value = errorMessage(err); connecting.value = false }
+}
+
+async function disconnectGoogle() {
+  disconnecting.value = true
+  try {
+    await healthSyncService.disconnectGoogle()
+    connected.value = false
+    autoSync.value = false
+    localStorage.setItem(`${settingsKey}_auto`, 'false')
+    clearInterval(autoSyncTimer)
+    updates.value = []
+    lastSyncedAt.value = null
+  } catch (err) { syncError.value = errorMessage(err) }
+  finally { disconnecting.value = false }
+}
+
 onMounted(() => {
-  loadMetrics()
   loadSyncSettings()
+  const callbackResult = new URL(window.location.href).searchParams.get('googleHealth')
+  if (callbackResult) {
+    const messages = { 'not-linked': 'Link this Google account in the Google Health app, then try connecting again.', cancelled: 'Google Health connection was cancelled.', expired: 'Connection expired; please try again.', error: 'Google Health could not connect. Check your Google Cloud setup and try again.' }
+    syncError.value = callbackResult === 'connected' ? '' : (messages[callbackResult] || messages.error)
+    if (callbackResult === 'connected') { connected.value = true; setTimeout(() => syncDevice(), 0) }
+    const url = new URL(window.location.href); url.searchParams.delete('googleHealth'); window.history.replaceState({}, '', `${url.pathname}${url.search}${url.hash}`)
+  }
 })
 onUnmounted(() => clearInterval(autoSyncTimer))
 </script>

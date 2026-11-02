@@ -221,6 +221,19 @@ export async function initNeonSchema() {
     UNIQUE (activity_id, user_id, checkin_date)
   )`
   await sql`CREATE INDEX IF NOT EXISTS idx_group_checkins_group_date ON group_checkins(group_id, checkin_date)`
+  await sql`CREATE TABLE IF NOT EXISTS google_health_connections (
+    user_id VARCHAR(100) PRIMARY KEY REFERENCES users(user_id) ON DELETE CASCADE,
+    google_health_user_id VARCHAR(100) NOT NULL,
+    encrypted_refresh_token TEXT NOT NULL,
+    granted_scopes TEXT[] NOT NULL DEFAULT '{}',
+    connected_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    last_synced_at TIMESTAMPTZ
+  )`
+  await sql`CREATE TABLE IF NOT EXISTS google_health_oauth_states (
+    state_hash VARCHAR(64) PRIMARY KEY,
+    user_id VARCHAR(100) NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
+    expires_at TIMESTAMPTZ NOT NULL
+  )`
   await sql`CREATE TABLE IF NOT EXISTS group_activity_cheers (
     activity_id INTEGER NOT NULL REFERENCES group_activities(id) ON DELETE CASCADE,
     from_user_id VARCHAR(100) NOT NULL,

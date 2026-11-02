@@ -21,6 +21,7 @@
     "@neondatabase/serverless": "^1.2.0",
     "cors": "^2.8.6",
     "express": "^5.2.1",
+    "google-auth-library": "^11.3.2",
     "mongoose": "^8.24.5"
   },
   "devDependencies": {

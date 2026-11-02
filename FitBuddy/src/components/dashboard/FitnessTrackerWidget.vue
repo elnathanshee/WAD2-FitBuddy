@@ -36,7 +36,7 @@
             </span>
           </Transition>
         </button>
-        <button v-else type="button" class="btn btn-sm btn-tinted px-3" :disabled="!configured || connecting" @click="connectGoogle">{{ connecting ? 'Opening…' : 'Connect' }}</button>
+        <button v-else type="button" class="btn btn-sm btn-tinted px-3" :disabled="connecting" @click="connectGoogle">{{ connecting ? 'Opening…' : 'Connect' }}</button>
       </div>
     </div>
 
@@ -47,7 +47,7 @@
         <input v-model="autoSync" class="form-check-input mt-0" type="checkbox" data-testid="health-auto-sync" :disabled="!connected" @change="saveAutoSync" />
         Automatically sync every 10 minutes while the app is open
       </label>
-      <p class="small text-muted mb-2">{{ connected ? 'Live data is read from your linked Google Health account after your permission.' : configured ? 'Connect your Google Health account to read activity from your connected devices.' : 'Google Health is waiting for Google Cloud OAuth settings.' }}</p>
+      <p class="small text-muted mb-2">{{ connected ? 'Live data is read from your linked Google Health account after your permission.' : configured ? 'Connect your Google Health account to read activity from your connected devices.' : `Google Health setup is missing server settings: ${missingConfig.length ? missingConfig.join(', ') : 'status could not be loaded'}.` }}</p>
       <p v-if="!connected" class="small text-muted mb-2">FitBuddy requests read access to steps, active minutes, distance, and activity calories. It uses them to show your metrics and update only the habits you select below.</p>
       <button v-if="connected" type="button" class="btn btn-sm btn-outline-danger mb-2" :disabled="disconnecting" @click="disconnectGoogle">{{ disconnecting ? 'Disconnecting…' : 'Disconnect Google Health' }}</button>
       <p class="small text-muted mb-2">Choose which real measurements can update your habits. Water stays manually tracked in FitBuddy.</p>
@@ -121,6 +121,7 @@ const syncSettingsError = ref('')
 const showSettings = ref(false)
 const connected = ref(false)
 const configured = ref(false)
+const missingConfig = ref([])
 const connecting = ref(false)
 const disconnecting = ref(false)
 const autoSync = ref(false)
@@ -201,6 +202,7 @@ async function loadSyncSettings() {
   try {
     const status = await healthSyncService.getGoogleStatus()
     configured.value = Boolean(status.configured)
+    missingConfig.value = Array.isArray(status.missingConfig) ? status.missingConfig : []
     connected.value = Boolean(status.connected)
   } catch (err) {
     configured.value = false

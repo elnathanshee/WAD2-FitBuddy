@@ -9,11 +9,17 @@ const SCOPE = 'https://www.googleapis.com/auth/googlehealth.activity_and_fitness
 function settings() {
   const clientId = process.env.GOOGLE_HEALTH_CLIENT_ID?.trim()
   const clientSecret = process.env.GOOGLE_HEALTH_CLIENT_SECRET?.trim()
+  const encryptionKey = process.env.HEALTH_TOKEN_ENCRYPTION_KEY?.trim()
   const appUrl = process.env.APP_URL?.trim().replace(/\/$/, '')
   const fallbackHost = process.env.VERCEL_PROJECT_PRODUCTION_URL || process.env.VERCEL_URL
   const baseUrl = appUrl || (fallbackHost ? `https://${fallbackHost}` : `http://localhost:${process.env.PORT || 3000}`)
   const redirectUri = process.env.GOOGLE_HEALTH_REDIRECT_URI?.trim() || `${baseUrl}/api/health-sync/google/callback`
-  return { clientId, clientSecret, redirectUri, baseUrl, configured: Boolean(clientId && clientSecret && process.env.HEALTH_TOKEN_ENCRYPTION_KEY) }
+  const missingConfig = [
+    !clientId && 'GOOGLE_HEALTH_CLIENT_ID',
+    !clientSecret && 'GOOGLE_HEALTH_CLIENT_SECRET',
+    !encryptionKey && 'HEALTH_TOKEN_ENCRYPTION_KEY',
+  ].filter(Boolean)
+  return { clientId, clientSecret, encryptionKey, redirectUri, baseUrl, configured: missingConfig.length === 0, missingConfig }
 }
 
 function oauthClient() {
@@ -27,7 +33,7 @@ function oauthClient() {
 }
 
 function tokenKey() {
-  const secret = process.env.HEALTH_TOKEN_ENCRYPTION_KEY
+  const secret = process.env.HEALTH_TOKEN_ENCRYPTION_KEY?.trim()
   if (!secret) {
     const error = new Error('Health token encryption is not configured on the server.')
     error.status = 503
@@ -57,9 +63,10 @@ function publicError(message, status = 400) {
 }
 
 export async function getGoogleHealthStatus(req, res) {
+  const config = settings()
   const sql = getDb()
   const [connection] = await sql`SELECT connected_at, last_synced_at FROM google_health_connections WHERE user_id = ${req.userId}`
-  res.json({ configured: settings().configured, connected: Boolean(connection), connectedAt: connection?.connected_at || null, lastSyncedAt: connection?.last_synced_at || null })
+  res.json({ configured: config.configured, missingConfig: config.missingConfig, connected: Boolean(connection), connectedAt: connection?.connected_at || null, lastSyncedAt: connection?.last_synced_at || null })
 }
 
 export async function startGoogleHealthConnect(req, res) {

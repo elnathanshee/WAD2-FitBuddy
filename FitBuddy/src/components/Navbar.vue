@@ -159,12 +159,15 @@
               ></button>
             </div>
             <div class="mt-3">
-              <label class="form-label small fw-semibold mb-1" for="background-theme">Save photo under</label>
+              <label class="form-label small fw-semibold mb-1" for="background-theme">Wallpaper appearance</label>
               <select id="background-theme" v-model="uploadTheme" class="form-select form-select-sm mb-2">
                 <option value="light">Light backgrounds</option>
                 <option value="dark">Dark backgrounds</option>
               </select>
-              <input ref="backgroundFile" type="file" class="form-control form-control-sm" accept="image/png,image/jpeg,image/webp" aria-label="Choose a background image" @change="saveUploadedBackground" />
+              <input ref="backgroundFile" type="file" class="d-none" accept="image/png,image/jpeg,image/webp" aria-label="Choose a wallpaper image" @change="saveUploadedBackground" />
+              <button type="button" class="btn btn-sm btn-outline-primary w-100" data-testid="add-custom-wallpaper" @click="backgroundFile?.click()">
+                <i class="bi bi-image me-1" aria-hidden="true"></i>Add custom wallpaper
+              </button>
               <div v-if="backgroundMessage" class="small mt-1" :class="backgroundError ? 'text-danger' : 'text-success'" role="status">{{ backgroundMessage }}</div>
               <div v-if="customBackgrounds.length" class="custom-background-list mt-2">
                 <div v-for="bg in customBackgrounds" :key="bg.id" class="d-flex align-items-center justify-content-between gap-2 small">

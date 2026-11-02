@@ -3,21 +3,28 @@
     <header class="mb-4">
       <p class="eyebrow mb-2">Built around your goal</p>
       <h1 class="page-title">Meal planner</h1>
-      <p class="page-subtitle">{{ goalLabel }} · Five starter recipes, with filters for the way you like to eat.</p>
+      <p class="page-subtitle">{{ goalLabel }} · {{ recipes.length }} recipes, with tags to narrow your choices.</p>
     </header>
 
     <section class="surface p-3 p-md-4 mb-4" aria-label="Meal preferences">
       <label for="meal-search" class="form-label fw-semibold">What are you looking for?</label>
       <div class="input-group mb-3">
         <span class="input-group-text"><i class="bi bi-search" aria-hidden="true"></i></span>
-        <input id="meal-search" v-model="search" class="form-control" type="search" placeholder="Try “quick vegetarian high protein” or “cheap meals”" />
+        <input id="meal-search" v-model="search" class="form-control" type="search" placeholder="Try “quick vegetarian high protein” or “no-cook”" />
+      </div>
+      <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-2">
+        <span class="small fw-semibold">Tags · select any combination</span>
+        <button v-if="activeFilters.length" type="button" class="btn btn-sm btn-link p-0" @click="activeFilters = []">Clear selected tags</button>
       </div>
       <div class="d-flex flex-wrap gap-2">
-        <button v-for="filter in MEAL_FILTERS" :key="filter.value" class="btn btn-sm" :class="activeFilters.includes(filter.value) ? 'btn-primary' : 'btn-outline-secondary'" type="button" :aria-pressed="activeFilters.includes(filter.value)" @click="toggleFilter(filter.value)">{{ filter.label }}</button>
+        <button v-for="filter in MEAL_FILTERS" :key="filter.value" class="meal-filter-chip" :class="{ selected: activeFilters.includes(filter.value) }" type="button" :aria-pressed="activeFilters.includes(filter.value)" @click="toggleFilter(filter.value)">
+          <i class="bi" :class="activeFilters.includes(filter.value) ? 'bi-check-square-fill' : 'bi-square'" aria-hidden="true"></i>{{ filter.label }}
+        </button>
       </div>
+      <p class="small text-muted mb-0 mt-2">When you select several tags, recipes match all of them.</p>
     </section>
 
-    <p class="small text-muted mb-3">Macros are estimates per serving. Recipes are original HabitBuddy suggestions; select an external source link when one is listed. Adjust ingredients for your dietary needs.</p>
+    <p class="small text-muted mb-3">Macros are estimates per serving. These are original HabitBuddy recipes; externally sourced recipes will include a source link. Adjust ingredients for your dietary needs.</p>
     <div v-if="!visibleRecipes.length" class="surface text-center p-5">
       <h2 class="h5 fw-bold">No recipes match those filters</h2>
       <p class="text-muted mb-0">Try another phrase or clear a filter.</p>
@@ -103,11 +110,14 @@ onMounted(async () => {
 </script>
 
 <style scoped>
-.meal-card { border: 1px solid var(--fb-hairline); }
+.meal-card { border: 1px solid #164b34; background: #246c49; color: #f7fff8; box-shadow: 0 8px 24px rgba(20, 70, 45, .18); }
 .macro-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: .45rem; }
-.macro-grid span { display: flex; flex-direction: column; border-radius: var(--r-sm); background: var(--fb-bg); padding: .5rem; }
+.macro-grid span { display: flex; flex-direction: column; border-radius: var(--r-sm); background: rgba(255, 255, 255, .13); padding: .5rem; }
 .macro-grid strong { font-size: .95rem; }
-.macro-grid small { color: var(--fb-text-2); font-size: .7rem; }
-.meal-tag { color: var(--fb-text-2); background: var(--fb-surface-2); font-weight: 600; }
+.macro-grid small { color: rgba(255, 255, 255, .82); font-size: .7rem; }
+.meal-tag { color: #17432f; background: #d7efdf; font-weight: 700; }
+.meal-card .text-muted { color: #d4e8d8 !important; }
+.meal-filter-chip { display: inline-flex; align-items: center; gap: .4rem; border: 1px solid var(--fb-hairline); border-radius: 999px; padding: .4rem .7rem; background: var(--fb-surface); color: var(--fb-text); font-size: .82rem; font-weight: 600; }
+.meal-filter-chip.selected { background: var(--fb-green-700); border-color: var(--fb-green-700); color: #fff; }
 .meal-card li + li { margin-top: .2rem; }
 </style>

@@ -157,7 +157,7 @@ onMounted(load)
 }
 .stat-label {
   font-size: 12px;
-  color: var(--fb-muted, #6c757d);
+  color: var(--fb-text-2);
 }
 .badge-card {
   border: 1px solid var(--fb-hairline);

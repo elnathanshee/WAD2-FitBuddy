@@ -87,6 +87,8 @@ const visibleBackgrounds = computed(() => [
 function applyAppearance() {
   isDark.value = themeMode.value === 'dark' || (themeMode.value === 'auto' && isNightTime())
   document.documentElement.dataset.theme = isDark.value ? 'dark' : 'light'
+  // Also switch Bootstrap's own colour mode so its components (floating labels, selects, close buttons, tables, alerts) follow
+  document.documentElement.dataset.bsTheme = isDark.value ? 'dark' : 'light'
   document.documentElement.dataset.bg = background.value
   const custom = [...customLightBackgrounds.value, ...customDarkBackgrounds.value].find((item) => item.id === background.value)
   if (custom) document.documentElement.style.setProperty('--fb-custom-bg-image', `url("${custom.dataUrl}")`)

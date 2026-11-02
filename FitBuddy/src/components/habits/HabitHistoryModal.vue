@@ -213,7 +213,7 @@ const weeksHit = computed(() => rows.value.filter((row) => row.completed).length
 }
 .stat-label {
   font-size: 0.75rem;
-  color: #6c757d;
+  color: var(--fb-text-2);
 }
 .calendar {
   display: grid;
@@ -250,7 +250,7 @@ const weeksHit = computed(() => rows.value.filter((row) => row.completed).length
 .calendar-heading {
   text-align: center;
   font-size: 0.7rem;
-  color: #6c757d;
+  color: var(--fb-text-2);
   font-weight: 600;
 }
 .calendar-day {
@@ -272,6 +272,11 @@ const weeksHit = computed(() => rows.value.filter((row) => row.completed).length
 .missed {
   background-color: #e9ecef;
   color: #6c757d;
+}
+html[data-theme='dark'] .missed,
+html[data-theme='dark'] .week-total.none {
+  background-color: var(--fb-surface-2);
+  color: var(--fb-text-2);
 }
 .calendar-day.today {
   outline: 2px solid var(--fb-dark);

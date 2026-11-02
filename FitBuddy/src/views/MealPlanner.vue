@@ -203,7 +203,7 @@ onMounted(async () => {
 .meal-tag { color: #17432f; background: #d7efdf; font-weight: 700; }
 .meal-card .text-muted { color: #d4e8d8 !important; }
 .meal-filter-chip { display: inline-flex; align-items: center; gap: .4rem; border: 1px solid var(--fb-hairline); border-radius: 999px; padding: .4rem .7rem; background: var(--fb-surface); color: var(--fb-text); font-size: .82rem; font-weight: 600; }
-.meal-filter-chip.selected { background: var(--fb-green-700); border-color: var(--fb-green-700); color: #fff; }
+.meal-filter-chip.selected { background: var(--fb-green-solid); border-color: var(--fb-green-solid); color: #fff; }
 .meal-card li + li { margin-top: .2rem; }
 .shopping-list { columns: 2; }
 .shopping-list li { break-inside: avoid; margin-bottom: .5rem; }

@@ -430,7 +430,7 @@ defineExpose({ openChat })
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  background: var(--fb-green-700);
+  background: var(--fb-green-solid);
   box-shadow: var(--fb-shadow-lg);
   transition: transform var(--dur-press) var(--ease-out), background-color 150ms ease;
   animation: fab-in 320ms var(--ease-out) backwards;
@@ -537,6 +537,10 @@ defineExpose({ openChat })
   box-shadow: var(--fb-shadow-lg);
   transform-origin: bottom right; /* grows out of the button */
 }
+html[data-theme='dark'] .coach-panel {
+  border-color: var(--fb-hairline);
+  background: rgba(35, 38, 33, 0.97);
+}
 
 .coach-panel-enter-active {
   transition: opacity 220ms var(--ease-out), transform 220ms var(--ease-out);
@@ -565,7 +569,7 @@ defineExpose({ openChat })
   align-items: center;
   justify-content: center;
   color: #f5f3ee;
-  background: var(--fb-green-700);
+  background: var(--fb-green-solid);
   font-size: 26px;
   flex-shrink: 0;
 }
@@ -586,6 +590,9 @@ defineExpose({ openChat })
   border-radius: 50%;
   color: var(--fb-text-2);
   background: rgba(0, 0, 0, 0.05);
+}
+html[data-theme='dark'] .head-btn {
+  background: rgba(255, 255, 255, 0.06);
 }
 
 .coach-body {
@@ -778,6 +785,9 @@ defineExpose({ openChat })
   background: var(--fb-surface);
   font-size: 0.92rem;
   transition: border-color 150ms ease, box-shadow 150ms ease;
+}
+html[data-theme='dark'] .composer-input {
+  border-color: #53584f;
 }
 .composer-input:focus {
   outline: none;

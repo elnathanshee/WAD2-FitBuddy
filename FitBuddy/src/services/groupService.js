@@ -6,4 +6,5 @@ export const groupService = {
   async createActivity(groupId, activity) { return (await api.post(`/groups/${groupId}/activities`, activity)).data },
   async deleteActivity(groupId, activityId) { return (await api.delete(`/groups/${groupId}/activities/${activityId}`)).data },
   async checkIn(activityId, userIds) { return (await api.post(`/groups/activities/${activityId}/check-in`, { userIds })).data },
+  async cheer(activityId, userId) { return (await api.post(`/groups/activities/${activityId}/cheer`, { userId })).data },
 }

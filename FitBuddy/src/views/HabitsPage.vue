@@ -65,6 +65,10 @@
         </div>
         <i v-if="doneToday === habits.length" class="bi bi-emoji-sunglasses fs-2 text-primary" aria-label="All done"></i>
       </div>
+      <div v-if="doneToday < habits.length" class="alert alert-light border d-flex align-items-start gap-3 mb-4" role="status">
+        <i class="bi bi-heart-pulse text-success fs-4" aria-hidden="true"></i>
+        <div><strong>A gentle reset for today</strong><p class="small text-muted mb-2">{{ doneToday ? 'You have already made a start. Pick one small habit to continue; there is no need to catch up all at once.' : 'A fresh start can be one small step. Choose the easiest habit and build from there.' }}</p><button v-if="habits.length" class="btn btn-sm btn-outline-success" @click="loggingHabit = habits.find((habit) => habit.periodCount < habit.target.amount)">Continue with {{ habits.find((habit) => habit.periodCount < habit.target.amount)?.name }}</button></div>
+      </div>
 
       <div class="row g-3 stagger">
         <div v-for="habit in habits" :key="habit._id" class="col-12 col-md-6 col-xl-4">

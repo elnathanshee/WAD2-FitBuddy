@@ -65,6 +65,8 @@
               </div>
             </div>
             <div class="small text-muted mt-2">Participants: {{ activity.participants.map((member) => member.displayName).join(', ') }}</div>
+            <div class="d-flex flex-wrap align-items-center gap-2 mt-2"><span class="badge rounded-pill text-bg-light"><i class="bi bi-check2-all me-1"></i>{{ activity.checkedInCount || 0 }}/{{ activity.participants.length }} checked in today</span><span class="badge rounded-pill text-bg-light"><i class="bi bi-heart-fill text-danger me-1"></i>{{ activity.cheerCount || 0 }} cheers today</span></div>
+            <div v-if="activeToday(activity) && activity.participants.some((member) => member.userId !== currentUserId)" class="d-flex gap-2 mt-2"><select v-model="cheerTargets[activity.id]" class="form-select form-select-sm" :aria-label="`Choose someone to encourage for ${activity.title}`"><option value="">Encourage a teammate…</option><option v-for="member in activity.participants.filter((item) => item.userId !== currentUserId)" :key="member.userId" :value="member.userId">{{ member.displayName }}</option></select><button type="button" class="btn btn-sm btn-outline-success text-nowrap" :disabled="busy || !cheerTargets[activity.id]" @click="sendCheer(activity)"><i class="bi bi-heart me-1"></i>Send cheer</button></div>
             <div v-if="!activity.checkedInToday && activeToday(activity) && isParticipant(activity)" class="checkin-box mt-3">
               <div class="small fw-semibold mb-1">Participants checking in today</div>
               <div class="small text-muted mb-2">Everyone in this activity is selected by default. Uncheck anyone who didn’t participate today.</div>
@@ -107,7 +109,7 @@ import { toDateKey } from '../utils/dates'
 import AppModal from '../components/habits/AppModal.vue'
 
 const groups = ref([]), friends = ref([]), selectedFriends = ref([]), newGroupName = ref('')
-const activityForms = ref({}), selectedForActivity = ref({})
+const activityForms = ref({}), selectedForActivity = ref({}), cheerTargets = ref({})
 const deletingActivity = ref(null)
 const loading = ref(false), loaded = ref(false), creating = ref(false), busy = ref(false)
 const error = ref(''), notice = ref(''), noticeError = ref(false)
@@ -143,6 +145,11 @@ async function addActivity(group) {
 async function checkIn(activity) {
   busy.value = true
   try { const result = await groupService.checkIn(activity.id, selectedForActivity.value[activity.id]); showNotice(result.message); await load() }
+  catch (err) { showNotice(errorMessage(err), true) } finally { busy.value = false }
+}
+async function sendCheer(activity) {
+  busy.value = true
+  try { const result = await groupService.cheer(activity.id, cheerTargets.value[activity.id]); cheerTargets.value[activity.id] = ''; showNotice(result.message); await load() }
   catch (err) { showNotice(errorMessage(err), true) } finally { busy.value = false }
 }
 async function removeActivity() {

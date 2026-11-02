@@ -157,6 +157,7 @@ const todayRatio = computed(() =>
 // links to the page with the details.
 const month = ref(null)
 const week = ref(null)
+const weeklyRecap = ref(null)
 
 // Current streak = days in a row with every daily habit done (same as the Dashboard)
 const currentStreak = computed(() => month.value?.perfectDayStreak ?? { current: 0, longest: 0 })
@@ -183,6 +184,16 @@ const highlights = computed(() => {
     to: '/dashboard', linkLabel: 'View your stats',
   })
   const sm = month.value.summary
+  if (weeklyRecap.value?.summary?.completionRate !== null && weeklyRecap.value?.summary?.completionRate !== undefined) {
+    const recap = weeklyRecap.value.summary
+    slides.push({
+      id: 'weekly-recap', tone: 'blue', icon: 'bi-calendar-week', eyebrow: 'Your week at a glance',
+      value: recap.completionRate ?? 0, unit: '%',
+      caption: `${recap.done} of ${recap.due} habit targets met · ${recap.checkIns} check-ins`,
+      note: recap.change === null ? 'Every small step counts.' : `${recap.change >= 0 ? 'Up' : 'Down'} ${Math.abs(recap.change)}% from last week`,
+      to: '/dashboard', linkLabel: 'View weekly details',
+    })
+  }
   if (sm.completionRate !== null) {
     slides.push({
       id: 'rate', tone: 'blue', icon: 'bi-graph-up-arrow', eyebrow: 'This month',
@@ -210,9 +221,10 @@ const highlights = computed(() => {
 async function loadHighlights() {
   const today = toDateKey()
   try {
-    const [m, w] = await Promise.all([analyticsService.getSummary('month', 0), leaderboardService.weekly(today)])
+    const [m, w, recap] = await Promise.all([analyticsService.getSummary('month', 0), leaderboardService.weekly(today), analyticsService.getSummary('week', 0)])
     month.value = m
     week.value = w
+    weeklyRecap.value = recap
   } catch (err) {
     console.warn('Could not load highlights:', err)
   }

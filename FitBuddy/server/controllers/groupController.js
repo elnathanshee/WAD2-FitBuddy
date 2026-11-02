@@ -27,6 +27,9 @@ export async function listGroups(req, res) {
       sql`SELECT a.id, a.title, a.start_date::text, a.end_date::text, a.points,
         a.created_by,
         EXISTS(SELECT 1 FROM group_checkins c WHERE c.activity_id = a.id AND c.user_id = ${req.userId} AND c.checkin_date = (NOW() AT TIME ZONE 'Asia/Singapore')::date) AS checked_in_today,
+        (SELECT COUNT(*)::int FROM group_checkins c WHERE c.activity_id = a.id AND c.checkin_date = (NOW() AT TIME ZONE 'Asia/Singapore')::date) AS checked_in_count,
+        (SELECT COUNT(*)::int FROM group_activity_cheers ch WHERE ch.activity_id = a.id AND ch.cheer_date = (NOW() AT TIME ZONE 'Asia/Singapore')::date) AS cheer_count,
+        EXISTS(SELECT 1 FROM group_activity_cheers ch WHERE ch.activity_id = a.id AND ch.from_user_id = ${req.userId} AND ch.cheer_date = (NOW() AT TIME ZONE 'Asia/Singapore')::date) AS cheered_today,
         am.user_id AS participant_id, pu.display_name AS participant_name, pu.avatar_color AS participant_color
         FROM group_activities a
         LEFT JOIN group_activity_members am ON am.activity_id = a.id
@@ -49,6 +52,9 @@ export async function listGroups(req, res) {
         points: row.points,
         createdBy: row.created_by,
         checkedInToday: row.checked_in_today,
+        checkedInCount: row.checked_in_count,
+        cheerCount: row.cheer_count,
+        cheeredToday: row.cheered_today,
         participants: [],
       })
       if (row.participant_id) activityById.get(row.id).participants.push({
@@ -156,4 +162,21 @@ export async function deleteActivity(req, res) {
   }
   await sql`DELETE FROM group_activities WHERE id = ${activityId} AND group_id = ${groupId}`
   res.json({ message: 'Group activity deleted. Its points were removed from the leaderboard.' })
+}
+
+export async function cheerParticipant(req, res) {
+  const sql = getDb()
+  const activityId = Number(req.params.activityId)
+  const targetId = String(req.body?.userId ?? '')
+  const rows = await sql`SELECT a.id, a.group_id FROM group_activities a WHERE a.id = ${activityId}`
+  const activity = rows[0]
+  if (!activity || !(await requireMember(sql, activity.group_id, req.userId))) return res.status(404).json({ message: 'Group activity not found.' })
+  if (!targetId || targetId === req.userId) return res.status(400).json({ message: 'Choose another group member to encourage.' })
+  const participants = await sql`SELECT user_id FROM group_activity_members WHERE activity_id = ${activityId}`
+  if (!participants.some((member) => member.user_id === targetId)) return res.status(400).json({ message: 'Choose someone participating in this activity.' })
+  const inserted = await sql`INSERT INTO group_activity_cheers (activity_id, from_user_id, to_user_id, cheer_date)
+    VALUES (${activityId}, ${req.userId}, ${targetId}, (NOW() AT TIME ZONE 'Asia/Singapore')::date)
+    ON CONFLICT DO NOTHING RETURNING activity_id`
+  if (!inserted.length) return res.status(409).json({ message: 'You have already sent encouragement for today.' })
+  res.json({ message: 'Encouragement sent. Keep going together!' })
 }

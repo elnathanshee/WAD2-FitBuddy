@@ -221,6 +221,15 @@ export async function initNeonSchema() {
     UNIQUE (activity_id, user_id, checkin_date)
   )`
   await sql`CREATE INDEX IF NOT EXISTS idx_group_checkins_group_date ON group_checkins(group_id, checkin_date)`
+  await sql`CREATE TABLE IF NOT EXISTS group_activity_cheers (
+    activity_id INTEGER NOT NULL REFERENCES group_activities(id) ON DELETE CASCADE,
+    from_user_id VARCHAR(100) NOT NULL,
+    to_user_id VARCHAR(100) NOT NULL,
+    cheer_date DATE NOT NULL,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    PRIMARY KEY (activity_id, from_user_id, to_user_id, cheer_date),
+    CHECK (from_user_id <> to_user_id)
+  )`
 
   console.log('✅ Neon PostgreSQL schema verified and ready.')
 }

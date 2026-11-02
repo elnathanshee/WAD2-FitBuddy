@@ -7,6 +7,7 @@
     </header>
 
     <section class="surface p-3 p-md-4 mb-4" aria-label="Meal preferences">
+      <details class="mb-3"><summary class="fw-semibold">Dietary preferences and saved meals</summary><div class="pt-3"><div class="d-flex flex-wrap gap-3 mb-3"><label v-for="option in dietOptions" :key="option.value" class="form-check-label"><input v-model="preferences.dietary" class="form-check-input me-1" type="checkbox" :value="option.value" @change="savePreferences()" />{{ option.label }}</label></div><label class="form-label small" for="allergies">Allergies or ingredients to avoid</label><input id="allergies" v-model="preferences.allergies" class="form-control" placeholder="e.g. peanuts, shellfish" @change="savePreferences()" /><p class="form-text mb-0">Avoided ingredients are filtered from suggestions and your weekly plan. Always check labels and recipes yourself.</p><p class="small mb-0 mt-2">{{ preferences.favorites.length }} saved favorite{{ preferences.favorites.length === 1 ? '' : 's' }}</p></div></details>
       <label for="meal-search" class="form-label fw-semibold">What are you looking for?</label>
       <div class="input-group mb-3">
         <span class="input-group-text"><i class="bi bi-search" aria-hidden="true"></i></span>
@@ -24,6 +25,8 @@
       <p class="small text-muted mb-0 mt-2">When you select several tags, recipes match all of them.</p>
     </section>
 
+    <section class="surface p-3 p-md-4 mb-4" aria-label="Weekly meal plan"><div class="d-flex justify-content-between align-items-start gap-3 flex-wrap mb-3"><div><h2 class="h5 fw-bold mb-1">Your 7-day meal plan</h2><p class="text-muted small mb-0">Suggested for {{ goalLabel }} and your saved preferences. Change any day to fit your week.</p></div><button class="btn btn-sm btn-outline-secondary" @click="clearPlan">Clear plan</button></div><div class="row g-2"><div v-for="day in planDays" :key="day.key" class="col-12 col-md-6 col-lg-4"><label class="form-label small fw-semibold" :for="`meal-${day.key}`">{{ day.label }}</label><select :id="`meal-${day.key}`" v-model="preferences.weeklyPlan[day.key]" class="form-select form-select-sm" @change="savePreferences()"><option value="">Choose a meal</option><option v-for="meal in safeRecipes" :key="meal.key" :value="meal.key">{{ meal.name }}</option></select></div></div><div v-if="shoppingList.length" class="mt-4"><h3 class="h6 fw-bold">Shopping list <span class="text-muted fw-normal">({{ shoppingList.length }} ingredients)</span></h3><ul class="shopping-list list-unstyled mb-0"><li v-for="item in shoppingList" :key="item.name"><label class="d-flex gap-2 align-items-start"><input v-model="checkedShopping" type="checkbox" :value="item.name"/><span :class="{ 'text-decoration-line-through text-muted': checkedShopping.includes(item.name) }">{{ item.name }}<small class="d-block text-muted">{{ item.days.join(', ') }}</small></span></label></li></ul></div><p v-else class="small text-muted mt-3 mb-0">Pick meals above to build a combined shopping list.</p></section>
+    <section v-if="recommended.length" class="mb-4"><h2 class="h5 fw-bold">Picked for you</h2><p class="small text-muted">Based on your goal, favorites, tags, and completed habits ({{ completedHabits }} today).</p><div class="d-flex flex-wrap gap-2"><button v-for="meal in recommended" :key="meal.key" class="btn btn-sm btn-tinted" @click="search = meal.name">{{ meal.name }} <i class="bi bi-arrow-right ms-1"></i></button></div></section>
     <p class="small text-muted mb-3">Macros are estimates per serving. These are original HabitBuddy recipes; externally sourced recipes will include a source link. Adjust ingredients for your dietary needs.</p>
     <div v-if="!visibleRecipes.length" class="surface text-center p-5">
       <h2 class="h5 fw-bold">No recipes match those filters</h2>
@@ -36,6 +39,7 @@
             <h2 class="h5 fw-bold mb-1">{{ meal.name }}</h2>
             <span class="badge rounded-pill text-bg-light text-nowrap"><i class="bi bi-clock me-1" aria-hidden="true"></i>{{ meal.minutes }} min</span>
           </div>
+          <button class="btn btn-sm align-self-start p-0 text-white" type="button" :aria-pressed="preferences.favorites.includes(meal.key)" @click="toggleFavorite(meal.key)"><i class="bi me-1" :class="preferences.favorites.includes(meal.key) ? 'bi-heart-fill' : 'bi-heart'"></i>{{ preferences.favorites.includes(meal.key) ? 'Saved favorite' : 'Save favorite' }}</button>
           <div class="macro-grid my-3" :aria-label="`Estimated nutrition: ${meal.macros.calories} calories, ${meal.macros.protein} grams protein, ${meal.macros.carbs} grams carbs, ${meal.macros.fat} grams fat`">
             <span><strong>{{ meal.macros.calories }}</strong><small>kcal</small></span>
             <span><strong>{{ meal.macros.protein }}g</strong><small>protein</small></span>
@@ -60,16 +64,32 @@
 </template>
 
 <script setup>
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
 import api from '../services/api'
 import { GOAL_OPTIONS } from '../utils/goalOptions'
 import { MEAL_FILTERS, recipesForGoal } from '../utils/mealRecipes'
+import { loadMealPreferences, saveMealPreferences as persistMealPreferences } from '../utils/mealPreferences'
+import { habitService } from '../services/habitService'
+import { toDateKey } from '../utils/dates'
 
 const goal = ref('wellness')
 const search = ref('')
 const activeFilters = ref([])
+const preferences = reactive(loadMealPreferences())
+const checkedShopping = ref([])
+const completedHabits = ref(0)
+const dietOptions = [{ value: 'vegetarian', label: 'Vegetarian' }, { value: 'dairy-free', label: 'Dairy-free' }, { value: 'gluten-free', label: 'Gluten-free' }]
 const goalLabel = computed(() => GOAL_OPTIONS.find((option) => option.value === goal.value)?.label || 'Feel healthier overall')
 const recipes = computed(() => recipesForGoal(goal.value))
+const safeRecipes = computed(() => recipes.value.filter((meal) => preferences.dietary.every((tag) => meal.tags.includes(tag)) && !preferences.allergies.split(',').map((item) => item.trim().toLowerCase()).filter(Boolean).some((avoid) => `${meal.name} ${meal.ingredients.join(' ')}`.toLowerCase().includes(avoid))))
+const planDays = computed(() => Array.from({ length: 7 }, (_, index) => { const date = new Date(); date.setDate(date.getDate() + index); return { key: toDateKey(date), label: date.toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' }) } }))
+const plannedMeals = computed(() => planDays.value.map((day) => ({ day, meal: safeRecipes.value.find((meal) => meal.key === preferences.weeklyPlan[day.key]) })).filter((entry) => entry.meal))
+const shoppingList = computed(() => { const items = new Map(); for (const { day, meal } of plannedMeals.value) for (const name of meal.ingredients) { const item = items.get(name) || { name, days: [] }; item.days.push(day.label.split(',')[0]); items.set(name, item) } return [...items.values()] })
+const recommended = computed(() => {
+  const preferred = safeRecipes.value.filter((meal) => preferences.favorites.includes(meal.key) || meal.tags.some((tag) => activeFilters.value.includes(tag)))
+  const quickFallback = completedHabits.value < 2 ? safeRecipes.value.filter((meal) => meal.tags.includes('quick')) : []
+  return [...preferred, ...quickFallback, ...safeRecipes.value].filter((meal, index, all) => all.findIndex((item) => item.key === meal.key) === index).slice(0, 4)
+})
 
 const detectedSearchFilters = computed(() => {
   const text = search.value.toLowerCase()
@@ -85,7 +105,7 @@ const visibleRecipes = computed(() => {
     for (const phrase of [filter.label.toLowerCase(), ...filter.aliases]) textOnly = textOnly.replaceAll(phrase, ' ')
   }
   textOnly = textOnly.replaceAll('vegan', ' ').replace(/\b(i|need|want|a|an|the|meal|meals|recipe|recipes|food|to|eat|for|some|something|please|breakfast|lunch|dinner|snack)\b/g, ' ')
-  return recipes.value.filter((meal) => {
+  return safeRecipes.value.filter((meal) => {
     const matchesFilters = filters.every((filter) => filter === 'lower-calorie' ? meal.macros.calories <= 450 : meal.tags.includes(filter))
     const tokens = textOnly.split(/\s+/).filter(Boolean)
     const content = `${meal.name} ${meal.tags.join(' ')} ${meal.ingredients.join(' ')}`.toLowerCase()
@@ -100,12 +120,18 @@ function toggleFilter(value) {
 function tagLabel(value) {
   return MEAL_FILTERS.find((filter) => filter.value === value)?.label || value
 }
+function savePreferences() { persistMealPreferences(preferences) }
+function toggleFavorite(key) { preferences.favorites = preferences.favorites.includes(key) ? preferences.favorites.filter((item) => item !== key) : [...preferences.favorites, key]; savePreferences() }
+function clearPlan() { preferences.weeklyPlan = {}; checkedShopping.value = []; savePreferences() }
 
 onMounted(async () => {
   try {
     const { data } = await api.get('/auth/goal')
     goal.value = data.goal.primaryGoal || 'wellness'
   } catch { /* show the general wellness plan if no saved goal is available */ }
+  try { const habits = await habitService.list(toDateKey()); completedHabits.value = habits.filter((habit) => habit.periodCount >= habit.target.amount).length } catch { /* goal and saved favorites still personalize the picks */ }
+  for (const [index, day] of planDays.value.entries()) if (!preferences.weeklyPlan[day.key] && safeRecipes.value.length) preferences.weeklyPlan[day.key] = safeRecipes.value[index % safeRecipes.value.length].key
+  savePreferences()
 })
 </script>
 
@@ -120,4 +146,7 @@ onMounted(async () => {
 .meal-filter-chip { display: inline-flex; align-items: center; gap: .4rem; border: 1px solid var(--fb-hairline); border-radius: 999px; padding: .4rem .7rem; background: var(--fb-surface); color: var(--fb-text); font-size: .82rem; font-weight: 600; }
 .meal-filter-chip.selected { background: var(--fb-green-700); border-color: var(--fb-green-700); color: #fff; }
 .meal-card li + li { margin-top: .2rem; }
+.shopping-list { columns: 2; }
+.shopping-list li { break-inside: avoid; margin-bottom: .5rem; }
+@media (max-width: 575.98px) { .shopping-list { columns: 1; } }
 </style>

@@ -87,6 +87,8 @@ const avatarColor = ref(props.user.avatarColor || AVATAR_COLORS[0])
 const nameError = ref('')
 const error = ref('')
 const saving = ref(false)
+// Beyond WAD2 syllabus: a template ref (ref="nameInput" in the template) gives us the
+// input element so we can focus it as soon as the modal opens.
 const nameInput = ref(null)
 
 onMounted(() => nameInput.value?.focus())

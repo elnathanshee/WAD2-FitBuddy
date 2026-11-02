@@ -1,5 +1,6 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
+import { useFriendRequestsStore } from '../stores/friendRequests'
 import LoginPage from '../components/LoginPage.vue'
 import SignupPage from '../components/SignupPage.vue'
 import HomePage from '../views/HomePage.vue'
@@ -98,6 +99,9 @@ const DEFAULT_DESCRIPTION = document.querySelector('meta[name="description"]')?.
 router.afterEach((to) => {
   document.title = to.meta.title ? `${to.meta.title} · HabitBuddy` : 'HabitBuddy · Build habits with friends'
   document.querySelector('meta[name="description"]')?.setAttribute('content', to.meta.description ?? DEFAULT_DESCRIPTION)
+
+  // Keep the Friends tab badge current as the user moves between pages (logged in only)
+  if (useAuthStore().isLoggedIn) useFriendRequestsStore().refreshFriendRequests()
 })
 
 export default router

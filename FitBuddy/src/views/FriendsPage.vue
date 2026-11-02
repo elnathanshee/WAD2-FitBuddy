@@ -226,7 +226,7 @@
 </template>
 
 <script setup>
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { friendService } from '../services/friendService'
 import { useFriendRequestsStore } from '../stores/friendRequests'
 import { errorMessage } from '../services/habitService'
@@ -283,9 +283,10 @@ function friendsSinceLabel(iso) {
   return `Friends since ${new Date(iso).toLocaleDateString(undefined, { month: 'short', year: 'numeric' })}`
 }
 
-// Keep the navbar badge in step with the list on this page
+// The navbar badge shows the same number as this page's "incoming" list.
+// `incoming` is only ever set inside load() (accept, decline, cancel and search
+// all call refresh() -> load()), so load() updates the badge too.
 const friendRequests = useFriendRequestsStore()
-watch(() => incoming.value.length, friendRequests.setIncomingCount)
 
 async function load() {
   loading.value = true

@@ -1,3 +1,7 @@
+<!--
+  Goal planner: the user picks a main goal (and an optional target); saving it
+  also adds the suggested habits for that goal. No props or emits.
+-->
 <template>
   <main class="container py-4 py-md-5" style="max-width: 860px">
     <header class="mb-4">
@@ -10,7 +14,7 @@
     <section class="surface p-4 p-md-5">
       <div class="mb-3">
         <label class="form-label fw-semibold" for="goal">What would you like to work toward?</label>
-        <select id="goal" class="form-select" v-model="primaryGoal">
+        <select id="goal" class="form-select" v-model="primaryGoal" @change="markUnsaved">
           <option v-for="item in GOAL_OPTIONS" :key="item.value" :value="item.value">{{ item.label }}</option>
         </select>
       </div>
@@ -44,7 +48,7 @@
 </template>
 
 <script setup>
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 // Third-party library: Axios (https://axios-http.com) — used for HTTP calls to the Express API
 import axios from 'axios'
 import { authConfig } from '../services/api'
@@ -62,7 +66,11 @@ const existingNames = ref(new Set())
 const selectedGoal = computed(() => GOAL_OPTIONS.find((goal) => goal.value === primaryGoal.value))
 const suggestions = computed(() => GOAL_HABITS[primaryGoal.value] || GOAL_HABITS.wellness)
 
-watch(primaryGoal, () => { saved.value = false; success.value = '' })
+// Choosing another goal means the saved message no longer applies
+function markUnsaved() {
+  saved.value = false
+  success.value = ''
+}
 
 onMounted(async () => {
   try {

@@ -1,4 +1,13 @@
-// Small motion directives, registered globally in main.js.
+// Beyond WAD2 syllabus: custom directives.
+//
+// A custom directive is your own "v-something" attribute (like the built-in v-if
+// or v-show). Vue calls its `mounted` function when the element is added to the
+// page and its `unmounted` function when it is removed, and gives us the real
+// DOM element, so we can add event listeners to it. We use them because the
+// course has no taught way to (1) fade an element in when it scrolls into view
+// or (2) tilt a card towards the mouse, and writing the same code in every
+// component would be repetitive. The directives are registered globally in
+// main.js, so any component can use them with v-reveal / v-tilt.
 //
 // v-reveal  Fades + lifts an element in the first time it scrolls into view,
 //           so content never just "pops" in. Plays once; respects reduced motion.
@@ -8,6 +17,8 @@
 
 const reduceMotion = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches
 
+// One IntersectionObserver (a browser tool that reports when an element enters the
+// screen) is shared by all v-reveal elements. It is created the first time it is needed.
 let revealObserver = null
 function getRevealObserver() {
   if (!revealObserver) {
@@ -25,6 +36,8 @@ function getRevealObserver() {
   return revealObserver
 }
 
+// Usage: <div v-reveal> or <div v-reveal="120"> (the number is a delay in ms).
+// The CSS for the fade is the .reveal / .is-visible classes in assets/main.css.
 export const vReveal = {
   mounted(el, binding) {
     if (!('IntersectionObserver' in window)) return
@@ -39,6 +52,8 @@ export const vReveal = {
 
 const MAX_TILT = 6 // degrees
 
+// Usage: <div v-tilt>. The tilt angles are written into CSS variables
+// (--tilt-rx / --tilt-ry); the .tilt class in assets/main.css turns them into a rotation.
 export const vTilt = {
   mounted(el) {
     if (!window.matchMedia('(hover: hover) and (pointer: fine)').matches) return
@@ -49,6 +64,7 @@ export const vTilt = {
 
     // Ease the current angle towards the target each frame (a light spring),
     // so the card follows the pointer smoothly instead of snapping.
+    // requestAnimationFrame runs this before every screen refresh.
     const step = () => {
       current.x += (target.x - current.x) * 0.18
       current.y += (target.y - current.y) * 0.18
@@ -80,6 +96,7 @@ export const vTilt = {
       el.classList.remove('is-tilting')
       kick()
     }
+    // Listeners are stored on the element (el._tiltMove) so `unmounted` can remove them
     el.addEventListener('pointermove', el._tiltMove)
     el.addEventListener('pointerleave', el._tiltLeave)
   },

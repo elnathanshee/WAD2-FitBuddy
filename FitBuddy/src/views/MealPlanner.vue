@@ -1,3 +1,9 @@
+<!--
+  Meal planner: recipes picked for the user's main goal, a search box with tag
+  filters, a 7-day plan with a shopping list, and a form to add own recipes.
+  Preferences (diet, favourites, plan, custom recipes) are saved in localStorage
+  per user - see utils/mealPreferences.js. No props or emits.
+-->
 <template>
   <main class="container py-4 py-md-5" style="max-width: 1120px">
     <header class="mb-4">
@@ -80,7 +86,7 @@
 </template>
 
 <script setup>
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 // Third-party library: Axios (https://axios-http.com) — used for HTTP calls to the Express API
 import axios from 'axios'
 import { authConfig } from '../services/api'
@@ -93,7 +99,7 @@ import { toDateKey } from '../utils/dates'
 const goal = ref('wellness')
 const search = ref('')
 const activeFilters = ref([])
-const preferences = reactive(loadMealPreferences())
+const preferences = ref(loadMealPreferences())
 const checkedShopping = ref([])
 const completedHabits = ref(0)
 const dietOptions = [{ value: 'vegetarian', label: 'Vegetarian' }, { value: 'dairy-free', label: 'Dairy-free' }, { value: 'gluten-free', label: 'Gluten-free' }]
@@ -101,15 +107,26 @@ const recipeNotice = ref('')
 const macroFields = [{ key: 'calories', label: 'Calories (kcal)' }, { key: 'protein', label: 'Protein (g)' }, { key: 'carbs', label: 'Carbs (g)' }, { key: 'fat', label: 'Fat (g)' }]
 const recipeTagOptions = MEAL_FILTERS.filter((filter) => filter.value !== 'lower-calorie')
 const blankRecipeForm = () => ({ name: '', minutes: 20, tags: [], macros: { calories: 400, protein: 20, carbs: 45, fat: 12 }, ingredientsText: '', stepsText: '', sourceUrl: '' })
-const recipeForm = reactive(blankRecipeForm())
+const recipeForm = ref(blankRecipeForm())
 const goalLabel = computed(() => GOAL_OPTIONS.find((option) => option.value === goal.value)?.label || 'Feel healthier overall')
-const recipes = computed(() => [...recipesForGoal(goal.value), ...preferences.customRecipes])
-const safeRecipes = computed(() => recipes.value.filter((meal) => preferences.dietary.every((tag) => meal.tags.includes(tag)) && !preferences.allergies.split(',').map((item) => item.trim().toLowerCase()).filter(Boolean).some((avoid) => `${meal.name} ${meal.ingredients.join(' ')}`.toLowerCase().includes(avoid))))
+const recipes = computed(() => [...recipesForGoal(goal.value), ...preferences.value.customRecipes])
+const safeRecipes = computed(() => recipes.value.filter((meal) => preferences.value.dietary.every((tag) => meal.tags.includes(tag)) && !preferences.value.allergies.split(',').map((item) => item.trim().toLowerCase()).filter(Boolean).some((avoid) => `${meal.name} ${meal.ingredients.join(' ')}`.toLowerCase().includes(avoid))))
 const planDays = computed(() => Array.from({ length: 7 }, (_, index) => { const date = new Date(); date.setDate(date.getDate() + index); return { key: toDateKey(date), label: date.toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' }) } }))
-const plannedMeals = computed(() => planDays.value.map((day) => ({ day, meal: safeRecipes.value.find((meal) => meal.key === preferences.weeklyPlan[day.key]) })).filter((entry) => entry.meal))
-const shoppingList = computed(() => { const items = new Map(); for (const { day, meal } of plannedMeals.value) for (const name of meal.ingredients) { const item = items.get(name) || { name, days: [] }; item.days.push(day.label.split(',')[0]); items.set(name, item) } return [...items.values()] })
+const plannedMeals = computed(() => planDays.value.map((day) => ({ day, meal: safeRecipes.value.find((meal) => meal.key === preferences.value.weeklyPlan[day.key]) })).filter((entry) => entry.meal))
+// Combine the ingredients of every planned meal into one list, remembering which days need each one
+const shoppingList = computed(() => {
+  const items = new Map()
+  for (const { day, meal } of plannedMeals.value) {
+    for (const name of meal.ingredients) {
+      const item = items.get(name) || { name, days: [] }
+      item.days.push(day.label.split(',')[0])
+      items.set(name, item)
+    }
+  }
+  return [...items.values()]
+})
 const recommended = computed(() => {
-  const preferred = safeRecipes.value.filter((meal) => preferences.favorites.includes(meal.key) || meal.tags.some((tag) => activeFilters.value.includes(tag)))
+  const preferred = safeRecipes.value.filter((meal) => preferences.value.favorites.includes(meal.key) || meal.tags.some((tag) => activeFilters.value.includes(tag)))
   const quickFallback = completedHabits.value < 2 ? safeRecipes.value.filter((meal) => meal.tags.includes('quick')) : []
   return [...preferred, ...quickFallback, ...safeRecipes.value].filter((meal, index, all) => all.findIndex((item) => item.key === meal.key) === index).slice(0, 4)
 })
@@ -143,11 +160,11 @@ function toggleFilter(value) {
 function tagLabel(value) {
   return MEAL_FILTERS.find((filter) => filter.value === value)?.label || value
 }
-function savePreferences() { persistMealPreferences(preferences) }
-function toggleFavorite(key) { preferences.favorites = preferences.favorites.includes(key) ? preferences.favorites.filter((item) => item !== key) : [...preferences.favorites, key]; savePreferences() }
-function clearPlan() { preferences.weeklyPlan = {}; checkedShopping.value = []; savePreferences() }
+function savePreferences() { persistMealPreferences(preferences.value) }
+function toggleFavorite(key) { preferences.value.favorites = preferences.value.favorites.includes(key) ? preferences.value.favorites.filter((item) => item !== key) : [...preferences.value.favorites, key]; savePreferences() }
+function clearPlan() { preferences.value.weeklyPlan = {}; checkedShopping.value = []; savePreferences() }
 function suggestRecipeFromName() {
-  const query = recipeForm.name.trim().toLowerCase().replace(/[^a-z0-9 ]/g, ' ').replace(/\s+/g, ' ')
+  const query = recipeForm.value.name.trim().toLowerCase().replace(/[^a-z0-9 ]/g, ' ').replace(/\s+/g, ' ')
   if (!query) return
   const exact = allMealRecipes.find((meal) => meal.name.toLowerCase() === query)
   const containing = exact || allMealRecipes.find((meal) => meal.name.toLowerCase().includes(query) || query.includes(meal.name.toLowerCase()))
@@ -158,31 +175,41 @@ function suggestRecipeFromName() {
   }).sort((a, b) => b.score - a.score)[0]
   const match = containing || (scored?.score >= 0.5 ? scored.meal : null)
   if (!match) return
-  recipeForm.name = recipeForm.name.trim() // Keep the title the user entered.
-  recipeForm.minutes = match.minutes
-  recipeForm.tags = [...match.tags.filter((tag) => recipeTagOptions.some((option) => option.value === tag))]
-  recipeForm.macros = { ...match.macros }
-  recipeForm.ingredientsText = match.ingredients.join('\n')
-  recipeForm.stepsText = match.steps.join('\n')
-  recipeForm.sourceUrl = match.sourceUrl || ''
+  recipeForm.value.name = recipeForm.value.name.trim() // Keep the title the user entered.
+  recipeForm.value.minutes = match.minutes
+  recipeForm.value.tags = [...match.tags.filter((tag) => recipeTagOptions.some((option) => option.value === tag))]
+  recipeForm.value.macros = { ...match.macros }
+  recipeForm.value.ingredientsText = match.ingredients.join('\n')
+  recipeForm.value.stepsText = match.steps.join('\n')
+  recipeForm.value.sourceUrl = match.sourceUrl || ''
   recipeNotice.value = `Filled in an estimate based on “${match.name}”. Review and edit it before saving.`
 }
 function addRecipe() {
-  const sourceUrl = recipeForm.sourceUrl.trim()
+  const sourceUrl = recipeForm.value.sourceUrl.trim()
   if (sourceUrl) { try { if (!['http:', 'https:'].includes(new URL(sourceUrl).protocol)) throw new Error('bad url') } catch { recipeNotice.value = 'Enter a valid http or https recipe link.'; return } }
   const entry = {
-    key: `custom-${Date.now()}`, name: recipeForm.name.trim(), minutes: Number(recipeForm.minutes),
-    macros: { calories: Number(recipeForm.macros.calories), protein: Number(recipeForm.macros.protein), carbs: Number(recipeForm.macros.carbs), fat: Number(recipeForm.macros.fat) },
-    tags: [...recipeForm.tags], ingredients: recipeForm.ingredientsText.split(/\r?\n/).map((item) => item.trim()).filter(Boolean),
-    steps: recipeForm.stepsText.split(/\r?\n/).map((item) => item.trim()).filter(Boolean), sourceUrl,
+    key: `custom-${Date.now()}`, name: recipeForm.value.name.trim(), minutes: Number(recipeForm.value.minutes),
+    macros: { calories: Number(recipeForm.value.macros.calories), protein: Number(recipeForm.value.macros.protein), carbs: Number(recipeForm.value.macros.carbs), fat: Number(recipeForm.value.macros.fat) },
+    tags: [...recipeForm.value.tags], ingredients: recipeForm.value.ingredientsText.split(/\r?\n/).map((item) => item.trim()).filter(Boolean),
+    steps: recipeForm.value.stepsText.split(/\r?\n/).map((item) => item.trim()).filter(Boolean), sourceUrl,
     sourceLabel: sourceUrl ? 'Your recipe link' : 'Your recipe',
   }
   if (!entry.ingredients.length || !entry.steps.length) { recipeNotice.value = 'Add at least one ingredient and one preparation step.'; return }
-  preferences.customRecipes = [...preferences.customRecipes, entry]
+  preferences.value.customRecipes = [...preferences.value.customRecipes, entry]
   savePreferences()
-  Object.assign(recipeForm, blankRecipeForm())
+  recipeForm.value = blankRecipeForm()
   recipeNotice.value = 'Recipe saved and added to your meal planner.'
   setTimeout(() => { recipeNotice.value = '' }, 3500)
+}
+
+// Give every day that has no meal yet a suggested one, cycling through the safe recipes
+function fillEmptyPlanDays() {
+  if (safeRecipes.value.length === 0) return
+  planDays.value.forEach((day, index) => {
+    if (!preferences.value.weeklyPlan[day.key]) {
+      preferences.value.weeklyPlan[day.key] = safeRecipes.value[index % safeRecipes.value.length].key
+    }
+  })
 }
 
 onMounted(async () => {
@@ -191,7 +218,7 @@ onMounted(async () => {
     goal.value = data.goal.primaryGoal || 'wellness'
   } catch { /* show the general wellness plan if no saved goal is available */ }
   try { const habits = await habitService.list(toDateKey()); completedHabits.value = habits.filter((habit) => habit.periodCount >= habit.target.amount).length } catch { /* goal and saved favorites still personalize the picks */ }
-  for (const [index, day] of planDays.value.entries()) if (!preferences.weeklyPlan[day.key] && safeRecipes.value.length) preferences.weeklyPlan[day.key] = safeRecipes.value[index % safeRecipes.value.length].key
+  fillEmptyPlanDays()
   savePreferences()
 })
 </script>

@@ -1,3 +1,5 @@
+// Saves the Meal planner choices (diet, favourites, weekly plan, own recipes)
+// in localStorage, one entry per user, so they survive a page reload.
 import { useAuthStore } from '../stores/auth'
 
 const defaults = () => ({ dietary: [], allergies: '', favorites: [], weeklyPlan: {}, customRecipes: [] })

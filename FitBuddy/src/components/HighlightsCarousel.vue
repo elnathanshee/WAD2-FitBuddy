@@ -1,5 +1,6 @@
 <!--
-  Auto-advancing carousel of highlight cards.
+  Auto-advancing carousel of highlight cards (Home page).
+  Props: label (heading text), slides (array of card data, see HighlightSlide.vue).
   - Advances every INTERVAL ms; the active dot fills up to show the timer.
   - Pauses while hovered, focused, touched, or while the tab is hidden, and
     never auto-advances with prefers-reduced-motion.
@@ -32,6 +33,7 @@
       </div>
     </div>
 
+    <!-- Beyond WAD2 syllabus: a template ref gives the script the scrolling row, so it can scroll it and measure the cards. -->
     <div
       ref="track"
       class="track"
@@ -40,33 +42,13 @@
       @pointerdown="onPointerDown"
       @touchstart.passive="touchPause"
     >
-      <article
+      <HighlightSlide
         v-for="(slide, i) in slides"
         :key="slide.id"
-        class="slide"
-        :class="`tone-${slide.tone}`"
-        role="group"
-        aria-roledescription="slide"
-        :aria-label="`${i + 1} of ${slides.length}: ${slide.eyebrow}`"
-        data-testid="carousel-slide"
-        v-tilt
-      >
-        <span class="slide-orb" aria-hidden="true"></span>
-        <i class="bi slide-icon" :class="slide.icon" aria-hidden="true"></i>
-        <div class="eyebrow slide-eyebrow">{{ slide.eyebrow }}</div>
-        <div class="slide-value display-num">
-          <CountUp v-if="typeof slide.value === 'number'" :value="slide.value" />
-          <template v-else>{{ slide.value }}</template>
-          <small v-if="slide.unit">{{ slide.unit }}</small>
-        </div>
-        <p class="slide-caption">
-          {{ slide.caption }}
-          <span v-if="slide.note" class="d-block fw-bold">{{ slide.note }}</span>
-        </p>
-        <router-link v-if="slide.to" :to="slide.to" class="slide-link" draggable="false">
-          {{ slide.linkLabel }}<i class="bi bi-arrow-right" aria-hidden="true"></i>
-        </router-link>
-      </article>
+        :slide="slide"
+        :position="i + 1"
+        :total="slides.length"
+      />
     </div>
 
     <div class="dots" role="tablist" aria-label="Choose a highlight">
@@ -91,7 +73,7 @@
 
 <script setup>
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
-import CountUp from './CountUp.vue'
+import HighlightSlide from './HighlightSlide.vue'
 
 const props = defineProps({
   label: { type: String, required: true },
@@ -215,6 +197,8 @@ function nearestStop(x) {
 }
 
 // ---- Autoplay -------------------------------------------------------------
+// A timer moves to the next card every INTERVAL ms; it is re-planned whenever
+// something changes (hover, focus, drag, tab hidden, active card).
 let timer = 0
 function schedule() {
   clearTimeout(timer)
@@ -230,9 +214,17 @@ function schedule() {
   }, INTERVAL)
 }
 
+// Beyond WAD2 syllabus: watch re-plans the autoplay timer whenever "playing" or the
+// active card changes. These change from many places (hover, focus, drag, swipe, tab
+// switch), so one watch is simpler than calling schedule() from each of them.
 watch([playing, active], schedule)
+
+// Beyond WAD2 syllabus: the browser's "visibilitychange" event tells us when the user
+// switches to another browser tab, so autoplay can pause while nobody is looking.
 const onVisibility = () => (tabHidden.value = document.hidden)
 
+// Beyond WAD2 syllabus: ResizeObserver tells us when the row changes size (e.g. the
+// window is resized) so the card positions are measured again.
 let resizeObserver = null
 onMounted(() => {
   document.addEventListener('visibilitychange', onVisibility)
@@ -241,10 +233,15 @@ onMounted(() => {
   resizeObserver.observe(track.value)
   schedule()
 })
+// Beyond WAD2 syllabus: when the number of cards changes, wait for Vue to draw the
+// new cards (nextTick) and then measure them. Measuring earlier would miss them.
 watch(
   () => props.slides.length,
   () => nextTick(measureStops),
 )
+
+// Beyond WAD2 syllabus: onUnmounted cancels the timers and listeners when the user
+// leaves the page. Without it they would keep running in the background.
 onUnmounted(() => {
   resizeObserver?.disconnect()
   clearTimeout(timer)
@@ -293,115 +290,6 @@ onUnmounted(() => {
 .track.dragging {
   cursor: grabbing;
   scroll-snap-type: none; /* follow the mouse 1:1 while dragging */
-}
-
-.slide {
-  position: relative;
-  flex: 0 0 85%;
-  scroll-snap-align: start;
-  min-height: 184px;
-  padding: var(--s-6);
-  border-radius: var(--r-lg);
-  overflow: hidden;
-  display: flex;
-  flex-direction: column;
-  border: 1px solid transparent;
-  box-shadow: var(--fb-shadow-card);
-}
-@media (min-width: 768px) {
-  .slide {
-    flex-basis: calc((100% - var(--s-4)) / 2);
-  }
-}
-@media (min-width: 1200px) {
-  .slide {
-    flex-basis: calc((100% - 2 * var(--s-4)) / 3);
-  }
-}
-
-/* Vibrant tones. Each pairing keeps text contrast at 4.5:1 or better. */
-.tone-green { background: #11864f; color: #ffffff; }
-.tone-amber { background: #ffb21e; color: #3d2300; }
-.tone-blue { background: #1f6fe5; color: #ffffff; }
-.tone-coral { background: #d93d30; color: #ffffff; }
-.tone-purple { background: #7c4ddb; color: #ffffff; }
-
-/* A big soft circle in the corner adds depth and a playful shape */
-.slide::before {
-  content: '';
-  position: absolute;
-  width: 200px;
-  height: 200px;
-  right: -64px;
-  top: -72px;
-  border-radius: 50%;
-  background: rgba(255, 255, 255, 0.14);
-  pointer-events: none;
-}
-.slide-orb {
-  position: absolute;
-  width: 120px;
-  height: 120px;
-  right: 24px;
-  bottom: -72px;
-  border-radius: 50%;
-  background: rgba(255, 255, 255, 0.08);
-  pointer-events: none;
-}
-.tone-amber::before {
-  background: rgba(255, 255, 255, 0.3);
-}
-
-.slide-icon {
-  position: absolute;
-  z-index: 1;
-  right: var(--s-6);
-  top: var(--s-6);
-  font-size: var(--fs-2xl);
-  opacity: 0.9;
-}
-.slide > :not(.slide-icon):not(.slide-orb) {
-  position: relative; /* above the decorative circles */
-}
-.slide-eyebrow {
-  color: inherit;
-  opacity: 0.8;
-}
-.slide-value {
-  font-size: var(--fs-4xl);
-  margin-top: var(--s-2);
-}
-.slide-value small {
-  font-family: var(--font-body);
-  font-size: var(--fs-md);
-  font-weight: 700;
-  margin-left: var(--s-1);
-  opacity: 0.8;
-}
-.slide-caption {
-  margin: var(--s-2) 0 0;
-  font-size: var(--fs-sm);
-  opacity: 0.85;
-}
-.slide-link {
-  margin-top: auto;
-  padding-top: var(--s-4);
-  display: inline-flex;
-  align-items: center;
-  gap: var(--s-1);
-  font-weight: 800;
-  font-size: var(--fs-sm);
-  color: inherit;
-  text-decoration: none;
-  align-self: flex-start;
-}
-.slide-link i {
-  transition: transform var(--dur-ui) var(--ease-out);
-}
-@media (hover: hover) and (pointer: fine) {
-  .slide-link:hover i {
-    transform: translateX(4px);
-  }
 }
 
 /* Dots: the active one fills up over the autoplay interval */

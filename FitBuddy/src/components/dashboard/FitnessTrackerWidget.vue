@@ -2,6 +2,7 @@
   Google Health card (Home page).
   Connects to Google Health with the user's permission and reads real activity.
   Shows today's metrics plus a "Latest updates" list from the last sync.
+  Emits: synced (after a successful sync, so Home can refresh its numbers).
 -->
 <template>
   <section class="surface p-4 health-card d-flex flex-column" data-testid="google-health">
@@ -24,6 +25,7 @@
           data-testid="health-sync-btn"
           @click="syncDevice"
         >
+          <!-- Beyond WAD2 syllabus: <Transition> fades the old label out before the new one fades in (out-in). CSS alone can't animate an element that is being removed. -->
           <Transition name="morph" mode="out-in">
             <span v-if="syncState === 'syncing'" key="syncing" class="d-inline-flex align-items-center gap-1">
               <i class="bi bi-arrow-repeat spin" aria-hidden="true"></i>Syncing
@@ -76,13 +78,13 @@
     <!-- Latest updates from the most recent sync -->
     <div class="mt-4 flex-grow-1">
       <div class="eyebrow mb-2">Latest updates</div>
-      <TransitionGroup v-if="updates.length" tag="ul" name="update" class="updates list-unstyled mb-0" data-testid="health-updates">
-        <li v-for="u in updates" :key="u.id" class="update">
+      <ul v-if="updates.length" class="updates list-unstyled mb-0" data-testid="health-updates">
+        <li v-for="u in updates" :key="u.id" class="update" :class="{ 'update-new': u.isNew }">
           <span class="update-dot" aria-hidden="true"></span>
           <span class="flex-grow-1">{{ u.text }}</span>
           <span class="text-muted small text-nowrap">{{ u.time }}</span>
         </li>
-      </TransitionGroup>
+      </ul>
       <p v-else class="text-muted small mb-0">{{ connected ? 'Sync your Google Health activity to refresh this list.' : 'Your recent real syncs will appear here after connecting.' }}</p>
     </div>
 
@@ -90,19 +92,13 @@
   </section>
 </template>
 
-<script>
-// Kept at module level so the update list survives navigating away and back
-import { ref } from 'vue'
-const sharedUpdates = ref([])
-const lastSyncedAt = ref(null)
-</script>
-
 <script setup>
-import { computed, onMounted, onUnmounted } from 'vue'
+import { computed, onMounted, onUnmounted, ref } from 'vue'
 import CountUp from '../CountUp.vue'
 import { healthSyncService } from '../../services/healthSyncService'
 import { errorMessage, habitService } from '../../services/habitService'
 import { useAuthStore } from '../../stores/auth'
+import { useHealthSyncStore } from '../../stores/healthSync'
 
 const emit = defineEmits(['synced'])
 
@@ -127,7 +123,9 @@ const disconnecting = ref(false)
 const autoSync = ref(false)
 const availableHabits = ref([])
 const mappings = ref({ steps: [], activeMinutes: [], water: [] })
-const updates = sharedUpdates
+// The update list and last-sync time live in a store so they survive leaving the page
+const health = useHealthSyncStore()
+const updates = computed(() => health.updates)
 let autoSyncTimer
 const auth = useAuthStore()
 const settingsKey = `fitbuddy_health_sync_${auth.user?.id || 'guest'}`
@@ -147,14 +145,19 @@ function saveMappings() {
   syncSettingsError.value = ''
 }
 
+// Sync again every 10 minutes, but only while the browser tab is visible
+function startAutoSyncTimer() {
+  autoSyncTimer = setInterval(() => {
+    if (!document.hidden) syncDevice()
+  }, 10 * 60 * 1000)
+}
+
 function saveAutoSync() {
   localStorage.setItem(`${settingsKey}_auto`, String(autoSync.value))
   if (autoSyncTimer) clearInterval(autoSyncTimer)
   if (autoSync.value && connected.value) {
     syncDevice()
-    autoSyncTimer = setInterval(() => {
-      if (!document.hidden) syncDevice()
-    }, 10 * 60 * 1000)
+    startAutoSyncTimer()
   }
 }
 
@@ -180,8 +183,8 @@ const metricRows = computed(() => {
 })
 
 const lastSyncedLabel = computed(() => {
-  if (!lastSyncedAt.value) return "Today's activity"
-  return `Last synced ${lastSyncedAt.value.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}`
+  if (!health.lastSyncedAt) return "Today's activity"
+  return `Last synced ${health.lastSyncedAt.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}`
 })
 
 async function loadMetrics() {
@@ -190,7 +193,7 @@ async function loadMetrics() {
     connected.value = Boolean(data?.connected)
     if (data?.metrics) {
       metrics.value = { ...metrics.value, ...data.metrics }
-      lastSyncedAt.value = data.metrics.lastSynced ? new Date(data.metrics.lastSynced) : null
+      health.lastSyncedAt = data.metrics.lastSynced ? new Date(data.metrics.lastSynced) : null
     }
   } catch (err) {
     console.warn('Could not load health metrics:', err)
@@ -217,33 +220,38 @@ async function loadSyncSettings() {
   }
 
   await loadMetrics()
-  const saved = JSON.parse(localStorage.getItem(`${settingsKey}_mappings`) || 'null')
-  if (saved && typeof saved === 'object') {
-    const eligibleIds = {
-      steps: new Set(availableHabits.value.filter((h) => h.target?.unit === 'steps' || /step/i.test(h.name)).map((h) => String(h.id ?? h._id))),
-      activeMinutes: new Set(availableHabits.value.filter((h) => h.category === 'exercise' || h.target?.unit === 'minutes').map((h) => String(h.id ?? h._id))),
-    }
-    mappings.value = {
-      steps: (saved.steps || []).map(String).filter((id) => eligibleIds.steps.has(id)),
-      activeMinutes: (saved.activeMinutes || []).map(String).filter((id) => eligibleIds.activeMinutes.has(id)),
-      water: [],
-    }
-    saveMappings()
-  } else {
-    mappings.value = {
-      steps: availableHabits.value.filter((h) => h.target?.unit === 'steps' || /step/i.test(h.name)).map((h) => String(h.id ?? h._id)),
-      activeMinutes: availableHabits.value.filter((h) => h.category === 'exercise' && h.target?.unit === 'minutes').map((h) => String(h.id ?? h._id)),
-      water: [],
-    }
-    saveMappings()
-  }
+  restoreMappings()
   autoSync.value = localStorage.getItem(`${settingsKey}_auto`) === 'true'
   if (autoSync.value && connected.value) {
     await syncDevice()
-    autoSyncTimer = setInterval(() => {
-      if (!document.hidden) syncDevice()
-    }, 10 * 60 * 1000)
+    startAutoSyncTimer()
   }
+}
+
+const habitId = (habit) => String(habit.id ?? habit._id)
+const isStepHabit = (habit) => habit.target?.unit === 'steps' || /step/i.test(habit.name)
+const isMinutesHabit = (habit) => habit.category === 'exercise' || habit.target?.unit === 'minutes'
+
+// Use the habits the user chose last time (dropping any that no longer exist);
+// with no saved choice yet, pick the obvious step and exercise-minute habits.
+function restoreMappings() {
+  const saved = JSON.parse(localStorage.getItem(`${settingsKey}_mappings`) || 'null')
+  if (saved && typeof saved === 'object') {
+    const stepIds = new Set(availableHabits.value.filter(isStepHabit).map(habitId))
+    const minuteIds = new Set(availableHabits.value.filter(isMinutesHabit).map(habitId))
+    mappings.value = {
+      steps: (saved.steps || []).map(String).filter((id) => stepIds.has(id)),
+      activeMinutes: (saved.activeMinutes || []).map(String).filter((id) => minuteIds.has(id)),
+      water: [],
+    }
+  } else {
+    mappings.value = {
+      steps: availableHabits.value.filter(isStepHabit).map(habitId),
+      activeMinutes: availableHabits.value.filter((h) => h.category === 'exercise' && h.target?.unit === 'minutes').map(habitId),
+      water: [],
+    }
+  }
+  saveMappings()
 }
 
 async function syncDevice() {
@@ -255,18 +263,21 @@ async function syncDevice() {
     metrics.value = { ...metrics.value, ...res.metrics }
 
     const now = new Date()
-    lastSyncedAt.value = now
+    health.lastSyncedAt = now
     const time = now.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
     const habitUpdates = (res.updatedHabits || []).map((h) => ({
       id: `${now.getTime()}-${h.id}`,
       text: `${h.name}: logged ${h.syncedCount} ${h.unit || ''}`.trim(),
       time,
     }))
-    updates.value = [
+    // Only slide the new rows in when the list was already showing (not the very first sync)
+    const listWasShowing = health.updates.length > 0
+    const newRows = [
       { id: `${now.getTime()}-steps`, text: `${Number(metrics.value.steps).toLocaleString()} steps · ${metrics.value.activeMinutes} active min from Google Health`, time },
       ...habitUpdates,
-      ...updates.value,
-    ].slice(0, 8)
+    ].map((row) => ({ ...row, isNew: listWasShowing }))
+    const oldRows = health.updates.map((row) => ({ ...row, isNew: false }))
+    health.updates = [...newRows, ...oldRows].slice(0, 8)
 
     syncState.value = 'done'
     setTimeout(() => (syncState.value = 'idle'), 1800)
@@ -292,22 +303,43 @@ async function disconnectGoogle() {
     autoSync.value = false
     localStorage.setItem(`${settingsKey}_auto`, 'false')
     clearInterval(autoSyncTimer)
-    updates.value = []
-    lastSyncedAt.value = null
+    health.updates = []
+    health.lastSyncedAt = null
   } catch (err) { syncError.value = errorMessage(err) }
   finally { disconnecting.value = false }
 }
 
+// Google sends the user back to /home?googleHealth=<result>; show the outcome,
+// then remove that bit from the address bar.
+const CONNECT_MESSAGES = {
+  'not-linked': "This Google Account isn't linked to a Google Health profile yet. Open the Google Health app and sign in with this same account to create a profile or migrate your Fitbit account, then return here and connect again.",
+  cancelled: 'Google Health connection was cancelled.',
+  expired: 'Connection expired; please try again.',
+  error: 'Google Health could not connect. Check your Google Cloud setup and try again.',
+}
+
+function handleGoogleCallback() {
+  const url = new URL(window.location.href)
+  const callbackResult = url.searchParams.get('googleHealth')
+  if (!callbackResult) return
+  if (callbackResult === 'connected') {
+    syncError.value = ''
+    connected.value = true
+    setTimeout(() => syncDevice(), 0)
+  } else {
+    syncError.value = CONNECT_MESSAGES[callbackResult] || CONNECT_MESSAGES.error
+  }
+  url.searchParams.delete('googleHealth')
+  window.history.replaceState({}, '', `${url.pathname}${url.search}${url.hash}`)
+}
+
 onMounted(() => {
   loadSyncSettings()
-  const callbackResult = new URL(window.location.href).searchParams.get('googleHealth')
-  if (callbackResult) {
-    const messages = { 'not-linked': "This Google Account isn't linked to a Google Health profile yet. Open the Google Health app and sign in with this same account to create a profile or migrate your Fitbit account, then return here and connect again.", cancelled: 'Google Health connection was cancelled.', expired: 'Connection expired; please try again.', error: 'Google Health could not connect. Check your Google Cloud setup and try again.' }
-    syncError.value = callbackResult === 'connected' ? '' : (messages[callbackResult] || messages.error)
-    if (callbackResult === 'connected') { connected.value = true; setTimeout(() => syncDevice(), 0) }
-    const url = new URL(window.location.href); url.searchParams.delete('googleHealth'); window.history.replaceState({}, '', `${url.pathname}${url.search}${url.hash}`)
-  }
+  handleGoogleCallback()
 })
+
+// Beyond WAD2 syllabus: onUnmounted stops the 10-minute auto-sync timer when the
+// user leaves the Home page. Without it the timer would keep running in the background.
 onUnmounted(() => clearInterval(autoSyncTimer))
 </script>
 
@@ -403,15 +435,15 @@ onUnmounted(() => clearInterval(autoSyncTimer))
   background: #4285f4;
   flex-shrink: 0;
 }
-.update-enter-active {
-  transition: opacity 240ms var(--ease-out), transform 240ms var(--ease-out);
+/* Rows added by a sync slide in from above (plain CSS keyframes) */
+.update-new {
+  animation: update-in 240ms var(--ease-out);
 }
-.update-enter-from {
-  opacity: 0;
-  transform: translateY(-6px);
-}
-.update-leave-active {
-  display: none;
+@keyframes update-in {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
 }
 
 .sync-btn {
@@ -451,9 +483,11 @@ onUnmounted(() => clearInterval(autoSyncTimer))
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .bar span,
-  .update-enter-active {
+  .bar span {
     transition: none;
+  }
+  .update-new {
+    animation: none;
   }
 }
 </style>

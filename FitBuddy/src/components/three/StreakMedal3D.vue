@@ -1,7 +1,9 @@
 <!--
   A 3D medal that shows a streak number. It turns slowly on its own and flips
   when the number changes (display only, not interactive). Built entirely in
-  code with Three.js (no model files).
+  code with three.js (no model files). The shared 3D set-up is in
+  utils/three/spinnable.js.
+  Props: value (the streak number), label (text under the number).
   Shows a placeholder while Three.js loads, and a flat medal if WebGL is
   unavailable.
 -->
@@ -14,6 +16,7 @@
     role="img"
     :aria-label="`${value} ${label}`"
   >
+    <!-- Beyond WAD2 syllabus: a template ref gives the script this empty box so three.js can put its canvas inside it. -->
     <div ref="stageEl" class="stage" aria-hidden="true"></div>
     <div v-if="state === 'loading'" class="placeholder skeleton" aria-hidden="true"></div>
     <div v-else-if="state === 'fallback'" class="flat-medal" aria-hidden="true">
@@ -25,6 +28,7 @@
 
 <script setup>
 import { onMounted, onUnmounted, ref, watch } from 'vue'
+// Third-party library: three.js (https://threejs.org) - used for the 3D medal; it is loaded inside this helper
 import { createSpinnableStage } from '../../utils/three/spinnable'
 
 const props = defineProps({
@@ -163,6 +167,9 @@ onMounted(async () => {
   }
 })
 
+// Beyond WAD2 syllabus: watch redraws the number on the medal and flips it when the
+// streak changes. The value comes from the parent page, and re-creating the medal
+// with :key would restart the 3D scene, so a watch is used instead.
 watch(
   () => [props.value, props.label],
   () => {
@@ -173,6 +180,8 @@ watch(
   },
 )
 
+// Beyond WAD2 syllabus: onUnmounted frees the 3D scene when the page is left.
+// Without it the graphics memory and the animation loop would keep running.
 onUnmounted(() => {
   disposed = true
   stage?.dispose()

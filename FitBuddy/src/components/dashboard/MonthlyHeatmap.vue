@@ -1,3 +1,9 @@
+<!--
+  Monthly heatmap: a calendar of the month where each day is coloured by how
+  many daily habits were done. Click a day to see its details.
+  Props: days (one entry per day of the month), today (date key).
+  The parent gives it a new :key for each month, so it starts fresh every time.
+-->
 <template>
   <div data-testid="monthly-heatmap">
     <!-- A normal month calendar: one row per week, Mon–Sun columns. Seven equal
@@ -49,7 +55,7 @@
 </template>
 
 <script setup>
-import { ref, computed, watch } from 'vue'
+import { ref, computed } from 'vue'
 import { LEVELS, levelFor } from '../../utils/completionLevels'
 import { addDays, fromDateKey, weekStart } from '../../utils/dates'
 
@@ -61,16 +67,9 @@ const props = defineProps({
 
 const WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
 
-const selectedDate = ref(null)
-
-// Default to today when it's in this month, otherwise nothing selected
-watch(
-  () => props.days,
-  (days) => {
-    selectedDate.value = days.some((d) => d.date === props.today) ? props.today : null
-  },
-  { immediate: true },
-)
+// Start with today selected when it's in this month, otherwise nothing selected
+const todayIsInMonth = props.days.some((d) => d.date === props.today)
+const selectedDate = ref(todayIsInMonth ? props.today : null)
 
 const selectedDay = computed(() => props.days.find((d) => d.date === selectedDate.value))
 

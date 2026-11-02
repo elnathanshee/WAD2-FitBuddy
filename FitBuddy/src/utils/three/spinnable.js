@@ -1,7 +1,16 @@
 // =============================================================================
-// Shared Three.js stage for the small interactive 3D models (streak medal,
-// trophy). Three.js (MIT licence, threejs.org) is loaded lazily with import(),
-// so pages without a model never download it.
+// Shared 3D stage for the small 3D models (streak medal, trophy).
+//
+// Beyond WAD2 syllabus: this whole file uses plain browser APIs that the course
+// does not cover - requestAnimationFrame (run code before every screen refresh,
+// used for smooth animation), IntersectionObserver (tells us when the model is
+// scrolled into / out of view), ResizeObserver (tells us when its box changes
+// size) and the "visibilitychange" event (the browser tab was hidden / shown).
+// They are used so the model only animates while someone can actually see it.
+//
+// Third-party library: three.js (https://threejs.org, MIT licence) - used to draw
+// the 3D models. It is loaded lazily with import(), so pages without a model
+// never download it.
 //
 // What the stage does:
 // - renders a model built by `build(THREE)` with studio-style reflections
@@ -15,7 +24,9 @@
 const SPIN_SPEED = 0.6 // radians per second
 
 export async function createSpinnableStage(container, build, { cameraZ = 5 } = {}) {
+  // Third-party library: three.js (https://threejs.org) - used for the 3D scene, camera and materials
   const THREE = await import('three')
+  // Third-party library: three.js examples (https://threejs.org) - RoomEnvironment gives the metal its reflections
   const { RoomEnvironment } = await import('three/examples/jsm/environments/RoomEnvironment.js')
 
   const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
@@ -70,6 +81,7 @@ export async function createSpinnableStage(container, build, { cameraZ = 5 } = {
   if (reduceMotion) pivot.rotation.y = -0.5
 
   // ---- Sizing -----------------------------------------------------------
+  // Match the drawing size to the box on the page, and again whenever the box changes
   const resize = () => {
     const w = container.clientWidth || 1
     const h = container.clientHeight || 1
@@ -84,6 +96,8 @@ export async function createSpinnableStage(container, build, { cameraZ = 5 } = {
   resizeObserver.observe(container)
 
   // ---- Render loop (only while visible) -----------------------------------
+  // requestAnimationFrame calls loop() before each screen refresh; `frame` is the
+  // id we need to be able to cancel it.
   let frame = 0
   let last = 0
   let onScreen = true
@@ -110,11 +124,13 @@ export async function createSpinnableStage(container, build, { cameraZ = 5 } = {
     }
   }
 
+  // Start/stop drawing when the model scrolls into/out of view
   const io = new IntersectionObserver(([entry]) => {
     onScreen = entry.isIntersecting
     if (onScreen) start()
   })
   io.observe(container)
+  // Start drawing again when the user comes back to this browser tab
   const onVisibility = () => !document.hidden && start()
   document.addEventListener('visibilitychange', onVisibility)
 
@@ -135,6 +151,7 @@ export async function createSpinnableStage(container, build, { cameraZ = 5 } = {
       extraUpdates.add(wrapped)
       start()
     },
+    // Stop everything and free the graphics memory (called when the page is left)
     dispose() {
       cancelAnimationFrame(frame)
       io.disconnect()

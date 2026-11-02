@@ -1,3 +1,5 @@
+// The main goals a user can pick on the Goal planner page, and the habits we
+// suggest for each goal (they are added to the user's habits when they save).
 export const GOAL_OPTIONS = [
   { value: 'wellness', label: 'Feel healthier overall', targetLabel: '' },
   { value: 'weight-loss', label: 'Lose weight', targetLabel: 'My target (optional, e.g. 0.5 kg per week)' },

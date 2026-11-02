@@ -1,3 +1,8 @@
+<!--
+  Analytics dashboard: Day / Week / Month switch with previous / next arrows,
+  summary numbers, charts (Chart.js), the month heatmap and the per-habit table.
+  No props or emits: it loads its own data from the analytics service.
+-->
 <template>
   <div data-testid="analytics-dashboard">
     <!-- Toolbar: Day/Week/Month segmented control + period navigation -->
@@ -27,7 +32,7 @@
       <div class="text-center">
         <div class="fw-semibold" data-testid="analytics-period-label">{{ periodLabel }}</div>
         <button v-if="offset < 0" type="button" class="btn btn-link btn-sm p-0" @click="move(-offset)">
-          Back to {{ PERIOD_OPTIONS.find((o) => o.value === period).current }}
+          Back to {{ currentPeriodWord }}
         </button>
       </div>
       <button
@@ -97,7 +102,7 @@
         <section class="col-12 col-lg-5">
           <div class="surface p-3 p-md-4 h-100">
             <h2 class="section-title mb-3">Month at a glance</h2>
-            <MonthlyHeatmap :days="data.days" :today="data.today" />
+            <MonthlyHeatmap :key="data.from" :days="data.days" :today="data.today" />
           </div>
         </section>
         <section class="col-12 col-lg-7">
@@ -188,7 +193,9 @@
 
 <script setup>
 import { ref, computed, onMounted } from 'vue'
+// Third-party library: vue-chartjs (https://vue-chartjs.org) — Vue wrappers for the Chart.js charts
 import { Bar, Line, Pie } from 'vue-chartjs'
+// Third-party library: Chart.js (https://www.chartjs.org) — draws the bar, line and pie charts
 import {
   Chart as ChartJS,
   BarElement,
@@ -232,6 +239,8 @@ ChartJS.defaults.plugins.tooltip.cornerRadius = 8
 ChartJS.defaults.plugins.tooltip.padding = 10
 
 const period = ref('month')
+// e.g. "today", "this week", "this month" for the "Back to ..." link
+const currentPeriodWord = computed(() => PERIOD_OPTIONS.find((o) => o.value === period.value).current)
 const periodIndex = computed(() => PERIOD_OPTIONS.findIndex((o) => o.value === period.value))
 const offset = ref(0)
 const data = ref(null)
@@ -452,8 +461,6 @@ const pieOptions = {
 }
 
 onMounted(load)
-
-defineExpose({ load })
 </script>
 
 <style scoped>

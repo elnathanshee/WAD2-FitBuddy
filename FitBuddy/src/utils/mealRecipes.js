@@ -1,3 +1,6 @@
+// Built-in recipe catalogue for the Meal planner, grouped by goal, plus the
+// tag filters shown as chips. Each recipe: key, name, minutes, macros, tags,
+// ingredients and steps.
 const recipe = (key, name, minutes, macros, tags, ingredients, steps) => ({
   key, name, minutes, macros, tags, ingredients, steps, sourceUrl: '', sourceLabel: 'HabitBuddy original',
 })

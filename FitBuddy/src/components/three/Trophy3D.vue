@@ -1,10 +1,12 @@
 <!--
   A 3D trophy for the leaderboard that turns slowly on its own. Modelled in code with
-  Three.js: a lathe-turned cup, handles, stem and a two-tier base.
+  three.js: a lathe-turned cup, handles, stem and a two-tier base.
+  The shared 3D set-up is in utils/three/spinnable.js. No props.
   Shows a placeholder while Three.js loads, and an icon if WebGL is unavailable.
 -->
 <template>
   <div class="trophy3d" :class="{ ready: state === 'ready' }" :data-state="state" data-testid="trophy-3d" role="img" aria-label="Trophy">
+    <!-- Beyond WAD2 syllabus: a template ref gives the script this empty box so three.js can put its canvas inside it. -->
     <div ref="stageEl" class="stage" aria-hidden="true"></div>
     <div v-if="state === 'loading'" class="placeholder skeleton" aria-hidden="true"></div>
     <div v-else-if="state === 'fallback'" class="flat" aria-hidden="true"><i class="bi bi-trophy-fill"></i></div>
@@ -13,6 +15,7 @@
 
 <script setup>
 import { onMounted, onUnmounted, ref } from 'vue'
+// Third-party library: three.js (https://threejs.org) - used for the 3D trophy; it is loaded inside this helper
 import { createSpinnableStage } from '../../utils/three/spinnable'
 
 const stageEl = ref(null)
@@ -78,6 +81,8 @@ onMounted(async () => {
   }
 })
 
+// Beyond WAD2 syllabus: onUnmounted frees the 3D scene when the page is left.
+// Without it the graphics memory and the animation loop would keep running.
 onUnmounted(() => {
   disposed = true
   stage?.dispose()

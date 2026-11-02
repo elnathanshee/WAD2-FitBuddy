@@ -10,7 +10,7 @@
       <details>
         <summary class="fw-semibold"><i class="bi bi-plus-circle me-2"></i>Add a recipe</summary>
         <form class="row g-3 pt-3" @submit.prevent="addRecipe">
-          <div class="col-12 col-md-6"><label class="form-label" for="custom-meal-name">Recipe name</label><input id="custom-meal-name" v-model="recipeForm.name" class="form-control" maxlength="90" required placeholder="e.g. My favorite tofu bowl" /></div>
+          <div class="col-12 col-md-6"><label class="form-label" for="custom-meal-name">Recipe name</label><input id="custom-meal-name" v-model="recipeForm.name" class="form-control" maxlength="90" list="recipe-name-suggestions" required placeholder="Start typing, e.g. overnight oats" @change="suggestRecipeFromName" /><datalist id="recipe-name-suggestions"><option v-for="meal in allMealRecipes" :key="meal.key" :value="meal.name" /></datalist><div class="form-text">Choose a suggested recipe name to prefill its details. You can edit every field.</div></div>
           <div class="col-6 col-md-3"><label class="form-label" for="custom-meal-time">Prep time (minutes)</label><input id="custom-meal-time" v-model.number="recipeForm.minutes" class="form-control" type="number" min="1" max="600" required /></div>
           <fieldset class="col-12"><legend class="form-label mb-2">Tags</legend><div class="d-flex flex-wrap gap-3"><label v-for="tag in recipeTagOptions" :key="tag.value" class="form-check-label"><input v-model="recipeForm.tags" class="form-check-input me-1" type="checkbox" :value="tag.value" />{{ tag.label }}</label></div></fieldset>
           <div class="col-6 col-md-3" v-for="macro in macroFields" :key="macro.key"><label class="form-label" :for="`macro-${macro.key}`">{{ macro.label }}</label><input :id="`macro-${macro.key}`" v-model.number="recipeForm.macros[macro.key]" class="form-control" type="number" min="0" max="10000" required /></div>
@@ -83,7 +83,7 @@
 import { computed, onMounted, reactive, ref } from 'vue'
 import api from '../services/api'
 import { GOAL_OPTIONS } from '../utils/goalOptions'
-import { MEAL_FILTERS, recipesForGoal } from '../utils/mealRecipes'
+import { allMealRecipes, MEAL_FILTERS, recipesForGoal } from '../utils/mealRecipes'
 import { loadMealPreferences, saveMealPreferences as persistMealPreferences } from '../utils/mealPreferences'
 import { habitService } from '../services/habitService'
 import { toDateKey } from '../utils/dates'
@@ -144,6 +144,27 @@ function tagLabel(value) {
 function savePreferences() { persistMealPreferences(preferences) }
 function toggleFavorite(key) { preferences.favorites = preferences.favorites.includes(key) ? preferences.favorites.filter((item) => item !== key) : [...preferences.favorites, key]; savePreferences() }
 function clearPlan() { preferences.weeklyPlan = {}; checkedShopping.value = []; savePreferences() }
+function suggestRecipeFromName() {
+  const query = recipeForm.name.trim().toLowerCase().replace(/[^a-z0-9 ]/g, ' ').replace(/\s+/g, ' ')
+  if (!query) return
+  const exact = allMealRecipes.find((meal) => meal.name.toLowerCase() === query)
+  const containing = exact || allMealRecipes.find((meal) => meal.name.toLowerCase().includes(query) || query.includes(meal.name.toLowerCase()))
+  const queryWords = query.split(' ').filter((word) => word.length > 2)
+  const scored = allMealRecipes.map((meal) => {
+    const words = `${meal.name} ${meal.ingredients.join(' ')}`.toLowerCase().replace(/[^a-z0-9 ]/g, ' ').split(/\s+/)
+    return { meal, score: queryWords.filter((word) => words.includes(word)).length / Math.max(queryWords.length, 1) }
+  }).sort((a, b) => b.score - a.score)[0]
+  const match = containing || (scored?.score >= 0.5 ? scored.meal : null)
+  if (!match) return
+  recipeForm.name = recipeForm.name.trim() // Keep the title the user entered.
+  recipeForm.minutes = match.minutes
+  recipeForm.tags = [...match.tags.filter((tag) => recipeTagOptions.some((option) => option.value === tag))]
+  recipeForm.macros = { ...match.macros }
+  recipeForm.ingredientsText = match.ingredients.join('\n')
+  recipeForm.stepsText = match.steps.join('\n')
+  recipeForm.sourceUrl = match.sourceUrl || ''
+  recipeNotice.value = `Filled in an estimate based on “${match.name}”. Review and edit it before saving.`
+}
 function addRecipe() {
   const sourceUrl = recipeForm.sourceUrl.trim()
   if (sourceUrl) { try { if (!['http:', 'https:'].includes(new URL(sourceUrl).protocol)) throw new Error('bad url') } catch { recipeNotice.value = 'Enter a valid http or https recipe link.'; return } }

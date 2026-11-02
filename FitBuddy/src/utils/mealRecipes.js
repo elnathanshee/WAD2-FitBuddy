@@ -50,6 +50,7 @@ const sleep = [
 ]
 
 const groups = { wellness: balanced, 'weight-loss': lighter, 'muscle-gain': protein, cardio: balanced, strength: protein, mobility: balanced, sleep }
+export const allMealRecipes = [...new Map(Object.values(groups).flat().map((item) => [item.key, item])).values()]
 export const recipesForGoal = (goal) => groups[goal] || balanced
 
 export const MEAL_FILTERS = [

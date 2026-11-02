@@ -14,25 +14,48 @@
           <div class="text-muted small">{{ lastSyncedLabel }}</div>
         </div>
       </div>
-      <button
-        type="button"
-        class="btn btn-sm btn-tinted px-3 sync-btn"
-        :disabled="syncState === 'syncing'"
-        data-testid="health-sync-btn"
-        @click="syncDevice('Google Health')"
-      >
-        <Transition name="morph" mode="out-in">
-          <span v-if="syncState === 'syncing'" key="syncing" class="d-inline-flex align-items-center gap-1">
-            <i class="bi bi-arrow-repeat spin" aria-hidden="true"></i>Syncing
-          </span>
-          <span v-else-if="syncState === 'done'" key="done" class="d-inline-flex align-items-center gap-1">
-            <i class="bi bi-check2" aria-hidden="true"></i>Synced
-          </span>
-          <span v-else key="idle" class="d-inline-flex align-items-center gap-1">
-            <i class="bi bi-arrow-repeat" aria-hidden="true"></i>Sync
-          </span>
-        </Transition>
-      </button>
+      <div class="d-flex align-items-center gap-2">
+        <button type="button" class="btn btn-sm btn-outline-secondary px-2" data-testid="health-sync-settings" :aria-expanded="showSettings" @click="showSettings = !showSettings">
+          <i class="bi bi-sliders2" aria-hidden="true"></i><span class="visually-hidden">Edit sync targets</span>
+        </button>
+        <button
+          type="button"
+          class="btn btn-sm btn-tinted px-3 sync-btn"
+          :disabled="syncState === 'syncing'"
+          data-testid="health-sync-btn"
+          @click="syncDevice('Google Health')"
+        >
+          <Transition name="morph" mode="out-in">
+            <span v-if="syncState === 'syncing'" key="syncing" class="d-inline-flex align-items-center gap-1">
+              <i class="bi bi-arrow-repeat spin" aria-hidden="true"></i>Syncing
+            </span>
+            <span v-else-if="syncState === 'done'" key="done" class="d-inline-flex align-items-center gap-1">
+              <i class="bi bi-check2" aria-hidden="true"></i>Synced
+            </span>
+            <span v-else key="idle" class="d-inline-flex align-items-center gap-1">
+              <i class="bi bi-arrow-repeat" aria-hidden="true"></i>Sync
+            </span>
+          </Transition>
+        </button>
+      </div>
+    </div>
+
+    <div v-if="showSettings" class="sync-settings surface-soft p-3 mb-3" data-testid="health-sync-settings-panel">
+      <label class="d-flex align-items-center gap-2 fw-semibold small mb-2">
+        <input v-model="autoSync" class="form-check-input mt-0" type="checkbox" data-testid="health-auto-sync" @change="saveAutoSync" />
+        Automatically sync every 10 minutes while the app is open
+      </label>
+      <p class="small text-muted mb-2">This project currently syncs demo readings. A real Google Health connection needs provider sign-in and credentials.</p>
+      <p class="small text-muted mb-2">Choose which habits each measurement can update. Each habit can be linked to one measurement.</p>
+      <div v-for="source in syncSources" :key="source.key" class="sync-source mb-2">
+        <div class="small fw-semibold mb-1">{{ source.label }}</div>
+        <label v-for="habit in source.habits" :key="habit._id" class="sync-habit small">
+          <input v-model="mappings[source.key]" class="form-check-input mt-0" type="checkbox" :value="String(habit.id ?? habit._id)" :disabled="mappedElsewhere(habit, source.key)" @change="saveMappings" />
+          <span>{{ habit.icon }} {{ habit.name }} <span class="text-muted">({{ habit.target.amount }} {{ habit.target.unit }})</span></span>
+        </label>
+        <div v-if="!source.habits.length" class="text-muted small">No matching habits yet. Add one on the Habits page.</div>
+      </div>
+      <div v-if="syncSettingsError" class="small text-danger" role="alert">{{ syncSettingsError }}</div>
     </div>
 
     <!-- Today's metrics: same layout for all four, each with its own colour -->
@@ -70,10 +93,11 @@ const lastSyncedAt = ref(null)
 </script>
 
 <script setup>
-import { computed, onMounted } from 'vue'
+import { computed, onMounted, onUnmounted } from 'vue'
 import CountUp from '../CountUp.vue'
 import { healthSyncService } from '../../services/healthSyncService'
-import { errorMessage } from '../../services/habitService'
+import { errorMessage, habitService } from '../../services/habitService'
+import { authService } from '../../services/authService'
 
 const emit = defineEmits(['synced'])
 
@@ -88,7 +112,41 @@ const metrics = ref({
 
 const syncState = ref('idle') // idle | syncing | done
 const syncError = ref('')
+const syncSettingsError = ref('')
+const showSettings = ref(false)
+const autoSync = ref(true)
+const availableHabits = ref([])
+const mappings = ref({ steps: [], activeMinutes: [], water: [] })
 const updates = sharedUpdates
+let autoSyncTimer
+const settingsKey = `fitbuddy_health_sync_${authService.getCurrentUser()?.id || 'guest'}`
+
+const syncSources = computed(() => [
+  { key: 'steps', label: 'Step tracker', habits: availableHabits.value.filter((h) => h.target?.unit === 'steps' || /step/i.test(h.name)) },
+  { key: 'activeMinutes', label: 'Active minutes tracker', habits: availableHabits.value.filter((h) => h.category === 'exercise' || h.target?.unit === 'minutes') },
+  { key: 'water', label: 'Water tracker', habits: availableHabits.value.filter((h) => h.category === 'water') },
+])
+
+function mappedElsewhere(habit, sourceKey) {
+  const id = String(habit.id ?? habit._id)
+  return Object.entries(mappings.value).some(([key, ids]) => key !== sourceKey && ids.includes(id))
+}
+
+function saveMappings() {
+  localStorage.setItem(`${settingsKey}_mappings`, JSON.stringify(mappings.value))
+  syncSettingsError.value = ''
+}
+
+function saveAutoSync() {
+  localStorage.setItem(`${settingsKey}_auto`, String(autoSync.value))
+  if (autoSyncTimer) clearInterval(autoSyncTimer)
+  if (autoSync.value) {
+    syncDevice('Google Health')
+    autoSyncTimer = setInterval(() => {
+      if (!document.hidden) syncDevice('Google Health')
+    }, 10 * 60 * 1000)
+  }
+}
 
 const ratio = (value, goal) => (goal > 0 ? Math.min(1, value / goal) : 0)
 
@@ -125,6 +183,42 @@ async function loadMetrics() {
   }
 }
 
+async function loadSyncSettings() {
+  try {
+    availableHabits.value = await habitService.list()
+    const saved = JSON.parse(localStorage.getItem(`${settingsKey}_mappings`) || 'null')
+    if (saved && typeof saved === 'object') {
+      const eligibleIds = {
+        steps: new Set(availableHabits.value.filter((h) => h.target?.unit === 'steps' || /step/i.test(h.name)).map((h) => String(h.id ?? h._id))),
+        activeMinutes: new Set(availableHabits.value.filter((h) => h.category === 'exercise' || h.target?.unit === 'minutes').map((h) => String(h.id ?? h._id))),
+        water: new Set(availableHabits.value.filter((h) => h.category === 'water').map((h) => String(h.id ?? h._id))),
+      }
+      mappings.value = {
+        steps: (saved.steps || []).map(String).filter((id) => eligibleIds.steps.has(id)),
+        activeMinutes: (saved.activeMinutes || []).map(String).filter((id) => eligibleIds.activeMinutes.has(id)),
+        water: (saved.water || []).map(String).filter((id) => eligibleIds.water.has(id)),
+      }
+      saveMappings()
+    } else {
+      mappings.value = {
+        steps: availableHabits.value.filter((h) => h.target?.unit === 'steps' || /step/i.test(h.name)).map((h) => String(h.id ?? h._id)),
+        activeMinutes: availableHabits.value.filter((h) => h.category === 'exercise' && h.target?.unit === 'minutes').map((h) => String(h.id ?? h._id)),
+        water: availableHabits.value.filter((h) => h.category === 'water').map((h) => String(h.id ?? h._id)),
+      }
+      saveMappings()
+    }
+    autoSync.value = localStorage.getItem(`${settingsKey}_auto`) !== 'false'
+    if (autoSync.value) {
+      await syncDevice('Google Health')
+      autoSyncTimer = setInterval(() => {
+        if (!document.hidden) syncDevice('Google Health')
+      }, 10 * 60 * 1000)
+    }
+  } catch (err) {
+    syncSettingsError.value = errorMessage(err)
+  }
+}
+
 async function syncDevice(deviceType) {
   syncState.value = 'syncing'
   syncError.value = ''
@@ -135,6 +229,8 @@ async function syncDevice(deviceType) {
       deviceType,
       steps: randomSteps,
       activeMinutes: randomMins,
+      waterGlasses: 8,
+      mappings: mappings.value,
     })
 
     metrics.value.steps = randomSteps
@@ -165,7 +261,11 @@ async function syncDevice(deviceType) {
   }
 }
 
-onMounted(loadMetrics)
+onMounted(() => {
+  loadMetrics()
+  loadSyncSettings()
+})
+onUnmounted(() => clearInterval(autoSyncTimer))
 </script>
 
 <style scoped>
@@ -273,6 +373,21 @@ onMounted(loadMetrics)
 
 .sync-btn {
   min-width: 96px;
+}
+.sync-settings {
+  background: var(--fb-bg);
+  border: 1px solid var(--fb-hairline);
+  border-radius: var(--r-md);
+}
+.sync-source + .sync-source {
+  padding-top: .5rem;
+  border-top: 1px solid var(--fb-hairline);
+}
+.sync-habit {
+  display: flex;
+  align-items: center;
+  gap: .5rem;
+  margin: .35rem 0;
 }
 /* Label morph: a little blur hides the swap between two labels */
 .morph-enter-active,

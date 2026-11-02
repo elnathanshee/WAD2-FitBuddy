@@ -25,6 +25,8 @@ const MODE_KEY = 'fitbuddy_appearance_mode'
 const LIGHT_BG_KEY = 'fitbuddy_light_background'
 const DARK_BG_KEY = 'fitbuddy_dark_background'
 const LEGACY_BG_KEY = 'fitbuddy_background'
+const CUSTOM_LIGHT_KEY = 'fitbuddy_custom_light_backgrounds'
+const CUSTOM_DARK_KEY = 'fitbuddy_custom_dark_backgrounds'
 const DEFAULT_LIGHT_BG = 'topo'
 const DEFAULT_DARK_BG = 'dark-topo'
 const AUTO_DARK_HOUR = 20
@@ -35,7 +37,7 @@ function readStored(key) {
 }
 
 function writeStored(key, value) {
-  try { localStorage.setItem(key, value) } catch { /* storage may be blocked */ }
+  try { localStorage.setItem(key, value); return true } catch { return false }
 }
 
 function readMode() {
@@ -43,15 +45,24 @@ function readMode() {
   return ['light', 'dark', 'auto'].includes(value) ? value : 'light'
 }
 
+function readCustomBackgrounds(key) {
+  try {
+    const value = JSON.parse(readStored(key) || '[]')
+    return Array.isArray(value) ? value.filter((entry) => entry?.id && entry?.dataUrl && entry?.label).slice(0, 4) : []
+  } catch { return [] }
+}
+
 function readLightBackground() {
   const stored = readStored(LIGHT_BG_KEY)
   if (LIGHT_BACKGROUNDS.some((bg) => bg.id === stored)) return stored
+  if (readCustomBackgrounds(CUSTOM_LIGHT_KEY).some((bg) => bg.id === stored)) return stored
   const legacy = readStored(LEGACY_BG_KEY)
   return LIGHT_BACKGROUNDS.some((bg) => bg.id === legacy) ? legacy : DEFAULT_LIGHT_BG
 }
 
 function readDarkBackground() {
   const stored = readStored(DARK_BG_KEY)
+  if (readCustomBackgrounds(CUSTOM_DARK_KEY).some((bg) => bg.id === stored)) return stored
   return DARK_BACKGROUNDS.some((bg) => bg.id === stored) ? stored : DEFAULT_DARK_BG
 }
 
@@ -63,14 +74,23 @@ function isNightTime(date = new Date()) {
 const themeMode = ref(readMode())
 const lightBackground = ref(readLightBackground())
 const darkBackground = ref(readDarkBackground())
+const customLightBackgrounds = ref(readCustomBackgrounds(CUSTOM_LIGHT_KEY))
+const customDarkBackgrounds = ref(readCustomBackgrounds(CUSTOM_DARK_KEY))
 const isDark = ref(themeMode.value === 'dark' || (themeMode.value === 'auto' && isNightTime()))
 const background = computed(() => isDark.value ? darkBackground.value : lightBackground.value)
-const visibleBackgrounds = computed(() => isDark.value ? DARK_BACKGROUNDS : LIGHT_BACKGROUNDS)
+const currentCustomBackgrounds = computed(() => isDark.value ? customDarkBackgrounds.value : customLightBackgrounds.value)
+const visibleBackgrounds = computed(() => [
+  ...(isDark.value ? DARK_BACKGROUNDS : LIGHT_BACKGROUNDS),
+  ...currentCustomBackgrounds.value.map(({ id, label, dataUrl }) => ({ id, label, preview: dataUrl, custom: true })),
+])
 
 function applyAppearance() {
   isDark.value = themeMode.value === 'dark' || (themeMode.value === 'auto' && isNightTime())
   document.documentElement.dataset.theme = isDark.value ? 'dark' : 'light'
   document.documentElement.dataset.bg = background.value
+  const custom = [...customLightBackgrounds.value, ...customDarkBackgrounds.value].find((item) => item.id === background.value)
+  if (custom) document.documentElement.style.setProperty('--fb-custom-bg-image', `url("${custom.dataUrl}")`)
+  else document.documentElement.style.removeProperty('--fb-custom-bg-image')
   writeStored(LEGACY_BG_KEY, background.value)
 }
 
@@ -82,16 +102,38 @@ function setThemeMode(mode) {
 }
 
 function setBackground(id) {
-  if (LIGHT_BACKGROUNDS.some((bg) => bg.id === id)) {
+  if (LIGHT_BACKGROUNDS.some((bg) => bg.id === id) || customLightBackgrounds.value.some((bg) => bg.id === id)) {
     lightBackground.value = id
     writeStored(LIGHT_BG_KEY, id)
-  } else if (DARK_BACKGROUNDS.some((bg) => bg.id === id)) {
+  } else if (DARK_BACKGROUNDS.some((bg) => bg.id === id) || customDarkBackgrounds.value.some((bg) => bg.id === id)) {
     darkBackground.value = id
     writeStored(DARK_BG_KEY, id)
   } else {
     return
   }
   applyAppearance()
+}
+
+function addCustomBackground(dataUrl, theme, label = 'My photo') {
+  if (!dataUrl?.startsWith('data:image/')) return { error: 'Choose a valid image.' }
+  const list = theme === 'dark' ? customDarkBackgrounds : customLightBackgrounds
+  if (list.value.length >= 4) return { error: `You can save up to 4 custom ${theme} backgrounds.` }
+  const id = `custom-${theme}-${Date.now().toString(36)}`
+  const next = [...list.value, { id, label: String(label).trim().slice(0, 24) || 'My photo', dataUrl }]
+  if (!writeStored(theme === 'dark' ? CUSTOM_DARK_KEY : CUSTOM_LIGHT_KEY, JSON.stringify(next))) return { error: 'Your browser storage is full. Remove a saved photo and try again.' }
+  list.value = next
+  setBackground(id)
+  return { id }
+}
+
+function removeCustomBackground(id) {
+  const darkList = customDarkBackgrounds.value
+  const lightList = customLightBackgrounds.value
+  const dark = darkList.some((item) => item.id === id)
+  const list = dark ? customDarkBackgrounds : customLightBackgrounds
+  list.value = list.value.filter((item) => item.id !== id)
+  writeStored(dark ? CUSTOM_DARK_KEY : CUSTOM_LIGHT_KEY, JSON.stringify(list.value))
+  if ((dark && darkBackground.value === id) || (!dark && lightBackground.value === id)) setBackground(dark ? DEFAULT_DARK_BG : DEFAULT_LIGHT_BG)
 }
 
 applyAppearance()
@@ -114,6 +156,8 @@ export function useBackground() {
     background,
     setBackground,
     BACKGROUNDS: visibleBackgrounds,
+    addCustomBackground,
+    removeCustomBackground,
     themeMode,
     setThemeMode,
     isDark,

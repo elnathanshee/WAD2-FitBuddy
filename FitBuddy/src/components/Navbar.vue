@@ -99,6 +99,11 @@
               <i class="bi bi-person-gear text-primary" aria-hidden="true"></i>Edit profile
             </button>
           </li>
+          <li>
+            <router-link class="dropdown-item small d-flex align-items-center gap-2" to="/meals">
+              <i class="bi bi-egg-fried text-primary" aria-hidden="true"></i>Goal-based meal planner
+            </router-link>
+          </li>
           <li><hr class="dropdown-divider" /></li>
           <li><h6 class="dropdown-header px-2">Appearance</h6></li>
           <li class="px-2 pb-2">
@@ -149,8 +154,24 @@
                 :aria-label="bg.label"
                 :title="bg.label"
                 :data-testid="`bg-${bg.id}`"
+                :style="bg.preview ? { backgroundImage: `url(${bg.preview})`, backgroundSize: 'cover', backgroundPosition: 'center' } : {}"
                 @click="setBackground(bg.id)"
               ></button>
+            </div>
+            <div class="mt-3">
+              <label class="form-label small fw-semibold mb-1" for="background-theme">Save photo under</label>
+              <select id="background-theme" v-model="uploadTheme" class="form-select form-select-sm mb-2">
+                <option value="light">Light backgrounds</option>
+                <option value="dark">Dark backgrounds</option>
+              </select>
+              <input ref="backgroundFile" type="file" class="form-control form-control-sm" accept="image/png,image/jpeg,image/webp" aria-label="Choose a background image" @change="saveUploadedBackground" />
+              <div v-if="backgroundMessage" class="small mt-1" :class="backgroundError ? 'text-danger' : 'text-success'" role="status">{{ backgroundMessage }}</div>
+              <div v-if="customBackgrounds.length" class="custom-background-list mt-2">
+                <div v-for="bg in customBackgrounds" :key="bg.id" class="d-flex align-items-center justify-content-between gap-2 small">
+                  <span class="text-truncate">{{ bg.label }}</span>
+                  <button type="button" class="btn btn-sm btn-link text-danger p-0" :aria-label="`Remove ${bg.label}`" @click="removeBackground(bg.id)">Remove</button>
+                </div>
+              </div>
             </div>
           </li>
           <li><hr class="dropdown-divider" /></li>
@@ -206,7 +227,50 @@ const showEditProfileModal = ref(false)
 
 const router = useRouter()
 const route = useRoute()
-const { background, setBackground, BACKGROUNDS, themeMode, setThemeMode, isDark } = useBackground()
+const { background, setBackground, BACKGROUNDS, themeMode, setThemeMode, isDark, addCustomBackground, removeCustomBackground } = useBackground()
+const uploadTheme = ref('light')
+const backgroundFile = ref(null)
+const backgroundMessage = ref('')
+const backgroundError = ref(false)
+const customBackgrounds = computed(() => BACKGROUNDS.value.filter((bg) => bg.custom))
+
+async function saveUploadedBackground(event) {
+  const file = event.target.files?.[0]
+  backgroundMessage.value = ''
+  backgroundError.value = false
+  if (!file) return
+  if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
+    backgroundMessage.value = 'Choose a JPG, PNG, or WebP image.'
+    backgroundError.value = true
+    event.target.value = ''
+    return
+  }
+  try {
+    const bitmap = await createImageBitmap(file)
+    const ratio = Math.min(1, 1400 / bitmap.width, 1000 / bitmap.height)
+    const canvas = document.createElement('canvas')
+    canvas.width = Math.round(bitmap.width * ratio)
+    canvas.height = Math.round(bitmap.height * ratio)
+    canvas.getContext('2d').drawImage(bitmap, 0, 0, canvas.width, canvas.height)
+    bitmap.close()
+    const image = canvas.toDataURL('image/jpeg', 0.78)
+    const label = file.name.replace(/\.[^.]+$/, '').slice(0, 24) || 'My photo'
+    const result = addCustomBackground(image, uploadTheme.value, label)
+    if (result.error) throw new Error(result.error)
+    backgroundMessage.value = `Saved to ${uploadTheme.value} backgrounds.`
+  } catch (err) {
+    backgroundMessage.value = err.message || 'Could not save this image.'
+    backgroundError.value = true
+  } finally {
+    event.target.value = ''
+  }
+}
+
+function removeBackground(id) {
+  removeCustomBackground(id)
+  backgroundMessage.value = 'Custom background removed.'
+  backgroundError.value = false
+}
 // Shared pending-request count that feeds the Friends tab badge
 const { incomingCount, refreshFriendRequests } = useFriendRequests()
 

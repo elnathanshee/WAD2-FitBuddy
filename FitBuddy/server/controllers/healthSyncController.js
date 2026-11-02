@@ -56,7 +56,10 @@ export async function getTodayMetrics(req, res) {
  * Applies simulated steps and exercise directly to user's daily habits for today.
  */
 export async function simulateHealthSync(req, res) {
-  const { deviceType = 'Apple Health', steps = 8500, activeMinutes = 45 } = req.body || {}
+  const { deviceType = 'Google Health', steps = 8500, activeMinutes = 45, waterGlasses = 8, mappings } = req.body || {}
+  const mappedHabitIds = mappings && typeof mappings === 'object'
+    ? Object.fromEntries(['steps', 'activeMinutes', 'water'].map((key) => [key, Array.isArray(mappings[key]) ? mappings[key].map(String) : []]))
+    : null
   const sql = getDb()
   const today = toDateKey()
 
@@ -69,15 +72,24 @@ export async function simulateHealthSync(req, res) {
 
   const updatedHabits = []
 
+  const selectedIds = mappedHabitIds ? new Set(Object.values(mappedHabitIds).flat()) : null
+  const alreadyUpdated = new Set()
+
   for (const habit of userHabits) {
+    if (selectedIds && !selectedIds.has(String(habit.id))) continue
+    if (alreadyUpdated.has(String(habit.id))) continue
     const isExercise = habit.category === 'exercise' || habit.name.toLowerCase().includes('walk') || habit.name.toLowerCase().includes('run')
     const isWater = habit.category === 'water'
 
     let countToAdd = 0
-    if (isExercise) {
+    if (mappedHabitIds) {
+      if (mappedHabitIds.steps.includes(String(habit.id))) countToAdd = habit.target_unit === 'steps' ? Number(steps) : 1
+      else if (mappedHabitIds.activeMinutes.includes(String(habit.id))) countToAdd = habit.target_unit === 'minutes' ? Number(activeMinutes) : 1
+      else if (mappedHabitIds.water.includes(String(habit.id))) countToAdd = Number(waterGlasses)
+    } else if (isExercise) {
       countToAdd = habit.target_unit === 'minutes' ? activeMinutes : 1
     } else if (isWater) {
-      countToAdd = 8
+      countToAdd = Number(waterGlasses)
     }
 
     if (countToAdd > 0) {
@@ -93,6 +105,7 @@ export async function simulateHealthSync(req, res) {
         syncedCount: countToAdd,
         unit: habit.target_unit,
       })
+      alreadyUpdated.add(String(habit.id))
     }
   }
 

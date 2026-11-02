@@ -248,6 +248,13 @@ html[data-bg='dark-field'] body {
   background-color: #1b211c;
   background-image: repeating-linear-gradient(90deg, rgba(127, 202, 152, 0.08) 0 96px, transparent 96px 192px);
 }
+html[data-bg^='custom-'] body {
+  background-image: var(--fb-custom-bg-image);
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: cover;
+  background-attachment: fixed;
+}
 
 /* Swatches in the background picker reuse the same patterns, scaled down */
 [data-bg-preview='paper'] { background: var(--fb-bg); }

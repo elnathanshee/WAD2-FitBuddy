@@ -11,6 +11,7 @@ import FriendProfile from '../views/FriendProfile.vue'
 import GroupsPage from '../views/GroupsPage.vue'
 import GoalPlanner from '../views/GoalPlanner.vue'
 import AchievementsPage from '../views/AchievementsPage.vue'
+import MealPlanner from '../views/MealPlanner.vue'
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -64,6 +65,7 @@ const router = createRouter({
       meta: { requiresAuth: true, title: 'Achievements', description: 'Badges you have earned from your habit streaks, perfect days and points.' }
     },
     { path: '/goals', name: 'goals', component: GoalPlanner, meta: { requiresAuth: true, title: 'My goal', description: 'Choose a personal goal and get a matching habit plan.' } },
+    { path: '/meals', name: 'meals', component: MealPlanner, meta: { requiresAuth: true, title: 'Meal planner', description: 'Meal ideas with ingredients and estimated macros based on your goal.' } },
     {
       path: '/friends/:id',
       name: 'friend-profile',

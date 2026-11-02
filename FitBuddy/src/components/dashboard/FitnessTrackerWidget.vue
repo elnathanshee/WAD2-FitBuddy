@@ -301,7 +301,7 @@ onMounted(() => {
   loadSyncSettings()
   const callbackResult = new URL(window.location.href).searchParams.get('googleHealth')
   if (callbackResult) {
-    const messages = { 'not-linked': 'Link this Google account in the Google Health app, then try connecting again.', cancelled: 'Google Health connection was cancelled.', expired: 'Connection expired; please try again.', error: 'Google Health could not connect. Check your Google Cloud setup and try again.' }
+    const messages = { 'not-linked': "This Google Account isn't linked to a Google Health profile yet. Open the Google Health app and sign in with this same account to create a profile or migrate your Fitbit account, then return here and connect again.", cancelled: 'Google Health connection was cancelled.', expired: 'Connection expired; please try again.', error: 'Google Health could not connect. Check your Google Cloud setup and try again.' }
     syncError.value = callbackResult === 'connected' ? '' : (messages[callbackResult] || messages.error)
     if (callbackResult === 'connected') { connected.value = true; setTimeout(() => syncDevice(), 0) }
     const url = new URL(window.location.href); url.searchParams.delete('googleHealth'); window.history.replaceState({}, '', `${url.pathname}${url.search}${url.hash}`)

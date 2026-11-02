@@ -1,6 +1,6 @@
 import { authService } from '../services/authService'
 
-const defaults = () => ({ dietary: [], allergies: '', favorites: [], weeklyPlan: {} })
+const defaults = () => ({ dietary: [], allergies: '', favorites: [], weeklyPlan: {}, customRecipes: [] })
 const storageKey = () => `fitbuddy_meal_preferences_${authService.getCurrentUser()?.id || 'guest'}`
 
 export function loadMealPreferences() {

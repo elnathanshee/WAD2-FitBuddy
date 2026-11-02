@@ -3,8 +3,24 @@
     <header class="mb-4">
       <p class="eyebrow mb-2">Built around your goal</p>
       <h1 class="page-title">Meal planner</h1>
-      <p class="page-subtitle">{{ goalLabel }} · {{ recipes.length }} recipes, with tags to narrow your choices.</p>
+      <p class="page-subtitle">{{ goalLabel }} · {{ recipes.length }} recipes, including {{ preferences.customRecipes.length }} of yours.</p>
     </header>
+
+    <section class="surface p-3 p-md-4 mb-4" aria-label="Add your own recipe">
+      <details>
+        <summary class="fw-semibold"><i class="bi bi-plus-circle me-2"></i>Add a recipe</summary>
+        <form class="row g-3 pt-3" @submit.prevent="addRecipe">
+          <div class="col-12 col-md-6"><label class="form-label" for="custom-meal-name">Recipe name</label><input id="custom-meal-name" v-model="recipeForm.name" class="form-control" maxlength="90" required placeholder="e.g. My favorite tofu bowl" /></div>
+          <div class="col-6 col-md-3"><label class="form-label" for="custom-meal-time">Prep time (minutes)</label><input id="custom-meal-time" v-model.number="recipeForm.minutes" class="form-control" type="number" min="1" max="600" required /></div>
+          <fieldset class="col-12"><legend class="form-label mb-2">Tags</legend><div class="d-flex flex-wrap gap-3"><label v-for="tag in recipeTagOptions" :key="tag.value" class="form-check-label"><input v-model="recipeForm.tags" class="form-check-input me-1" type="checkbox" :value="tag.value" />{{ tag.label }}</label></div></fieldset>
+          <div class="col-6 col-md-3" v-for="macro in macroFields" :key="macro.key"><label class="form-label" :for="`macro-${macro.key}`">{{ macro.label }}</label><input :id="`macro-${macro.key}`" v-model.number="recipeForm.macros[macro.key]" class="form-control" type="number" min="0" max="10000" required /></div>
+          <div class="col-12 col-md-6"><label class="form-label" for="custom-ingredients">Ingredients (one per line)</label><textarea id="custom-ingredients" v-model="recipeForm.ingredientsText" class="form-control" rows="4" required placeholder="1 cup rice&#10;150 g tofu&#10;1 tbsp soy sauce"></textarea></div>
+          <div class="col-12 col-md-6"><label class="form-label" for="custom-steps">Preparation steps (one per line)</label><textarea id="custom-steps" v-model="recipeForm.stepsText" class="form-control" rows="4" required placeholder="Cook the rice.&#10;Pan-fry the tofu.&#10;Serve together."></textarea></div>
+          <div class="col-12"><label class="form-label" for="custom-source">Recipe link (optional)</label><input id="custom-source" v-model="recipeForm.sourceUrl" class="form-control" type="url" placeholder="https://…" /></div>
+          <div class="col-12 d-flex align-items-center gap-3"><button class="btn btn-primary" type="submit">Save recipe</button><span v-if="recipeNotice" class="small text-success" role="status">{{ recipeNotice }}</span></div>
+        </form>
+      </details>
+    </section>
 
     <section class="surface p-3 p-md-4 mb-4" aria-label="Meal preferences">
       <details class="mb-3"><summary class="fw-semibold">Dietary preferences and saved meals</summary><div class="pt-3"><div class="d-flex flex-wrap gap-3 mb-3"><label v-for="option in dietOptions" :key="option.value" class="form-check-label"><input v-model="preferences.dietary" class="form-check-input me-1" type="checkbox" :value="option.value" @change="savePreferences()" />{{ option.label }}</label></div><label class="form-label small" for="allergies">Allergies or ingredients to avoid</label><input id="allergies" v-model="preferences.allergies" class="form-control" placeholder="e.g. peanuts, shellfish" @change="savePreferences()" /><p class="form-text mb-0">Avoided ingredients are filtered from suggestions and your weekly plan. Always check labels and recipes yourself.</p><p class="small mb-0 mt-2">{{ preferences.favorites.length }} saved favorite{{ preferences.favorites.length === 1 ? '' : 's' }}</p></div></details>
@@ -79,8 +95,13 @@ const preferences = reactive(loadMealPreferences())
 const checkedShopping = ref([])
 const completedHabits = ref(0)
 const dietOptions = [{ value: 'vegetarian', label: 'Vegetarian' }, { value: 'dairy-free', label: 'Dairy-free' }, { value: 'gluten-free', label: 'Gluten-free' }]
+const recipeNotice = ref('')
+const macroFields = [{ key: 'calories', label: 'Calories (kcal)' }, { key: 'protein', label: 'Protein (g)' }, { key: 'carbs', label: 'Carbs (g)' }, { key: 'fat', label: 'Fat (g)' }]
+const recipeTagOptions = MEAL_FILTERS.filter((filter) => filter.value !== 'lower-calorie')
+const blankRecipeForm = () => ({ name: '', minutes: 20, tags: [], macros: { calories: 400, protein: 20, carbs: 45, fat: 12 }, ingredientsText: '', stepsText: '', sourceUrl: '' })
+const recipeForm = reactive(blankRecipeForm())
 const goalLabel = computed(() => GOAL_OPTIONS.find((option) => option.value === goal.value)?.label || 'Feel healthier overall')
-const recipes = computed(() => recipesForGoal(goal.value))
+const recipes = computed(() => [...recipesForGoal(goal.value), ...preferences.customRecipes])
 const safeRecipes = computed(() => recipes.value.filter((meal) => preferences.dietary.every((tag) => meal.tags.includes(tag)) && !preferences.allergies.split(',').map((item) => item.trim().toLowerCase()).filter(Boolean).some((avoid) => `${meal.name} ${meal.ingredients.join(' ')}`.toLowerCase().includes(avoid))))
 const planDays = computed(() => Array.from({ length: 7 }, (_, index) => { const date = new Date(); date.setDate(date.getDate() + index); return { key: toDateKey(date), label: date.toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' }) } }))
 const plannedMeals = computed(() => planDays.value.map((day) => ({ day, meal: safeRecipes.value.find((meal) => meal.key === preferences.weeklyPlan[day.key]) })).filter((entry) => entry.meal))
@@ -123,6 +144,23 @@ function tagLabel(value) {
 function savePreferences() { persistMealPreferences(preferences) }
 function toggleFavorite(key) { preferences.favorites = preferences.favorites.includes(key) ? preferences.favorites.filter((item) => item !== key) : [...preferences.favorites, key]; savePreferences() }
 function clearPlan() { preferences.weeklyPlan = {}; checkedShopping.value = []; savePreferences() }
+function addRecipe() {
+  const sourceUrl = recipeForm.sourceUrl.trim()
+  if (sourceUrl) { try { if (!['http:', 'https:'].includes(new URL(sourceUrl).protocol)) throw new Error('bad url') } catch { recipeNotice.value = 'Enter a valid http or https recipe link.'; return } }
+  const entry = {
+    key: `custom-${Date.now()}`, name: recipeForm.name.trim(), minutes: Number(recipeForm.minutes),
+    macros: { calories: Number(recipeForm.macros.calories), protein: Number(recipeForm.macros.protein), carbs: Number(recipeForm.macros.carbs), fat: Number(recipeForm.macros.fat) },
+    tags: [...recipeForm.tags], ingredients: recipeForm.ingredientsText.split(/\r?\n/).map((item) => item.trim()).filter(Boolean),
+    steps: recipeForm.stepsText.split(/\r?\n/).map((item) => item.trim()).filter(Boolean), sourceUrl,
+    sourceLabel: sourceUrl ? 'Your recipe link' : 'Your recipe',
+  }
+  if (!entry.ingredients.length || !entry.steps.length) { recipeNotice.value = 'Add at least one ingredient and one preparation step.'; return }
+  preferences.customRecipes = [...preferences.customRecipes, entry]
+  savePreferences()
+  Object.assign(recipeForm, blankRecipeForm())
+  recipeNotice.value = 'Recipe saved and added to your meal planner.'
+  setTimeout(() => { recipeNotice.value = '' }, 3500)
+}
 
 onMounted(async () => {
   try {

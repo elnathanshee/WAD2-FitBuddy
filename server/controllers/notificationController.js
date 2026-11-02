@@ -10,8 +10,6 @@ import {
 } from '../services/notificationService.js'
 import { getDb } from '../config/neon.js'
 import { toDateKey } from '../utils/dates.js'
-import Habit from '../models/Habit.js'
-import CheckIn from '../models/CheckIn.js'
 
 /**
  * GET /api/notifications/status
@@ -54,7 +52,6 @@ export async function remindHabits(req, res) {
   const today = toDateKey()
   const pendingHabitNames = []
 
-  // Check Neon PostgreSQL first, fallback to Mongo
   try {
     const sql = getDb()
     const habitRows = await sql`
@@ -72,22 +69,7 @@ export async function remindHabits(req, res) {
       }
     }
   } catch (neonErr) {
-    // If Neon isn't configured, fallback to Mongoose
-    try {
-      const habits = await Habit.find({ userId }).lean()
-      const checkIns = await CheckIn.find({ userId, date: today }).lean()
-      for (const h of habits) {
-        if (h.frequency !== 'weekly') {
-          const checkIn = checkIns.find((c) => String(c.habitId) === String(h._id))
-          const logged = checkIn?.count ?? 0
-          if (logged < (h.target?.amount || 1)) {
-            pendingHabitNames.push(h.name)
-          }
-        }
-      }
-    } catch (mongoErr) {
-      // ignore, will use generic message
-    }
+    // ignore, will use generic message
   }
 
   const result = await sendReminderService(userId, {

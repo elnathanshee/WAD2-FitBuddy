@@ -1,7 +1,6 @@
 // Unit tests for services/achievementsService.js — run with `npm test` from the
 // server folder. No database: buildStats and evaluateBadges are pure functions.
-import { describe, test } from 'node:test'
-import assert from 'node:assert/strict'
+import { describe, it, expect } from 'vitest'
 import { BADGES, buildStats, evaluateBadges } from '../services/achievementsService.js'
 
 // A run of consecutive days starting at 2026-10-01, as 'YYYY-MM-DD' strings
@@ -20,9 +19,9 @@ const daysFrom = (start, count) => {
 const byHabit = (entries) => new Map(entries)
 
 describe('buildStats', () => {
-  test('no history → everything zero', () => {
+  it('no history → everything zero', () => {
     const stats = buildStats({ byHabit: byHabit([]), dailyHabitIds: [], today: '2026-10-10' })
-    assert.deepEqual(stats, {
+    expect(stats).toEqual({
       completions: 0,
       perfectDays: 0,
       milestones: 0,
@@ -32,26 +31,26 @@ describe('buildStats', () => {
     })
   })
 
-  test('counts one completion per completed day', () => {
+  it('counts one completion per completed day', () => {
     const stats = buildStats({
       byHabit: byHabit([['h1', { frequency: 'daily', periods: daysFrom('2026-10-01', 3) }]]),
       dailyHabitIds: ['h1'],
       today: '2026-10-03',
     })
-    assert.equal(stats.completions, 3)
+    expect(stats.completions).toBe(3)
   })
 
-  test('longest streak is the longest run, not the current one', () => {
+  it('longest streak is the longest run, not the current one', () => {
     const periods = [...daysFrom('2026-10-01', 5), ...daysFrom('2026-10-10', 2)]
     const stats = buildStats({
       byHabit: byHabit([['h1', { frequency: 'daily', periods }]]),
       dailyHabitIds: ['h1'],
       today: '2026-10-11',
     })
-    assert.equal(stats.longestStreak, 5)
+    expect(stats.longestStreak).toBe(5)
   })
 
-  test('a perfect day needs every daily habit, not just one', () => {
+  it('a perfect day needs every daily habit, not just one', () => {
     const stats = buildStats({
       byHabit: byHabit([
         ['h1', { frequency: 'daily', periods: ['2026-10-01', '2026-10-02'] }],
@@ -61,10 +60,10 @@ describe('buildStats', () => {
       today: '2026-10-02',
     })
     // Only 2 Oct has both habits done
-    assert.equal(stats.perfectDays, 1)
+    expect(stats.perfectDays).toBe(1)
   })
 
-  test('weekly habits do not count towards perfect days', () => {
+  it('weekly habits do not count towards perfect days', () => {
     const stats = buildStats({
       byHabit: byHabit([
         ['h1', { frequency: 'daily', periods: ['2026-10-05'] }],
@@ -73,56 +72,56 @@ describe('buildStats', () => {
       dailyHabitIds: ['h1'],
       today: '2026-10-05',
     })
-    assert.equal(stats.perfectDays, 1)
-    assert.equal(stats.completions, 2)
+    expect(stats.perfectDays).toBe(1)
+    expect(stats.completions).toBe(2)
   })
 
-  test('a 7 day run earns one streak milestone', () => {
+  it('a 7 day run earns one streak milestone', () => {
     const stats = buildStats({
       byHabit: byHabit([['h1', { frequency: 'daily', periods: daysFrom('2026-10-01', 7) }]]),
       dailyHabitIds: ['h1'],
       today: '2026-10-07',
     })
-    assert.equal(stats.milestones, 1)
+    expect(stats.milestones).toBe(1)
     // 7 completions x10, 7 perfect days x20, 1 milestone x30
-    assert.equal(stats.totalPoints, 7 * 10 + 7 * 20 + 30)
+    expect(stats.totalPoints).toBe(7 * 10 + 7 * 20 + 30)
   })
 
-  test('friend count is passed straight through', () => {
+  it('friend count is passed straight through', () => {
     const stats = buildStats({ byHabit: byHabit([]), dailyHabitIds: [], today: '2026-10-10', friendCount: 4 })
-    assert.equal(stats.friends, 4)
+    expect(stats.friends).toBe(4)
   })
 })
 
 describe('evaluateBadges', () => {
   const zeroStats = { completions: 0, perfectDays: 0, milestones: 0, longestStreak: 0, totalPoints: 0, friends: 0 }
 
-  test('returns every badge in the catalogue', () => {
-    assert.equal(evaluateBadges(zeroStats).length, BADGES.length)
+  it('returns every badge in the catalogue', () => {
+    expect(evaluateBadges(zeroStats)).toHaveLength(BADGES.length)
   })
 
-  test('nothing is earned with no history', () => {
-    assert.equal(evaluateBadges(zeroStats).filter((b) => b.earned).length, 0)
+  it('nothing is earned with no history', () => {
+    expect(evaluateBadges(zeroStats).filter((b) => b.earned)).toHaveLength(0)
   })
 
-  test('reaching the target earns the badge', () => {
+  it('reaching the target earns the badge', () => {
     const badges = evaluateBadges({ ...zeroStats, completions: 10 })
     const byId = new Map(badges.map((b) => [b.id, b]))
-    assert.equal(byId.get('first-step').earned, true)
-    assert.equal(byId.get('getting-going').earned, true)
-    assert.equal(byId.get('half-century').earned, false)
+    expect(byId.get('first-step').earned).toBe(true)
+    expect(byId.get('getting-going').earned).toBe(true)
+    expect(byId.get('half-century').earned).toBe(false)
   })
 
-  test('percent shows progress and never goes over 100', () => {
+  it('percent shows progress and never goes over 100', () => {
     const byId = new Map(evaluateBadges({ ...zeroStats, completions: 25 }).map((b) => [b.id, b]))
-    assert.equal(byId.get('half-century').percent, 50) // 25 of 50
-    assert.equal(byId.get('first-step').percent, 100) // 25 of 1, capped
+    expect(byId.get('half-century').percent).toBe(50) // 25 of 50
+    expect(byId.get('first-step').percent).toBe(100) // 25 of 1, capped
   })
 
-  test('every badge points at a stat that exists', () => {
+  it('every badge points at a stat that exists', () => {
     for (const badge of BADGES) {
-      assert.ok(badge.stat in zeroStats, `${badge.id} uses unknown stat ${badge.stat}`)
-      assert.ok(badge.target > 0, `${badge.id} needs a positive target`)
+      expect(badge.stat in zeroStats, `${badge.id} uses unknown stat ${badge.stat}`).toBeTruthy()
+      expect(badge.target > 0, `${badge.id} needs a positive target`).toBeTruthy()
     }
   })
 })

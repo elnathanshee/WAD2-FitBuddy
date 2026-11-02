@@ -6,12 +6,9 @@
   "scripts": {
     "start": "node --env-file-if-exists=.env server.js",
     "dev": "node --watch --env-file-if-exists=.env server.js",
-    "seed": "node --env-file-if-exists=.env seed.js",
     "seed:neon": "node --env-file-if-exists=.env seedNeon.js",
     "seed:friends": "node --env-file-if-exists=.env seedFriends.js",
-    "test": "node --test \"tests/**/*.test.js\"",
-    "dev:memory": "node --watch dev-memory.js",
-    "seed:leaderboard": "node --env-file-if-exists=.env seedLeaderboardCli.js"
+    "test": "vitest run"
   },
   "engines": {
     "node": ">=20.0.0"
@@ -21,11 +18,10 @@
     "@neondatabase/serverless": "^1.2.0",
     "cors": "^2.8.6",
     "express": "^5.2.1",
-    "google-auth-library": "^11.3.2",
-    "mongoose": "^8.24.5"
+    "google-auth-library": "^11.3.2"
   },
   "devDependencies": {
-    "mongodb-memory-server": "^11.3.0",
-    "supertest": "^7.3.1"
+    "supertest": "^7.3.1",
+    "vitest": "^5.1.0"
   }
 }

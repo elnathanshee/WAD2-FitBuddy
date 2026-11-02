@@ -1,5 +1,4 @@
 import app from './app.js'
-import { connectDB } from './config/db.js'
 import { initNeonSchema } from './config/neon.js'
 
 const PORT = process.env.PORT || 3000
@@ -7,10 +6,8 @@ const PORT = process.env.PORT || 3000
 if (process.env.DATABASE_URL || process.env.NEON_DATABASE_URL) {
   console.log('Connecting to Neon PostgreSQL...')
   await initNeonSchema()
-} else if (process.env.MONGODB_URI) {
-  await connectDB(process.env.MONGODB_URI)
 } else {
-  console.warn('Warning: Neither DATABASE_URL nor MONGODB_URI is set. Set DATABASE_URL for Neon.')
+  console.warn('Warning: DATABASE_URL is not set. Set DATABASE_URL to your Neon connection string.')
 }
 
 app.listen(PORT, () => {

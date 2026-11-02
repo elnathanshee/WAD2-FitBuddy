@@ -1,4 +1,3 @@
-import CheckIn from '../models/CheckIn.js'
 import { addDays, weekStart } from '../utils/dates.js'
 
 // Scoring rules. Kept in one place so the API, the tests and any future
@@ -14,54 +13,6 @@ export const STREAK_MILESTONE_EVERY = 7
 // How far back to read history. Only needed so a streak that began before this
 // week is measured at its true length when it crosses a milestone.
 const HISTORY_DAYS = 120
-
-/**
- * Pulls the raw material for scoring out of MongoDB in ONE aggregation.
- *
- * The pipeline does the heavy lifting in the database rather than in Node:
- *  - $group    collapses many check-in rows into one total per user/habit/day
- *              (a habit can be logged several times a day, e.g. 2 glasses now,
- *              3 more later)
- *  - $lookup   joins each of those totals to its habit, so we know the target
- *              that day's total has to beat and whether it is daily or weekly
- *  - $project  reshapes it into flat rows the scoring rules can walk
- *
- * Returns rows of { userId, habitId, date, logged, frequency, target }.
- */
-export async function loadProgressRows({ from, to, userId = null }) {
-  const match = { date: { $gte: from, $lte: to } }
-  if (userId) match.userId = userId
-
-  return CheckIn.aggregate([
-    { $match: match },
-    {
-      $group: {
-        _id: { userId: '$userId', habitId: '$habitId', date: '$date' },
-        logged: { $sum: '$count' },
-      },
-    },
-    {
-      $lookup: {
-        from: 'habits',
-        localField: '_id.habitId',
-        foreignField: '_id',
-        as: 'habit',
-      },
-    },
-    { $unwind: '$habit' },
-    {
-      $project: {
-        _id: 0,
-        userId: '$_id.userId',
-        habitId: { $toString: '$_id.habitId' },
-        date: '$_id.date',
-        logged: 1,
-        frequency: '$habit.frequency',
-        target: '$habit.target.amount',
-      },
-    },
-  ])
-}
 
 /**
  * Pure function — no database access, so the rules are testable on their own.

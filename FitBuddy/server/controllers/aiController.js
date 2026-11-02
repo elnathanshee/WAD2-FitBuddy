@@ -5,11 +5,13 @@
 // Description:
 // Receives user lifestyle descriptions or structured questionnaire answers,
 // sends an asynchronous HTTP POST request to the Google Gemini API, and enforces
-// structured JSON output matching the HabitBuddy database schema (server/models/Habit.js).
+// structured JSON output matching the HabitBuddy habit schema (see config/neon.js).
 // =============================================================================
 
-import Habit, { HABIT_CATEGORIES, HABIT_FREQUENCIES } from '../models/Habit.js'
 import { cleanEnvVar } from '../config/neon.js'
+
+const HABIT_CATEGORIES = ['exercise', 'water', 'sleep', 'study', 'other']
+const HABIT_FREQUENCIES = ['daily', 'weekly']
 
 // Default model to use - Gemini 3.5 Flash is fast and supports structured JSON output.
 // (gemini-2.5-flash is no longer available to new API keys.)

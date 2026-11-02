@@ -1,6 +1,5 @@
 import express from 'express'
 import cors from 'cors'
-import mongoose from 'mongoose'
 import habitRoutes from './routes/habits.js'
 import leaderboardRoutes from './routes/leaderboard.js'
 import aiRoutes from './routes/ai.js'
@@ -45,15 +44,6 @@ app.use((req, res) => {
 // Error handler: Express 5 sends errors thrown in async handlers here.
 // eslint-disable-next-line no-unused-vars
 app.use((err, req, res, next) => {
-  // Schema validation failed, e.g. empty name → list each readable message
-  if (err instanceof mongoose.Error.ValidationError) {
-    const message = Object.values(err.errors).map((e) => e.message).join('. ')
-    return res.status(400).json({ message })
-  }
-  // A value of the wrong type, e.g. target.amount: 'abc'
-  if (err instanceof mongoose.Error.CastError) {
-    return res.status(400).json({ message: `Invalid value for ${err.path}` })
-  }
   // Malformed JSON body (express.json sets status 400 on these)
   if (err.type === 'entity.parse.failed') {
     return res.status(400).json({ message: 'Request body is not valid JSON' })

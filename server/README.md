@@ -1,19 +1,18 @@
-# HabitBuddy API (Express + MongoDB)
+# HabitBuddy API (Express + Neon PostgreSQL)
 
 ## Setup
 
-1. Create a free MongoDB Atlas cluster. Add a database user, and allow your IP under
-   *Network Access*.
-2. Copy the environment file and paste in your connection string:
+1. Create a free Neon project (neon.tech) and copy its connection string.
+2. Copy the environment file and set `DATABASE_URL` to that connection string:
    ```bash
    cp .env.example .env
    ```
-3. Install and seed demo data:
+3. Install dependencies:
    ```bash
    npm install
-   npm run seed
    ```
-4. Start the API (restarts on file changes):
+4. Start the API (restarts on file changes). The tables are created automatically
+   on startup by `config/neon.js`:
    ```bash
    npm run dev
    ```
@@ -21,29 +20,32 @@
 5. In another terminal, start the frontend (`cd ../FitBuddy && pnpm dev`). Vite
    forwards `/api/*` calls to this server.
 
-Log in with any email and password `password123`. The mock login is user `"1"`,
-which owns the seeded habits.
+Optional demo data: `npm run seed:neon` (habits and check-ins) and
+`npm run seed:friends` (demo friendships).
 
 ## Folder structure
 
 ```
 server/
-├── server.js              starts the app + connects to MongoDB
+├── server.js              starts the app + sets up the Neon tables
 ├── app.js                 Express app: middleware + routes (importable by tests)
-├── config/db.js           MongoDB connection
+├── config/
+│   ├── neon.js            Neon connection + table creation
+│   ├── onesignal.js       OneSignal push setup
+│   └── storage.js         file storage setup
 ├── middleware/
 │   └── requireUser.js     PLACEHOLDER auth: reads x-user-id header → req.userId
-├── models/
-│   ├── Habit.js           habit fields + validation
-│   └── CheckIn.js         one document per habit per day
-├── routes/habits.js       URL → controller function
-├── controllers/
-│   └── habitController.js TODO: the handlers (each has its spec in a comment)
-├── utils/
-│   ├── dates.js           'YYYY-MM-DD' helpers
-│   └── streak.js          TODO: calculateStreak()
-├── tests/streak.test.js   unit tests for calculateStreak
-└── seed.js                demo data
+├── routes/                URL → controller function (habits, leaderboard, ...)
+├── controllers/           request handlers (neonHabitController.js,
+│                          neonLeaderboardController.js, ...)
+├── services/
+│   ├── pointsService.js   scoring rules
+│   ├── achievementsService.js
+│   └── notificationService.js
+├── utils/                 dates.js, streak.js, analytics.js, ...
+├── tests/*.test.js        Vitest unit tests
+├── seedNeon.js            demo data
+└── seedFriends.js         demo friendships between the demo user and rivals
 ```
 
 ## API
@@ -68,18 +70,21 @@ Errors: 400 validation · 401 no user · 404 not found / not yours · 501 not im
 ## Tests
 
 ```bash
-npm test            # unit tests (calculateStreak) — fail until streak.js is implemented
+npm test            # Vitest unit tests in tests/*.test.js (describe / it / expect)
 ```
+
+The habits API behaviour is covered by the Playwright end-to-end tests in
+`../FitBuddy/e2e/`.
 
 End-to-end tests live in `../FitBuddy/e2e` (see the README there).
 
 ## AI usage disclosure (IS216 FAQ #20)
 
 Generated with AI (Claude), as boilerplate/test/mock-data assistance:
-- Project scaffolding: `package.json`, `app.js`, `server.js`, `config/db.js`,
+- Project scaffolding: `package.json`, `app.js`, `server.js`, `config/db.js` (since removed),
   `middleware/requireUser.js` (placeholder), `utils/dates.js`, Mongoose model field
-  definitions, route table, and the controller/streak **stubs and their spec comments**
-- Mock data: `seed.js`
+  definitions (since removed), route table, and the controller/streak **stubs and their spec comments**
+- Mock data: `seed.js` (since removed)
 - Test cases: `tests/streak.test.js`, `../FitBuddy/e2e/*`, `../FitBuddy/playwright.config.js`
 - Frontend config: Vite `/api` proxy, `src/services/api.js` axios instance
 - Analytics Dashboard (David, with Claude): `utils/analytics.js`, `tests/analytics.test.js`,
@@ -115,6 +120,7 @@ Generated with AI (Claude), as boilerplate/test/mock-data assistance:
   `controllers/neonLeaderboardController.js`
 - Tests (Claude): `../FitBuddy/e2e/navigation.spec.js`, `coach-chat.spec.js`,
   `leaderboard.spec.js`, and the coach-chat cases in `tests/ai.api.test.js`
+- Syllabus refactor (Nov 2026, implemented by Claude, reviewed by Kaven): removed the unused MongoDB code path, converted the backend unit tests to Vitest, and refactored the frontend to the WAD2 syllabus (Pinia stores, plain Axios calls, Week 11 route guard, smaller components).
 
 Written by the team: all controller handler logic, `calculateStreak`, and the Vue
 habit pages/components. *(Update this list as the code changes.)*
@@ -124,7 +130,7 @@ habit pages/components. *(Update this list as the code changes.)*
 ## Gamification: points & the weekly leaderboard
 
 Owned by Angus (feature 6, Reminders & Gamification). Built on top of the habit
-and check-in code rather than beside it — it reads the same collections and uses
+and check-in code rather than beside it — it reads the same tables and uses
 the same `requireUser` / `x-user-id` convention, and adds no fields to `Habit`
 or `CheckIn`.
 
@@ -144,14 +150,13 @@ habits it came from, and nothing in the habit code has to remember to award
 anything. The weekly "reset" is simply which week is scored — no history is
 deleted, so last week's board stays computable.
 
-`services/pointsService.js` holds the rules. `loadProgressRows()` does the heavy
-lifting in MongoDB with one aggregation: `$group` collapses repeat logs into a
-single total per user/habit/day, `$lookup` joins each total to its habit so the
-target and frequency are known, and `$project` flattens the result. The rules
-themselves (milestones, the all-habits bonus) are pure functions over those rows,
-which is why they can be unit tested with no database.
+`services/pointsService.js` holds the rules. The check-in rows are read from the
+Neon `check_ins` table (joined to `habits` for each target and frequency) by
+`controllers/neonLeaderboardController.js`. The rules themselves (milestones, the
+all-habits bonus) are pure functions over those rows, which is why they can be
+unit tested with no database.
 
-`services/leaderboardService.js` scores every user for the week and ranks them.
+`controllers/neonLeaderboardController.js` scores every user for the week and ranks them.
 It starts from the list of people rather than the list of scores, so someone on
 zero points this week still appears — they are exactly who a leaderboard is
 meant to nudge. Ties share a rank (two users on 90 are both 1st, the next is 3rd).
@@ -170,29 +175,24 @@ convention the habit endpoints use.
 ### Demo data
 
 Everyone signs in as user `1` with the mock login, so the board would otherwise
-have a single row. `seedLeaderboard.js` adds four rival users with their own
-habits and history:
+have a single row. `seedFriends.js` adds demo friendships (safe to run again):
 
 ```bash
-npm run dev:memory        # in-memory database, rivals included automatically
-npm run seed:leaderboard  # add the rivals to a real database (Atlas)
+npm run seed:neon     # demo habits and check-ins
+npm run seed:friends  # add the demo friendships
 ```
-
-`seed:leaderboard` is scoped to users 2–5 and the display-name profiles only.
-It never deletes the demo user's habits or anyone else's data, so it is safe to
-run against the shared cluster.
 
 ### Tests
 
 ```bash
-node --test tests/points.test.js
+npx vitest run tests/points.test.js
 ```
 
-12 tests covering the scoring rules, weekly vs daily targets, streak milestones
+The tests cover the scoring rules, weekly vs daily targets, streak milestones
 and week boundaries. No database required.
 
-### Model added
+### Table used
 
-`models/User.js` is a minimal profile (display name + colour) keyed by the same
-string `userId` the habit code already uses, so the board can show names instead
-of raw ids. It is replaced by the real user model when authentication lands.
+The Neon `users` table (see `config/neon.js`) holds the profile (display name +
+colour) keyed by the same `userId` the habit code uses, so the board can show
+names instead of raw ids.

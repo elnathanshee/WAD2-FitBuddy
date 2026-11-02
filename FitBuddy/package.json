@@ -24,7 +24,6 @@
     "emoji-picker-element": "^1.29.1",
     "emoji-picker-element-data": "^1.8.0",
     "express": "^5.2.1",
-    "mongoose": "^8.24.5",
     "pinia": "^4.1.0",
     "three": "^0.186.1",
     "vite": "^8.2.2",

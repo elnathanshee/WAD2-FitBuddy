@@ -1,4 +1,5 @@
 // Confetti + a short victory fanfare for when every habit is done for the day.
+// Third-party library: canvas-confetti (https://github.com/catdad/canvas-confetti) — draws the confetti
 import confetti from 'canvas-confetti'
 
 // Browsers only allow sound after the user interacts with the page, so the

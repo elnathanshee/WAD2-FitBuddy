@@ -77,14 +77,14 @@
 
 <script setup>
 import BrandMark from './BrandMark.vue'
-import { ref, reactive, computed } from 'vue'
+import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
 import { GOAL_OPTIONS } from '../utils/goalOptions'
 
 const router = useRouter()
 const auth = useAuthStore()
-const form = reactive({
+const form = ref({
   name: '',
   email: '',
   password: '',
@@ -97,16 +97,16 @@ const loading = ref(false)
 const errorMsg = ref('')
 
 const passwordMismatch = computed(() => {
-  return form.password && form.confirmPassword && form.password !== form.confirmPassword
+  return form.value.password && form.value.confirmPassword && form.value.password !== form.value.confirmPassword
 })
-const selectedGoal = computed(() => GOAL_OPTIONS.find((goal) => goal.value === form.primaryGoal))
+const selectedGoal = computed(() => GOAL_OPTIONS.find((goal) => goal.value === form.value.primaryGoal))
 
 const handleSignup = async () => {
   if (passwordMismatch.value) return
   errorMsg.value = ''
   loading.value = true
   try {
-    await auth.signup({ name: form.name, email: form.email, password: form.password, primaryGoal: form.primaryGoal, goalTarget: form.goalTarget })
+    await auth.signup({ name: form.value.name, email: form.value.email, password: form.value.password, primaryGoal: form.value.primaryGoal, goalTarget: form.value.goalTarget })
     router.push('/home')
   } catch (err) {
     errorMsg.value = err.response?.data?.message || 'An error occurred during signup.'

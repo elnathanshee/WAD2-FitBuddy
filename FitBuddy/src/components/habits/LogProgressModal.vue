@@ -37,6 +37,7 @@
           </button>
         </div>
         <div class="input-group mb-3">
+          <!-- Beyond WAD2 syllabus: the template ref below is used only to focus this box when the modal opens -->
           <input
             id="log-amount"
             ref="amountInput"
@@ -120,6 +121,8 @@ const saving = ref(false)
 const error = ref('')
 const amountInput = ref(null)
 
+// Beyond WAD2 syllabus: the HTML autofocus attribute is unreliable for modals that
+// appear after the page has loaded, so we focus the amount box ourselves.
 onMounted(() => amountInput.value?.focus())
 
 // What's left to reach the target for this period (today, or this week)

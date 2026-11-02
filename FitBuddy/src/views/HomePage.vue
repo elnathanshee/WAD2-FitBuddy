@@ -120,9 +120,8 @@ import { useAuthStore } from '../stores/auth'
 import { habitService, errorMessage } from '../services/habitService'
 import { analyticsService } from '../services/analyticsService'
 import { leaderboardService } from '../services/leaderboardService'
-import { CATEGORIES } from '../utils/habitOptions'
 import { toDateKey } from '../utils/dates'
-import { formatAmount, habitStatus, periodLabel, STATUS } from '../utils/habitOptions'
+import { CATEGORIES, formatAmount, habitStatus, periodLabel, STATUS } from '../utils/habitOptions'
 
 const auth = useAuthStore()
 const firstName = (auth.user?.name || 'Athlete').split(' ')[0]
@@ -247,6 +246,9 @@ async function loadHabits() {
     loading.value = false
   }
   if (!ready.value) {
+    // Beyond WAD2 syllabus: nextTick + requestAnimationFrame wait until the bars
+    // have been drawn at 0% before we set ready, so the CSS transition can then
+    // grow them to their real length. Setting ready straight away would skip the animation.
     await nextTick()
     requestAnimationFrame(() => (ready.value = true))
   }

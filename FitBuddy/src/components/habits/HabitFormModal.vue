@@ -26,6 +26,7 @@
           maxlength="50"
           placeholder="e.g. Drink water"
           data-testid="habit-name-input"
+          @input="onNameInput"
         />
         <div v-if="nameSuggestion" class="form-text text-success mt-1" data-testid="habit-name-suggestion">
           <i class="bi bi-magic me-1" aria-hidden="true"></i>Suggested {{ nameSuggestion }} from the name. You can change any field.
@@ -141,7 +142,7 @@
 </template>
 
 <script setup>
-import { computed, reactive, ref, watch } from 'vue'
+import { computed, ref } from 'vue'
 import AppModal from './AppModal.vue'
 import EmojiPickerField from './EmojiPickerField.vue'
 import { habitService, errorMessage } from '../../services/habitService'
@@ -165,7 +166,7 @@ const savedUnit = props.habit?.target.unit ?? 'times'
 const isPresetUnit = ALL_UNITS.includes(savedUnit)
 
 // Flat copy of the habit's fields, so editing doesn't change the card until saved.
-const form = reactive({
+const form = ref({
   name: props.habit?.name ?? '',
   category: isPresetCategory ? savedCategory : 'other',
   customCategory: isPresetCategory || savedCategory === 'other' ? '' : savedCategory,
@@ -176,16 +177,18 @@ const form = reactive({
   icon: props.habit?.icon ?? '✅',
 })
 
+// The starting values, used when a name has no suggestion (or the suggestion is cleared)
 const defaults = {
-  category: form.category,
-  customCategory: form.customCategory,
-  frequency: form.frequency,
-  targetAmount: form.targetAmount,
-  targetUnit: form.targetUnit,
-  customUnit: form.customUnit,
-  icon: form.icon,
+  category: form.value.category,
+  customCategory: form.value.customCategory,
+  frequency: form.value.frequency,
+  targetAmount: form.value.targetAmount,
+  targetUnit: form.value.targetUnit,
+  customUnit: form.value.customUnit,
+  icon: form.value.icon,
 }
-const manuallyEdited = reactive({
+// Fields the user changed by hand: name suggestions must not overwrite these
+const manuallyEdited = ref({
   category: false,
   customCategory: false,
   frequency: false,
@@ -196,17 +199,12 @@ const manuallyEdited = reactive({
 })
 const nameSuggestion = ref('')
 
-const FIELD_LABELS = {
-  icon: 'emoji', category: 'category', customCategory: 'custom category',
-  frequency: 'frequency', targetAmount: 'target', targetUnit: 'unit', customUnit: 'custom unit',
-}
-
 function markEdited(field) {
-  manuallyEdited[field] = true
+  manuallyEdited.value[field] = true
 }
 
 function updateIcon(value) {
-  form.icon = value
+  form.value.icon = value
   markEdited('icon')
 }
 
@@ -226,11 +224,15 @@ function applyNameSuggestion(name) {
     customUnit: defaults.customUnit,
   }
   for (const [field, value] of Object.entries(values)) {
-    if (!manuallyEdited[field]) form[field] = value
+    if (!manuallyEdited.value[field]) form.value[field] = value
   }
 }
 
-watch(() => form.name, applyNameSuggestion)
+// The name only changes when the user types (form.value.name is never set in code),
+// so the suggestion runs from the input event.
+function onNameInput(event) {
+  applyNameSuggestion(event.target.value)
+}
 
 const error = ref('')
 const nameError = ref(false)
@@ -239,12 +241,12 @@ const saving = ref(false)
 // Checks the same rules as the server, so most mistakes are caught instantly.
 // The server still validates everything, and its message is shown if it disagrees.
 function validate() {
-  nameError.value = form.name.trim() === ''
+  nameError.value = form.value.name.trim() === ''
   if (nameError.value) return 'Please give your habit a name.'
-  if (typeof form.targetAmount !== 'number' || !(roundAmount(form.targetAmount) > 0)) {
+  if (typeof form.value.targetAmount !== 'number' || !(roundAmount(form.value.targetAmount) > 0)) {
     return 'Target must be a number more than 0.'
   }
-  if (form.targetUnit === CUSTOM && form.customUnit.trim() === '') {
+  if (form.value.targetUnit === CUSTOM && form.value.customUnit.trim() === '') {
     return 'Please type your unit, or pick one from the list.'
   }
   return ''
@@ -255,15 +257,15 @@ async function save() {
   if (error.value) return
 
   const payload = {
-    name: form.name.trim(),
+    name: form.value.name.trim(),
     // An empty custom category is saved as plain "other"
-    category: form.category === 'other' ? form.customCategory.trim() || 'other' : form.category,
-    frequency: form.frequency,
+    category: form.value.category === 'other' ? form.value.customCategory.trim() || 'other' : form.value.category,
+    frequency: form.value.frequency,
     target: {
-      amount: roundAmount(form.targetAmount),
-      unit: form.targetUnit === CUSTOM ? form.customUnit.trim() : form.targetUnit,
+      amount: roundAmount(form.value.targetAmount),
+      unit: form.value.targetUnit === CUSTOM ? form.value.customUnit.trim() : form.value.targetUnit,
     },
-    icon: form.icon,
+    icon: form.value.icon,
   }
 
   saving.value = true

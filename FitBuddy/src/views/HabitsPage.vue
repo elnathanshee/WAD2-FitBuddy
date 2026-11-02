@@ -67,7 +67,7 @@
       </div>
       <div v-if="doneToday < habits.length" class="alert alert-light border d-flex align-items-start gap-3 mb-4" role="status">
         <i class="bi bi-heart-pulse text-success fs-4" aria-hidden="true"></i>
-        <div><strong>A gentle reset for today</strong><p class="small text-muted mb-2">{{ doneToday ? 'You have already made a start. Pick one small habit to continue; there is no need to catch up all at once.' : 'A fresh start can be one small step. Choose the easiest habit and build from there.' }}</p><button v-if="habits.length" class="btn btn-sm btn-outline-success" @click="loggingHabit = habits.find((habit) => habit.periodCount < habit.target.amount)">Continue with {{ habits.find((habit) => habit.periodCount < habit.target.amount)?.name }}</button></div>
+        <div><strong>A gentle reset for today</strong><p class="small text-muted mb-2">{{ doneToday ? 'You have already made a start. Pick one small habit to continue; there is no need to catch up all at once.' : 'A fresh start can be one small step. Choose the easiest habit and build from there.' }}</p><button v-if="habits.length" class="btn btn-sm btn-outline-success" @click="loggingHabit = nextUnfinishedHabit">Continue with {{ nextUnfinishedHabit?.name }}</button></div>
       </div>
 
       <div class="row g-3 stagger">
@@ -89,7 +89,10 @@
 
     <HabitHistoryModal v-if="historyHabit" :habit="historyHabit" @close="historyHabit = null" />
 
-    <!-- Undo bar: shown for a few seconds after logging, in case of a mis-tap -->
+    <!-- Undo bar: shown for a few seconds after logging, in case of a mis-tap.
+         Beyond WAD2 syllabus: <Teleport> keeps the bar fixed above everything else on the
+         page, and <Transition> plays the slide-out when it disappears (CSS alone cannot
+         animate an element that Vue has already removed). -->
     <Teleport to="body">
       <Transition name="undo">
         <div v-if="lastLog" class="undo-bar" role="status" data-testid="undo-bar">
@@ -102,7 +105,9 @@
       </Transition>
     </Teleport>
 
-    <!-- Floating AI goal coach (bottom-right) -->
+    <!-- Floating AI goal coach (bottom-right).
+         Beyond WAD2 syllabus: the template ref lets the "Ask the coach" button call the
+         chat's openChat(). Section 3 will replace this with a prop. -->
     <CoachChat ref="coachRef" @saved="loadHabits" />
 
     <AppModal v-if="deletingHabit" title="Delete habit?" @close="deletingHabit = null">
@@ -164,6 +169,10 @@ const todayLabel = computed(() =>
 const doneToday = computed(
   () => habits.value.filter((h) => h.periodCount >= h.target.amount).length
 )
+// The first habit that hasn't reached its target yet (used by "Continue with ...")
+const nextUnfinishedHabit = computed(
+  () => habits.value.find((h) => h.periodCount < h.target.amount)
+)
 const allDone = computed(() => habits.value.length > 0 && doneToday.value === habits.value.length)
 
 // Reloads every habit with today's progress and streak. Called after each
@@ -197,6 +206,9 @@ onMounted(() => {
   dayTimer = setInterval(reloadIfNewDay, 60_000)
   document.addEventListener('visibilitychange', onVisibilityChange)
 })
+// Beyond WAD2 syllabus: onUnmounted cleans up when the user leaves this page.
+// Without it the day-check timer, the other timers and the visibilitychange listener
+// would keep running in the background after the page is gone.
 onUnmounted(() => {
   clearInterval(dayTimer)
   clearTimeout(celebrationTimer)

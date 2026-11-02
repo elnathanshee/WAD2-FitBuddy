@@ -4,6 +4,10 @@
   Closes on the × button, the Escape key, or a click on the dark backdrop.
 -->
 <template>
+  <!--
+    Beyond WAD2 syllabus: <Teleport> moves the modal out to <body>, so it always
+    sits on top of the page and is never clipped by a parent's CSS.
+  -->
   <Teleport to="body">
     <div
       class="modal d-block"
@@ -44,6 +48,10 @@ const emit = defineEmits(['close'])
 const titleId = useId()
 const sizeClass = computed(() => (props.size ? `modal-${props.size}` : ''))
 
+// Beyond WAD2 syllabus: the Escape key is listened for on the whole window (not
+// with @keydown.esc on the modal) so it works even before the user clicks inside
+// the modal. The listener must be removed in onUnmounted, otherwise it would stay
+// active after the modal closes.
 function onKeydown(event) {
   if (event.key === 'Escape') emit('close')
 }

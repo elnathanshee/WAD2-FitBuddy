@@ -17,13 +17,14 @@
     </button>
 
     <div v-show="open" class="picker-wrap mt-2">
-      <emoji-picker ref="picker" class="light" :data-source="dataSource" @emoji-click="choose"></emoji-picker>
+      <emoji-picker class="light" :data-source="dataSource" @emoji-click="choose"></emoji-picker>
     </div>
   </div>
 </template>
 
 <script setup>
 import { ref } from 'vue'
+// Third-party library: emoji-picker-element (https://github.com/nolanlawson/emoji-picker-element) — the searchable emoji picker
 import 'emoji-picker-element' // registers the <emoji-picker> web component
 // The emoji list is bundled with the app instead of loaded from a CDN.
 import dataSource from 'emoji-picker-element-data/en/emojibase/data.json?url'

@@ -6,6 +6,7 @@
 // Automatically initializes PostgreSQL tables (users, habits, check_ins, cheers, challenges, friendships).
 // =============================================================================
 
+// Third-party library: Neon serverless driver (https://github.com/neondatabase/serverless) — runs SQL on the Neon Postgres database
 import { neon } from '@neondatabase/serverless'
 
 let sqlInstance = null

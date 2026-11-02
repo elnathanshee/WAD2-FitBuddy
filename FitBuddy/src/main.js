@@ -1,9 +1,12 @@
+// Third-party library: Bootstrap 5 (https://getbootstrap.com) — layout, components and the modal/dropdown JavaScript
 import 'bootstrap/dist/css/bootstrap.min.css'
+// Third-party library: Bootstrap Icons (https://icons.getbootstrap.com) — the icon font used across the UI
 import 'bootstrap-icons/font/bootstrap-icons.css'
 import './assets/main.css'
 
 import { createApp } from 'vue'
 import App from './App.vue'
+// Third-party library: Pinia (https://pinia.vuejs.org) — shared state stores
 import { createPinia } from 'pinia'
 import router from './router'
 import { vReveal, vTilt } from './directives/motion'

@@ -110,7 +110,7 @@ onUnmounted(() => window.removeEventListener('resize', placeIndicator))
   grid-area: tabs;
   position: relative;
   display: grid;
-  grid-template-columns: repeat(6, 1fr);
+  grid-template-columns: repeat(6, minmax(0, 1fr)); /* minmax(0, ...) keeps all six tabs exactly equal */
   gap: var(--s-1);
   align-self: stretch;
   padding: var(--s-2) 0;
@@ -181,7 +181,8 @@ onUnmounted(() => window.removeEventListener('resize', placeIndicator))
     flex-direction: column;
     gap: 2px;
     min-height: 48px;
-    font-size: 0.6875rem; /* 11px: fits "Leaderboard" so all tabs stay equal width */
+    font-size: 0.625rem; /* 10px: fits "Leaderboard" in one of six equal tabs on a 375px phone */
+    white-space: nowrap;
   }
   .tab i {
     font-size: var(--fs-lg);

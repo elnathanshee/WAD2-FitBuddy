@@ -99,8 +99,8 @@ test("a friend's profile shows their week and habits, with Friends highlighted",
   await expect(page.getByRole('heading', { name: 'Alex Tan', level: 1 })).toBeVisible()
   await expect(page.getByTestId('friend-stat')).toHaveCount(4)
   await expect(page.getByTestId('friend-week-strip').getByTestId('friend-week-dot')).toHaveCount(7)
-  await expect(page.getByTestId('friend-habit').first()).toBeVisible()
-  await expect(page.getByTestId('friend-habit').first()).toContainText('E2E')
+  // Alex may also have real habits, so find ours by name instead of assuming it is first
+  await expect(page.getByTestId('friend-habit').filter({ hasText: 'E2E' }).first()).toBeVisible()
   await expect(page.getByTestId('tab-friends')).toHaveClass(/router-link-active/)
 })
 

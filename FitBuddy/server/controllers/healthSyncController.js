@@ -1,4 +1,5 @@
 import crypto from 'node:crypto'
+// Third-party library: google-auth-library (https://github.com/googleapis/google-auth-library-nodejs) — Google OAuth sign-in for Google Health
 import { OAuth2Client } from 'google-auth-library'
 import { getDb } from '../config/neon.js'
 import { toDateKey } from '../utils/dates.js'

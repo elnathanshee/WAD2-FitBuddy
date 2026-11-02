@@ -1,5 +1,7 @@
 // Tests the /api/ai endpoints: input validation and auth errors (no real Gemini call is made).
+// Third-party library: Vitest (https://vitest.dev) — the test runner used for all backend unit tests
 import { describe, it, expect } from 'vitest'
+// Third-party library: Supertest (https://github.com/forwardemail/supertest) — sends fake HTTP requests to the Express app in tests
 import request from 'supertest'
 import app from '../app.js'
 

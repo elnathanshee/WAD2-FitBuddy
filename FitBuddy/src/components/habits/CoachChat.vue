@@ -32,7 +32,7 @@
         </button>
       </Transition>
       <button
-        id="coach-fab"
+        ref="fabButton"
         type="button"
         class="coach-fab pressable"
         :class="{ 'is-open': open }"
@@ -64,6 +64,7 @@
 </template>
 
 <script setup>
+import { ref } from 'vue'
 import CoachFace from './CoachFace.vue'
 import CoachPanel from './CoachPanel.vue'
 
@@ -73,10 +74,14 @@ defineProps({
 
 const emit = defineEmits(['open', 'close', 'saved'])
 
+// Beyond WAD2 syllabus: a template ref (ref="fabButton" on the round button) is Vue's way to
+// reach one element so we can call .focus() on it, instead of document.getElementById.
+const fabButton = ref(null)
+
 function closeChat() {
   emit('close')
   // Give the keyboard focus back to the round button, like a normal dialog
-  document.getElementById('coach-fab')?.focus()
+  fabButton.value?.focus()
 }
 </script>
 

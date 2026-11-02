@@ -27,6 +27,7 @@ import { ref } from 'vue'
 // Third-party library: emoji-picker-element (https://github.com/nolanlawson/emoji-picker-element) — the searchable emoji picker
 import 'emoji-picker-element' // registers the <emoji-picker> web component
 // The emoji list is bundled with the app instead of loaded from a CDN.
+// Third-party library: emoji-picker-element-data (https://github.com/nolanlawson/emoji-picker-element-data) — the emoji list, served locally
 import dataSource from 'emoji-picker-element-data/en/emojibase/data.json?url'
 
 defineProps({

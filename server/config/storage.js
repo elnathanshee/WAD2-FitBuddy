@@ -5,6 +5,7 @@
 // Follows Neon Object Storage best practices: path-style addressing & SigV4.
 // =============================================================================
 
+// Third-party library: AWS SDK S3 client (https://github.com/aws/aws-sdk-js-v3) — stores uploaded images in S3-compatible storage
 import { S3Client, PutObjectCommand, GetObjectCommand, ListObjectsV2Command } from '@aws-sdk/client-s3'
 import { cleanEnvVar } from './neon.js'
 

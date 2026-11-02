@@ -1,4 +1,6 @@
+// Third-party library: Express (https://expressjs.com) — the web server and routing used by the whole API
 import express from 'express'
+// Third-party library: cors (https://github.com/expressjs/cors) — lets the browser call the API from another origin
 import cors from 'cors'
 import habitRoutes from './routes/habits.js'
 import leaderboardRoutes from './routes/leaderboard.js'

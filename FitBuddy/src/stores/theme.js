@@ -4,6 +4,7 @@
 // CSS in main.css. Used by the Navbar (account menu), the analytics charts
 // (they need to know if it is dark) and main.js (applies the saved look at start).
 import { computed, ref } from 'vue'
+// Third-party library: Pinia (https://pinia.vuejs.org) — used for shared state stores (all files in src/stores)
 import { defineStore } from 'pinia'
 
 const LIGHT_BACKGROUNDS = [

@@ -37,7 +37,7 @@
     </header>
 
     <!-- Conversation -->
-    <div id="coach-body" class="coach-body" aria-live="polite">
+    <div ref="bodyEl" class="coach-body" aria-live="polite">
       <div class="messages">
         <CoachMessage
           v-for="(msg, index) in chat.messages"
@@ -84,7 +84,7 @@
     <!-- Composer -->
     <form class="composer" @submit.prevent="send(chat.draft)">
       <input
-        id="coach-input"
+        ref="inputEl"
         v-model="chat.draft"
         type="text"
         class="composer-input"
@@ -107,7 +107,7 @@
 </template>
 
 <script setup>
-import { nextTick, onMounted, onUnmounted } from 'vue'
+import { nextTick, onMounted, onUnmounted, ref } from 'vue'
 import CoachFace from './CoachFace.vue'
 import CoachMessage from './CoachMessage.vue'
 import { useCoachChatStore } from '../../stores/coachChat'
@@ -126,6 +126,11 @@ const chat = useCoachChatStore()
 // Messages that already exist when the panel opens do not slide in again;
 // only messages added after this point get the animation.
 const messageCountAtOpen = chat.messages.length
+
+// Beyond WAD2 syllabus: template refs are Vue's way to reach an element (to focus the
+// input and to scroll the message area) instead of document.getElementById.
+const inputEl = ref(null)
+const bodyEl = ref(null)
 
 // ---- Opening and closing ----
 
@@ -146,7 +151,7 @@ onMounted(() => {
 onUnmounted(() => window.removeEventListener('keydown', closeOnEscape))
 
 function focusInput() {
-  document.getElementById('coach-input')?.focus()
+  inputEl.value?.focus()
 }
 
 function startOver() {
@@ -161,7 +166,7 @@ async function scrollToBottom(smooth = true) {
   // Beyond WAD2 syllabus: nextTick waits until Vue has drawn the new message,
   // otherwise we would scroll before it exists and miss the bottom.
   await nextTick()
-  const body = document.getElementById('coach-body')
+  const body = bodyEl.value
   if (!body) return
   const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
   body.scrollTo({ top: body.scrollHeight, behavior: smooth && !reduceMotion ? 'smooth' : 'auto' })

@@ -1,3 +1,4 @@
+// Third-party library: Vue Router (https://router.vuejs.org) — page navigation and the login route guard
 import { createRouter, createWebHistory } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
 import { useFriendRequestsStore } from '../stores/friendRequests'

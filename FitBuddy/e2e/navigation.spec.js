@@ -5,6 +5,7 @@ import { test, expect } from '@playwright/test'
 import { login } from './helpers.js'
 
 // The page tabs live in the top bar on every screen size
+const TAB_NAMES = ['home', 'habits', 'dashboard', 'leaderboard', 'friends', 'groups']
 const navLink = (page, name) => page.getByTestId(`tab-${name}`)
 
 test.beforeEach(async ({ page }) => {
@@ -37,7 +38,30 @@ test.describe('Home page', () => {
     await expect(challenges.getByRole('button', { name: /^new$/i })).toHaveCount(0)
   })
 
+  // Google Health now uses a real OAuth connection, which needs Google credentials.
+  // These tests answer the status/metrics calls themselves so they work for anyone.
+  const METRICS = { steps: 6200, stepsGoal: 10000, activeMinutes: 25, activeMinutesGoal: 30, distanceKm: 4.2, caloriesBurned: 310 }
+  async function mockGoogleHealth(page, connected) {
+    await page.route('**/api/health-sync/google/status', (route) =>
+      route.fulfill({ json: { configured: true, missingConfig: [], connected } }),
+    )
+    await page.route('**/api/health-sync/today', (route) =>
+      route.fulfill({ json: { connected, metrics: connected ? METRICS : null } }),
+    )
+    await page.reload()
+  }
+
+  test('Google Health asks the user to connect when no account is linked', async ({ page }) => {
+    await mockGoogleHealth(page, false)
+    const card = page.getByTestId('google-health')
+    await expect(card.getByRole('button', { name: 'Connect' })).toBeVisible()
+    await expect(card.getByText('Connect Google Health to show real activity')).toBeVisible()
+    await expect(card.getByTestId('health-steps')).toHaveCount(0)
+    await expect(card.getByTestId('health-sync-btn')).toHaveCount(0)
+  })
+
   test('the Google Health stats each have their own progress bar colour', async ({ page }) => {
+    await mockGoogleHealth(page, true)
     const card = page.getByTestId('google-health')
     const colours = []
     for (const key of ['steps', 'active', 'distance', 'calories']) {
@@ -49,11 +73,12 @@ test.describe('Home page', () => {
   })
 
   test('Google Health sync lists the latest updates', async ({ page }) => {
-    // Mock the (simulated) sync so the test doesn't change the demo user's check-ins
-    await page.route('**/api/health-sync/simulate', (route) =>
+    // Mock the sync so the test doesn't change the demo user's check-ins
+    await mockGoogleHealth(page, true)
+    await page.route('**/api/health-sync/google/sync', (route) =>
       route.fulfill({
         json: {
-          message: 'Successfully synchronized data from Google Health!',
+          metrics: METRICS,
           updatedHabits: [{ id: 1, name: 'Morning run', syncedCount: 1, unit: 'run' }],
         },
       }),
@@ -89,7 +114,7 @@ test.describe('Navigation', () => {
   })
 
   test('the page tabs sit inside the top bar on every page, equally wide', async ({ page }) => {
-    for (const path of ['/home', '/habits', '/dashboard', '/leaderboard', '/friends']) {
+    for (const path of ['/home', '/habits', '/dashboard', '/leaderboard', '/friends', '/groups']) {
       await page.goto(path)
       const navbar = await page.getByTestId('navbar').boundingBox()
       const bar = page.getByTestId('tabbar')
@@ -98,7 +123,7 @@ test.describe('Navigation', () => {
       expect(box.y).toBeGreaterThanOrEqual(navbar.y)
       expect(box.y + box.height).toBeLessThanOrEqual(navbar.y + navbar.height + 1) // inside the top bar
       const links = bar.getByRole('link')
-      await expect(links).toHaveCount(5)
+      await expect(links).toHaveCount(TAB_NAMES.length)
       const widths = await links.evaluateAll((els) => els.map((el) => el.getBoundingClientRect().width))
       expect(Math.max(...widths) - Math.min(...widths)).toBeLessThan(1) // equal spacing
     }

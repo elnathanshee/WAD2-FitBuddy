@@ -42,6 +42,22 @@
 
     <p v-if="!connected" class="text-muted small mb-3">Connect your Google Health account to read steps, active minutes, distance, and activity calories. FitBuddy uses them to show your progress and update only the habits you select.</p>
 
+    <details class="healthy365-help surface-soft p-3 mb-3" data-testid="healthy365-help">
+      <summary class="fw-semibold small">
+        <i class="bi bi-bluetooth me-1" aria-hidden="true"></i>Using a Healthy 365 / HPB tracker?
+      </summary>
+      <p class="small text-muted mt-2 mb-2">Pair an HPB tracker with Bluetooth in the Healthy 365 mobile app. Healthy 365 does not offer FitBuddy a direct Bluetooth connection, so FitBuddy can only import the tracker data if it is also available in your Google Health account.</p>
+      <ol class="small text-muted ps-3 mb-2">
+        <li>In Healthy 365, choose <strong>Pair your tracker or app → HPB Trackers → Pair via Bluetooth</strong>, then follow the pairing prompts.</li>
+        <li>Sync the tracker in Healthy 365. If your tracker or its companion app also shares activity with Google Health, connect that same Google account to FitBuddy here.</li>
+      </ol>
+      <div class="d-flex flex-wrap align-items-center gap-2">
+        <a class="small" href="https://help.hpb.gov.sg/ssp/en/pairing-syncing-bought-or-unpaired-hpb-trackers?id=kb_article_view_ssp&sysparm_article=KB0013696" target="_blank" rel="noopener noreferrer">Open HPB Bluetooth pairing guide <i class="bi bi-box-arrow-up-right" aria-hidden="true"></i></a>
+        <button v-if="!connected" type="button" class="btn btn-sm btn-outline-secondary" :disabled="connecting" @click="connectGoogle">{{ connecting ? 'Opening…' : 'Connect Google Health' }}</button>
+        <span v-else class="small text-success"><i class="bi bi-check-circle me-1" aria-hidden="true"></i>Google Health connected</span>
+      </div>
+    </details>
+
     <div v-if="showSettings" class="sync-settings surface-soft p-3 mb-3" data-testid="health-sync-settings-panel">
       <label class="d-flex align-items-center gap-2 fw-semibold small mb-2">
         <input v-model="autoSync" class="form-check-input mt-0" type="checkbox" data-testid="health-auto-sync" :disabled="!connected" @change="saveAutoSync" />
@@ -420,6 +436,18 @@ onUnmounted(() => clearInterval(autoSyncTimer))
   background: var(--fb-bg);
   border: 1px solid var(--fb-hairline);
   border-radius: var(--r-md);
+}
+.healthy365-help {
+  background: var(--fb-bg);
+  border: 1px solid var(--fb-hairline);
+  border-radius: var(--r-md);
+}
+.healthy365-help summary {
+  cursor: pointer;
+  color: var(--fb-text-1);
+}
+.healthy365-help summary::marker {
+  color: var(--fb-green-500);
 }
 .sync-source + .sync-source {
   padding-top: .5rem;

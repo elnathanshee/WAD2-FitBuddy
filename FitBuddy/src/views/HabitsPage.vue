@@ -42,7 +42,7 @@
       <h2 class="h4 fw-bold">No habits yet</h2>
       <p class="text-muted">Start small: one habit you can do every day.</p>
       <div class="d-flex justify-content-center gap-2 flex-wrap">
-        <button type="button" class="btn btn-outline-primary px-4" @click="coachRef?.openChat()">
+        <button type="button" class="btn btn-outline-primary px-4" @click="coachOpen = true">
           <i class="bi bi-chat-square-text me-1" aria-hidden="true"></i>Ask the coach
         </button>
         <button type="button" class="btn btn-primary px-4" @click="openCreate">
@@ -105,10 +105,8 @@
       </Transition>
     </Teleport>
 
-    <!-- Floating AI goal coach (bottom-right).
-         Beyond WAD2 syllabus: the template ref lets the "Ask the coach" button call the
-         chat's openChat(). Section 3 will replace this with a prop. -->
-    <CoachChat ref="coachRef" @saved="loadHabits" />
+    <!-- Floating AI goal coach (bottom-right). This page owns "is it open?" -->
+    <CoachChat :open="coachOpen" @open="coachOpen = true" @close="coachOpen = false" @saved="loadHabits" />
 
     <AppModal v-if="deletingHabit" title="Delete habit?" @close="deletingHabit = null">
       <p class="mb-0">
@@ -145,7 +143,7 @@ import { toDateKey } from '../utils/dates'
 import { celebrate } from '../utils/celebrate'
 
 const habits = ref([])
-const coachRef = ref(null)
+const coachOpen = ref(false) // is the AI coach chat panel open?
 const loading = ref(true)
 const loadError = ref('')
 const actionError = ref('')

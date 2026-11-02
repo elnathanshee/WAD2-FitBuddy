@@ -196,41 +196,50 @@ async function loadMetrics() {
 }
 
 async function loadSyncSettings() {
+  // The OAuth config check must not be blocked by an unrelated habits request.
+  // Otherwise one failing endpoint leaves `configured` false and disables Connect.
   try {
-    const [habits, status] = await Promise.all([habitService.list(), healthSyncService.getGoogleStatus()])
-    availableHabits.value = habits
+    const status = await healthSyncService.getGoogleStatus()
     configured.value = Boolean(status.configured)
     connected.value = Boolean(status.connected)
-    await loadMetrics()
-    const saved = JSON.parse(localStorage.getItem(`${settingsKey}_mappings`) || 'null')
-    if (saved && typeof saved === 'object') {
-      const eligibleIds = {
-        steps: new Set(availableHabits.value.filter((h) => h.target?.unit === 'steps' || /step/i.test(h.name)).map((h) => String(h.id ?? h._id))),
-        activeMinutes: new Set(availableHabits.value.filter((h) => h.category === 'exercise' || h.target?.unit === 'minutes').map((h) => String(h.id ?? h._id))),
-      }
-      mappings.value = {
-        steps: (saved.steps || []).map(String).filter((id) => eligibleIds.steps.has(id)),
-        activeMinutes: (saved.activeMinutes || []).map(String).filter((id) => eligibleIds.activeMinutes.has(id)),
-        water: [],
-      }
-      saveMappings()
-    } else {
-      mappings.value = {
-        steps: availableHabits.value.filter((h) => h.target?.unit === 'steps' || /step/i.test(h.name)).map((h) => String(h.id ?? h._id)),
-        activeMinutes: availableHabits.value.filter((h) => h.category === 'exercise' && h.target?.unit === 'minutes').map((h) => String(h.id ?? h._id)),
-        water: [],
-      }
-      saveMappings()
-    }
-    autoSync.value = localStorage.getItem(`${settingsKey}_auto`) === 'true'
-    if (autoSync.value && connected.value) {
-      await syncDevice()
-      autoSyncTimer = setInterval(() => {
-        if (!document.hidden) syncDevice()
-      }, 10 * 60 * 1000)
-    }
   } catch (err) {
+    configured.value = false
     syncSettingsError.value = errorMessage(err)
+  }
+
+  try {
+    availableHabits.value = await habitService.list()
+  } catch (err) {
+    syncSettingsError.value ||= errorMessage(err)
+  }
+
+  await loadMetrics()
+  const saved = JSON.parse(localStorage.getItem(`${settingsKey}_mappings`) || 'null')
+  if (saved && typeof saved === 'object') {
+    const eligibleIds = {
+      steps: new Set(availableHabits.value.filter((h) => h.target?.unit === 'steps' || /step/i.test(h.name)).map((h) => String(h.id ?? h._id))),
+      activeMinutes: new Set(availableHabits.value.filter((h) => h.category === 'exercise' || h.target?.unit === 'minutes').map((h) => String(h.id ?? h._id))),
+    }
+    mappings.value = {
+      steps: (saved.steps || []).map(String).filter((id) => eligibleIds.steps.has(id)),
+      activeMinutes: (saved.activeMinutes || []).map(String).filter((id) => eligibleIds.activeMinutes.has(id)),
+      water: [],
+    }
+    saveMappings()
+  } else {
+    mappings.value = {
+      steps: availableHabits.value.filter((h) => h.target?.unit === 'steps' || /step/i.test(h.name)).map((h) => String(h.id ?? h._id)),
+      activeMinutes: availableHabits.value.filter((h) => h.category === 'exercise' && h.target?.unit === 'minutes').map((h) => String(h.id ?? h._id)),
+      water: [],
+    }
+    saveMappings()
+  }
+  autoSync.value = localStorage.getItem(`${settingsKey}_auto`) === 'true'
+  if (autoSync.value && connected.value) {
+    await syncDevice()
+    autoSyncTimer = setInterval(() => {
+      if (!document.hidden) syncDevice()
+    }, 10 * 60 * 1000)
   }
 }
 

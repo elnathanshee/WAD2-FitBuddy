@@ -130,6 +130,14 @@
                   data-testid="leaderboard-friend-link"
                 >{{ entry.displayName }}</RouterLink>
                 <template v-else>{{ entry.displayName }}</template>
+                <!-- Soft badge so friends stand out on the Global tab (every row on the Friends tab is a friend) -->
+                <span
+                  v-if="scope === 'global' && entry.friendStatus === 'friends'"
+                  class="badge rounded-pill bg-primary-subtle text-primary-emphasis border border-primary-subtle"
+                  data-testid="friend-badge"
+                >
+                  <i class="bi bi-people-fill me-1" aria-hidden="true"></i>Friend
+                </span>
                 <span v-if="entry.isCurrentUser" class="badge rounded-pill text-bg-primary">You</span>
                 <span v-if="entry.cheersCount > 0" class="cheer-count" :title="`${entry.cheersCount} cheers received`">
                   <i class="bi bi-heart-fill" aria-hidden="true"></i>{{ entry.cheersCount }}
@@ -499,8 +507,8 @@ onUnmounted(() => clearTimeout(toastTimer))
 .place-1 .podium-step {
   height: 112px;
   color: #f5f3ee;
-  background: var(--fb-green-700);
-  border-color: var(--fb-green-700);
+  background: var(--fb-green-solid);
+  border-color: var(--fb-green-solid);
 }
 .place-2 .podium-step {
   height: 84px;
@@ -617,6 +625,10 @@ onUnmounted(() => clearTimeout(toastTimer))
 .cheer-btn-cheer:not(:disabled):hover {
   background: #fbeeed;
   border-color: #e8b5b1;
+}
+html[data-theme='dark'] .cheer-btn-cheer:not(:disabled):hover {
+  background: rgba(229, 142, 136, 0.14);
+  border-color: var(--fb-rose);
 }
 .cheer-btn-nudge:not(:disabled):hover {
   background: var(--fb-green-50);

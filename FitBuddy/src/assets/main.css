@@ -23,6 +23,8 @@
   --fb-green-600: #237a51;
   --fb-green-700: #1b6343;
   --fb-green-rgb: 35, 122, 81;
+  /* Solid green behind white/cream text (stays dark in both themes) */
+  --fb-green-solid: var(--fb-green-700);
 
   /* Accents: streak amber is the second brand colour */
   --fb-amber: #d98a1c;
@@ -122,7 +124,7 @@
 
 @media (max-width: 991.98px) {
   :root {
-    --fb-nav-h: 120px;
+    --fb-nav-h: 128px;
   }
 }
 
@@ -152,6 +154,7 @@ html[data-theme='dark'] {
   --fb-text-2: #c2c0b7;
   --fb-text-3: #99978d;
   --fb-hairline: #41453e;
+  --fb-green-solid: #3f7a55;
   --fb-shadow-sm: 0 1px 0 rgba(0, 0, 0, 0.16);
   --fb-shadow-card: 0 1px 2px rgba(0, 0, 0, 0.18), 0 4px 12px rgba(0, 0, 0, 0.12);
   --fb-shadow-md: 0 1px 2px rgba(0, 0, 0, 0.22), 0 6px 18px rgba(0, 0, 0, 0.18);
@@ -169,6 +172,12 @@ html[data-theme='dark'] {
   --bs-link-hover-color-rgb: 127, 202, 152;
   --bs-body-bg: var(--fb-bg);
   --bs-body-color: var(--fb-text);
+  --bs-body-color-rgb: 240, 238, 231;
+  --bs-body-bg-rgb: 25, 27, 24;
+  --bs-emphasis-color: var(--fb-text);
+  --bs-emphasis-color-rgb: 240, 238, 231;
+  --bs-secondary-bg: var(--fb-surface-2);
+  --bs-tertiary-bg: var(--fb-surface-2);
   --bs-secondary-color: var(--fb-text-2);
   --bs-border-color: var(--fb-hairline);
   --bs-focus-ring-color: rgba(var(--fb-green-rgb), 0.35);
@@ -200,6 +209,37 @@ html[data-theme='dark'] .dropdown-menu {
   --bs-dropdown-link-color: var(--fb-text);
   --bs-dropdown-link-hover-bg: var(--fb-surface-2);
   --bs-dropdown-link-hover-color: var(--fb-text);
+}
+/* Bootstrap's grey/dark buttons are fixed colours that vanish on the dark surface */
+html[data-theme='dark'] .btn-outline-secondary {
+  --bs-btn-color: var(--fb-text-2);
+  --bs-btn-border-color: #53584f;
+  --bs-btn-hover-color: var(--fb-text);
+  --bs-btn-hover-bg: var(--fb-surface-2);
+  --bs-btn-hover-border-color: var(--fb-text-3);
+  --bs-btn-active-color: var(--fb-text);
+  --bs-btn-active-bg: var(--fb-surface-2);
+  --bs-btn-active-border-color: var(--fb-text-3);
+  --bs-btn-disabled-color: var(--fb-text-3);
+  --bs-btn-disabled-border-color: var(--fb-hairline);
+}
+html[data-theme='dark'] .btn-outline-dark {
+  --bs-btn-color: var(--fb-text);
+  --bs-btn-border-color: #53584f;
+  --bs-btn-hover-color: var(--fb-bg);
+  --bs-btn-hover-bg: var(--fb-text);
+  --bs-btn-hover-border-color: var(--fb-text);
+}
+html[data-theme='dark'] .btn-dark {
+  --bs-btn-color: var(--fb-bg);
+  --bs-btn-bg: var(--fb-text);
+  --bs-btn-border-color: var(--fb-text);
+  --bs-btn-hover-color: var(--fb-bg);
+  --bs-btn-hover-bg: var(--fb-text-2);
+  --bs-btn-hover-border-color: var(--fb-text-2);
+  --bs-btn-active-color: var(--fb-bg);
+  --bs-btn-active-bg: var(--fb-text-2);
+  --bs-btn-active-border-color: var(--fb-text-2);
 }
 
 /* ---------- Backgrounds (chosen in the account menu, see composables/useBackground.js) ---------- */
@@ -365,10 +405,10 @@ h6, .h6 {
 .btn-primary {
   --bs-btn-bg: var(--fb-green-600);
   --bs-btn-border-color: var(--fb-green-600);
-  --bs-btn-hover-bg: var(--fb-green-700);
-  --bs-btn-hover-border-color: var(--fb-green-700);
-  --bs-btn-active-bg: var(--fb-green-700);
-  --bs-btn-active-border-color: var(--fb-green-700);
+  --bs-btn-hover-bg: var(--fb-green-solid);
+  --bs-btn-hover-border-color: var(--fb-green-solid);
+  --bs-btn-active-bg: var(--fb-green-solid);
+  --bs-btn-active-border-color: var(--fb-green-solid);
   --bs-btn-disabled-bg: var(--fb-green-600);
   --bs-btn-disabled-border-color: var(--fb-green-600);
 }
@@ -389,9 +429,9 @@ h6, .h6 {
 .btn-success {
   --bs-btn-bg: var(--fb-green-600);
   --bs-btn-border-color: var(--fb-green-600);
-  --bs-btn-hover-bg: var(--fb-green-700);
-  --bs-btn-hover-border-color: var(--fb-green-700);
-  --bs-btn-active-bg: var(--fb-green-700);
+  --bs-btn-hover-bg: var(--fb-green-solid);
+  --bs-btn-hover-border-color: var(--fb-green-solid);
+  --bs-btn-active-bg: var(--fb-green-solid);
 }
 
 .btn-outline-success {
@@ -400,7 +440,7 @@ h6, .h6 {
   --bs-btn-hover-color: #fff;
   --bs-btn-hover-bg: var(--fb-green-600);
   --bs-btn-hover-border-color: var(--fb-green-600);
-  --bs-btn-active-bg: var(--fb-green-700);
+  --bs-btn-active-bg: var(--fb-green-solid);
 }
 
 /* Quiet "tinted" button: soft fill, no border */
@@ -666,7 +706,7 @@ h6, .h6 {
 .auth-brand-section {
   position: relative;
   overflow: hidden;
-  background: var(--fb-green-700);
+  background: var(--fb-green-solid);
   color: #f5f3ee;
   display: flex;
   flex-direction: column;

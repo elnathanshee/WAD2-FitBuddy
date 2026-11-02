@@ -41,19 +41,6 @@
         </router-link>
       </nav>
 
-      <!-- Notifications Bell Button -->
-      <button
-        v-if="isAuthenticated"
-        type="button"
-        class="btn btn-icon pressable text-muted me-1"
-        style="width: 38px; height: 38px; border-radius: 50%;"
-        title="Reminders & Notifications"
-        aria-label="Reminders and Notifications"
-        @click="showNotificationsModal = true"
-      >
-        <i class="bi bi-bell fs-5"></i>
-      </button>
-
       <!-- Account menu -->
       <div v-if="isAuthenticated" class="dropdown account">
         <button
@@ -571,6 +558,7 @@ const switchAthlete = async (email) => {
     grid-template-areas:
       'brand account'
       'tabs tabs';
+    padding-top: var(--s-2); /* breathing room above the logo and account button */
   }
   .tabs {
     padding: 0 0 var(--s-2);

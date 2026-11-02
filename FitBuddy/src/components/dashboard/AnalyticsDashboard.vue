@@ -206,7 +206,10 @@ import CountUp from '../CountUp.vue'
 import { analyticsService } from '../../services/analyticsService'
 import { LEVELS, levelFor } from '../../utils/completionLevels'
 import { CATEGORIES } from '../../utils/habitOptions'
+import { useBackground } from '../../composables/useBackground'
 import { fromDateKey } from '../../utils/dates'
+
+const { isDark } = useBackground()
 
 ChartJS.register(BarElement, LineElement, PointElement, ArcElement, CategoryScale, LinearScale, Filler, Tooltip, Legend)
 
@@ -355,7 +358,7 @@ const categoryChart = computed(() => {
       {
         data: entries.map(([, count]) => count),
         backgroundColor: entries.map(([value]) => CATEGORY_COLOURS[value] ?? EXTRA_COLOURS[extra++ % EXTRA_COLOURS.length]),
-        borderColor: '#ffffff', // thin white gaps make each slice easy to tell apart
+        borderColor: isDark.value ? '#232621' : '#ffffff', // thin gaps in the card colour make each slice easy to tell apart
         borderWidth: 2,
       },
     ],
@@ -370,8 +373,12 @@ const categoryShare = (i) => {
 
 // ---- Chart options --------------------------------------------------------
 
+// Axis text and gridlines follow the light/dark theme (same values as --fb-text-2 / --fb-hairline)
+const chartText = computed(() => (isDark.value ? '#c2c0b7' : '#5d5850'))
+const chartGrid = computed(() => (isDark.value ? '#41453e' : '#efebe3'))
+
 const percentScale = { min: 0, max: 100, ticks: { callback: (v) => `${v}%`, stepSize: 25 } }
-const axisTitle = (text) => ({ display: true, text, font: { weight: '700' }, color: '#5d5850' })
+const axisTitle = (text) => ({ display: true, text, font: { weight: '700' }, color: chartText.value })
 
 // "3 of 4 daily habits done" for a point in the trend / week charts
 function dayTooltip(ctx) {
@@ -391,11 +398,11 @@ const trendOptions = computed(() => ({
   responsive: true,
   maintainAspectRatio: false,
   scales: {
-    y: { ...percentScale, title: axisTitle('Daily habits done (%)') },
+    y: { ...percentScale, ticks: { ...percentScale.ticks, color: chartText.value }, grid: { color: chartGrid.value }, title: axisTitle('Daily habits done (%)') },
     x: {
       title: axisTitle(`Day of ${monthName.value}`),
-      ticks: { autoSkip: false, maxRotation: 0, callback: (value, index) => (isLabelledDay(index) ? index + 1 : '') },
-      grid: { color: (ctx) => (isLabelledDay(ctx.index) ? '#efebe3' : 'transparent') },
+      ticks: { autoSkip: false, maxRotation: 0, color: chartText.value, callback: (value, index) => (isLabelledDay(index) ? index + 1 : '') },
+      grid: { color: (ctx) => (isLabelledDay(ctx.index) ? chartGrid.value : 'transparent') },
     },
   },
   plugins: {
@@ -408,8 +415,8 @@ const weekOptions = computed(() => ({
   responsive: true,
   maintainAspectRatio: false,
   scales: {
-    y: { ...percentScale, title: axisTitle('Daily habits done (%)') },
-    x: { title: axisTitle('Day of the week') },
+    y: { ...percentScale, ticks: { ...percentScale.ticks, color: chartText.value }, grid: { color: chartGrid.value }, title: axisTitle('Daily habits done (%)') },
+    x: { ticks: { color: chartText.value }, grid: { color: chartGrid.value }, title: axisTitle('Day of the week') },
   },
   plugins: {
     legend: { display: false },
@@ -417,13 +424,16 @@ const weekOptions = computed(() => ({
   },
 }))
 
-const dayOptions = {
+const dayOptions = computed(() => ({
   responsive: true,
   maintainAspectRatio: false,
   indexAxis: 'y',
-  scales: { x: { ...percentScale, title: axisTitle('Share of today\'s target done (%)') } },
+  scales: {
+    x: { ...percentScale, ticks: { ...percentScale.ticks, color: chartText.value }, grid: { color: chartGrid.value }, title: axisTitle('Share of today\'s target done (%)') },
+    y: { ticks: { color: chartText.value }, grid: { color: chartGrid.value } },
+  },
   plugins: { legend: { display: false }, tooltip: { callbacks: { label: (ctx) => `${ctx.raw}% of target` } } },
-}
+}))
 
 const pieOptions = {
   responsive: true,

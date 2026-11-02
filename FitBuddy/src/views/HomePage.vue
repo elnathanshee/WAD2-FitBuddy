@@ -353,7 +353,7 @@ onMounted(() => {
   justify-content: center;
   font-size: 1.3rem;
   border-radius: var(--r-md);
-  background: color-mix(in srgb, var(--status) 14%, white);
+  background: color-mix(in srgb, var(--status) 14%, var(--fb-surface));
 }
 .habit-main {
   display: flex;

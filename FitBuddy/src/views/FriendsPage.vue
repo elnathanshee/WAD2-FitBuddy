@@ -31,9 +31,9 @@
     </div>
 
     <div v-else-if="loaded" class="d-grid gap-4">
-      <!-- Find athletes -->
+      <!-- Find friends -->
       <section class="surface p-3 px-md-4" data-testid="friends-search">
-        <h2 class="section-title mb-3">Find athletes</h2>
+        <h2 class="section-title mb-3">Find friends</h2>
         <form @submit.prevent="runSearch">
           <div class="input-group">
             <span class="input-group-text"><i class="bi bi-search" aria-hidden="true"></i></span>

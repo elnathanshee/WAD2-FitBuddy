@@ -140,14 +140,14 @@ const streakUnit = computed(() => (props.habit.frequency === 'weekly' ? 'week' :
   font-size: 1.6rem;
   line-height: 1;
   /* the status colour at ~12% opacity */
-  background: color-mix(in srgb, var(--habit-colour) 12%, white);
+  background: color-mix(in srgb, var(--habit-colour) 12%, var(--fb-surface));
 }
 .status-label {
   display: inline-flex;
   align-items: center;
   gap: var(--s-1);
   margin-top: var(--s-1);
-  color: #495057;
+  color: var(--fb-text-2);
 }
 .status-dot {
   width: 0.55rem;
@@ -187,8 +187,8 @@ const streakUnit = computed(() => (props.habit.frequency === 'weekly' ? 'week' :
 .streak-flame {
   color: var(--fb-amber);
 }
-/* Dark text on a tint of the status colour, so it stays readable on amber
-   as well as on green and grey. */
+/* Theme text on a tint of the status colour (mixed with the surface, so it
+   stays readable in light and dark mode, on amber as well as green and grey). */
 .btn-log {
   color: var(--fb-dark);
   border: 2px solid var(--habit-colour);
@@ -199,6 +199,6 @@ const streakUnit = computed(() => (props.habit.frequency === 'weekly' ? 'week' :
 .btn-log:hover:not(:disabled),
 .is-done .btn-log {
   color: var(--fb-dark);
-  background-color: color-mix(in srgb, var(--habit-colour) 22%, white);
+  background-color: color-mix(in srgb, var(--habit-colour) 22%, var(--fb-surface));
 }
 </style>

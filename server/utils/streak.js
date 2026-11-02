@@ -1,3 +1,5 @@
+// Streak counting for habits (daily and weekly). Used by neonHabitController.js and analytics.js;
+// pure functions, so tests/streak.test.js can check them with plain arrays.
 import { addDays } from './dates.js'
 
 /**

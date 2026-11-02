@@ -1,3 +1,5 @@
+// Starts the API: connects to Neon (creates the tables if missing), then listens on PORT.
+// Run with `npm run dev` / `npm start`. On Vercel the app is imported instead of started here.
 import app from './app.js'
 import { initNeonSchema } from './config/neon.js'
 

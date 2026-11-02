@@ -1,6 +1,5 @@
-// =============================================================================
-// [IS216 Project Addition: Achievements / Badges]
-// Technology: plain JavaScript only - this file never touches the database.
+// Achievement badges. Used by controllers/achievementsController.js (GET /api/achievements).
+// This file never touches the database.
 //
 // Badges are DERIVED from the check-in history, exactly like points and streaks
 // are. Nothing is stored, so a badge can never disagree with the data behind it:
@@ -8,7 +7,6 @@
 //
 // Everything here is a pure function (plain values in, plain values out), so
 // tests/achievements.test.js can check every rule without a database.
-// =============================================================================
 
 import { POINTS, milestonePeriods } from './pointsService.js'
 import { calculateStreak } from '../utils/streak.js'

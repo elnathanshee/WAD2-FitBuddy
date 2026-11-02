@@ -1,3 +1,4 @@
+// Route table for /api/friends (list, search, requests, profile, remove). Handlers: controllers/friendController.js.
 import { Router } from 'express'
 import {
   listFriends,

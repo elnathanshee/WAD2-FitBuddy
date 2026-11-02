@@ -1,3 +1,6 @@
+// Route table for /api/health-sync (Google Health connect, sync and today's metrics). Handlers: controllers/healthSyncController.js.
+// The callback route has no requireUser because Google redirects the browser there (it carries no login header).
+
 import { Router } from 'express'
 import { disconnectGoogleHealth, getGoogleHealthStatus, getTodayMetrics, googleHealthCallback, startGoogleHealthConnect, syncGoogleHealth } from '../controllers/healthSyncController.js'
 import { requireUser } from '../middleware/requireUser.js'

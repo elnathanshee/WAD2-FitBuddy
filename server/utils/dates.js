@@ -1,5 +1,5 @@
-// Small helpers for 'YYYY-MM-DD' date keys (see models/CheckIn.js for why
-// dates are stored as strings).
+// Small helpers for 'YYYY-MM-DD' date keys. Dates are stored and compared as plain strings so
+// time zones and daylight saving can never shift a day. Used by streak.js, analytics.js and the controllers.
 
 // Date object → 'YYYY-MM-DD' using the LOCAL calendar day.
 export function toDateKey(date = new Date()) {
@@ -22,4 +22,15 @@ export function weekStart(dateKey) {
   const [y, m, d] = dateKey.split('-').map(Number)
   const daysSinceMonday = (new Date(y, m - 1, d, 12).getDay() + 6) % 7 // getDay(): 0 = Sunday
   return addDays(dateKey, -daysSinceMonday)
+}
+
+// True only for a real calendar day written as YYYY-MM-DD (rejects '2026-02-31').
+export function isValidDateKey(value) {
+  return typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value) && addDays(value, 0) === value
+}
+
+// The browser sends its own local date as ?today=, because "today" for the user is not "today" on
+// the server. Anything that does not look like YYYY-MM-DD is ignored and the server's date is used.
+export function resolveToday(value) {
+  return typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value) ? value : toDateKey()
 }

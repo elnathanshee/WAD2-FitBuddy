@@ -1,11 +1,7 @@
-// =============================================================================
-// [IS216 Project Addition: Authentication & Password Security Utility]
-// Technology: Node.js standard built-in node:crypto (Zero-dependency, Vercel-ready)
-//
-// Features:
-// - Password Hashing: Salted scrypt (crypto.scryptSync) with timing-safe comparison
-// - Session Token: Cryptographic HMAC-SHA256 Signed JWT Tokens (HS256)
-// =============================================================================
+// Password hashing and login tokens, built only on Node's own node:crypto (no extra packages).
+// Used by controllers/authController.js (signup/login) and middleware/requireUser.js (checking tokens).
+//  - Passwords: salted scrypt hash, compared in constant time.
+//  - Login token: a JWT signed with HMAC-SHA256 (HS256), valid for 7 days.
 
 import crypto from 'node:crypto'
 

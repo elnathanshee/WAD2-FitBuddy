@@ -1,7 +1,4 @@
-// =============================================================================
-// [IS216 Project Addition: Challenge & Duels Controller with Neon PostgreSQL]
-// Technology: Express.js + Neon PostgreSQL
-//
+// Handlers for /api/challenges (the Challenges section on the Dashboard). All need a logged-in user.
 // Lets athletes challenge their accepted friends to head-to-head habit sprints.
 //
 // Lifecycle (status strings, no schema change):
@@ -9,7 +6,7 @@
 //   'active' -> 'completed' once someone reaches target_days.
 // The creator can delete a challenge only while it is 'pending' (cancel) or
 // 'declined' (dismiss). The opponent no longer sees a challenge they declined.
-// =============================================================================
+// The who-can-do-what rules live in utils/challenges.js.
 
 import { getDb } from '../config/neon.js'
 import { findPair } from './friendController.js'
@@ -19,7 +16,8 @@ import { sendChallengeNotification } from '../services/notificationService.js'
 
 /**
  * GET /api/challenges
- * Returns the user's challenges (pending, active, completed; not ones they declined).
+ * Responds 200 { challenges: [...] }: the user's newest 20 challenges (pending, active, completed;
+ * not ones they declined), each with both athletes' names and colours.
  */
 export async function listChallenges(req, res) {
   const sql = getDb()
@@ -55,9 +53,25 @@ export async function listChallenges(req, res) {
   res.json({ challenges: rows.filter((ch) => visibleTo(ch, userId)) })
 }
 
+// Sends the push notification for a new challenge. Never blocks or fails the request.
+async function notifyOpponent(sql, creatorId, opponentId, title, targetDays) {
+  try {
+    const [creator] = await sql`SELECT display_name FROM users WHERE user_id = ${creatorId}`
+    sendChallengeNotification(opponentId, {
+      creatorName: creator?.display_name || 'An athlete',
+      title,
+      targetDays,
+    }).catch((err) => console.warn('[OneSignal Challenge Notification Warning]', err?.message))
+  } catch (notifyErr) {
+    // Non-blocking
+  }
+}
+
 /**
  * POST /api/challenges
- * Body: { opponentId, title, habitCategory, targetDays }
+ * Body: { opponentId, title, habitCategory = 'exercise', targetDays = 7 }
+ * Creates a 'pending' challenge against an accepted friend.
+ * Responds 201 { message, challenge }. Errors: 400 missing/invalid fields, 403 opponent is not a friend.
  */
 export async function createChallenge(req, res) {
   const { opponentId, title, habitCategory = 'exercise', targetDays = 7 } = req.body || {}
@@ -89,17 +103,8 @@ export async function createChallenge(req, res) {
     RETURNING id, creator_id, opponent_id, title, habit_category, target_days, creator_progress, opponent_progress, status, created_at
   `
 
-  // Trigger OneSignal push notification to opponent
-  try {
-    const [creator] = await sql`SELECT display_name FROM users WHERE user_id = ${req.userId}`
-    sendChallengeNotification(opponentId, {
-      creatorName: creator?.display_name || 'An athlete',
-      title: cleanTitle,
-      targetDays: days,
-    }).catch((err) => console.warn('[OneSignal Challenge Notification Warning]', err?.message))
-  } catch (notifyErr) {
-    // Non-blocking
-  }
+  // Tell the opponent by push notification
+  await notifyOpponent(sql, req.userId, opponentId, cleanTitle, days)
 
   res.status(201).json({
     message: 'Challenge sent! Waiting for your friend to accept.',
@@ -107,9 +112,23 @@ export async function createChallenge(req, res) {
   })
 }
 
+// Works out the challenge status after one more day is logged: the first athlete to reach
+// target_days wins and the challenge is 'completed'.
+function statusAfterProgress(ch, newCreatorProgress, newOpponentProgress) {
+  if (newCreatorProgress >= ch.target_days) {
+    return { status: 'completed', winnerId: ch.creator_id }
+  }
+  if (newOpponentProgress >= ch.target_days) {
+    return { status: 'completed', winnerId: ch.opponent_id }
+  }
+  return { status: 'active', winnerId: null }
+}
+
 /**
  * POST /api/challenges/:id/progress
- * Advances progress for the current user in this challenge.
+ * Adds one day of progress for the logged-in athlete in an active challenge.
+ * Responds 200 { message, challenge }. Errors: 404 not found, 403 not a participant,
+ * 400 already completed or not accepted yet.
  */
 export async function recordChallengeProgress(req, res) {
   const { id } = req.params
@@ -129,29 +148,17 @@ export async function recordChallengeProgress(req, res) {
     return res.status(403).json({ message: 'You are not a participant in this challenge.' })
   }
   if (!canLogProgress(ch, req.userId)) {
-    const message =
-      ch.status === 'completed'
-        ? 'Challenge is already completed!'
-        : "This challenge hasn't been accepted yet."
+    let message = "This challenge hasn't been accepted yet."
+    if (ch.status === 'completed') message = 'Challenge is already completed!'
     return res.status(400).json({ message })
   }
 
-  const isCreator = role === 'creator'
-  const isOpponent = role === 'opponent'
+  let newCreatorProgress = ch.creator_progress
+  let newOpponentProgress = ch.opponent_progress
+  if (role === 'creator') newCreatorProgress += 1
+  if (role === 'opponent') newOpponentProgress += 1
 
-  const newCreatorProgress = isCreator ? ch.creator_progress + 1 : ch.creator_progress
-  const newOpponentProgress = isOpponent ? ch.opponent_progress + 1 : ch.opponent_progress
-
-  let status = 'active'
-  let winnerId = null
-
-  if (newCreatorProgress >= ch.target_days) {
-    status = 'completed'
-    winnerId = ch.creator_id
-  } else if (newOpponentProgress >= ch.target_days) {
-    status = 'completed'
-    winnerId = ch.opponent_id
-  }
+  const { status, winnerId } = statusAfterProgress(ch, newCreatorProgress, newOpponentProgress)
 
   const updated = await sql`
     UPDATE challenges
@@ -171,8 +178,8 @@ export async function recordChallengeProgress(req, res) {
   })
 }
 
-
-// Shared by accept and decline: only the invited opponent, only while pending
+// Shared by accept and decline: only the invited opponent, only while pending.
+// Errors: 404 not found, 403 not the invited friend, 409 already answered.
 async function respond(req, res, newStatus, message) {
   const sql = getDb()
   const rows = await sql`SELECT * FROM challenges WHERE id = ${req.params.id} LIMIT 1`
@@ -197,12 +204,12 @@ async function respond(req, res, newStatus, message) {
   res.json({ message, challenge: updated[0] })
 }
 
-/** POST /api/challenges/:id/accept */
+/** POST /api/challenges/:id/accept - responds 200 { message, challenge } with status 'active' */
 export function acceptChallenge(req, res) {
   return respond(req, res, 'active', 'Challenge accepted. Game on!')
 }
 
-/** POST /api/challenges/:id/decline */
+/** POST /api/challenges/:id/decline - responds 200 { message, challenge } with status 'declined' */
 export function declineChallenge(req, res) {
   return respond(req, res, 'declined', 'Challenge declined.')
 }
@@ -210,6 +217,7 @@ export function declineChallenge(req, res) {
 /**
  * DELETE /api/challenges/:id
  * The creator cancels a pending challenge or dismisses a declined one.
+ * Responds 200 { message }. Errors: 404 not found, 403 not the creator, 409 challenge already active/completed.
  */
 export async function deleteChallenge(req, res) {
   const sql = getDb()
@@ -227,5 +235,6 @@ export async function deleteChallenge(req, res) {
   }
 
   await sql`DELETE FROM challenges WHERE id = ${ch.id}`
-  res.json({ message: ch.status === 'pending' ? 'Challenge cancelled.' : 'Challenge dismissed.' })
+  const message = ch.status === 'pending' ? 'Challenge cancelled.' : 'Challenge dismissed.'
+  res.json({ message })
 }

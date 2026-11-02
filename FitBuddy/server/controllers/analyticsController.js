@@ -1,23 +1,16 @@
-// =============================================================================
-// [IS216 Project Addition: Analytics & Consistency Controller]
-// Technology: Express.js + Neon PostgreSQL
-//
+// Handlers for /api/analytics (the Dashboard charts and consistency numbers).
 // Loads the user's habits and check-ins, then hands them to utils/analytics.js,
 // which does every calculation (completion rates, daily breakdowns, streaks).
-// =============================================================================
 
 import { getDb } from '../config/neon.js'
-import { toDateKey, addDays } from '../utils/dates.js'
+import { toDateKey, isValidDateKey } from '../utils/dates.js'
 import { PERIODS, buildAnalytics, buildWeeklySummary } from '../utils/analytics.js'
 
 // Sanity limit on how many periods back `offset` may go
 const MAX_OFFSET = 366
 
-function isValidDateKey(value) {
-  return typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value) && addDays(value, 0) === value
-}
-
-// Rows from the database → the plain shapes utils/analytics.js expects
+// Loads one user's habits and check-ins and converts the database rows into the plain shapes
+// utils/analytics.js expects. Also used by friendController.js for a friend's profile.
 export async function loadUserData(userId) {
   const sql = getDb()
   const habitRows = await sql`

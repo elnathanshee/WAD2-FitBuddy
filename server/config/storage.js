@@ -1,9 +1,5 @@
-// =============================================================================
-// [IS216 Project Addition: Neon Object Storage Client]
-// Technology: @aws-sdk/client-s3 (S3-compatible API for Neon Object Storage)
-//
-// Follows Neon Object Storage best practices: path-style addressing & SigV4.
-// =============================================================================
+// Small wrapper around Neon Object Storage (an S3-compatible file bucket called "assets").
+// Only routes/neon.js uses it, for the /api/neon/status health check and /api/neon/assets listing.
 
 // Third-party library: AWS SDK S3 client (https://github.com/aws/aws-sdk-js-v3) — stores uploaded images in S3-compatible storage
 import { S3Client, PutObjectCommand, GetObjectCommand, ListObjectsV2Command } from '@aws-sdk/client-s3'
@@ -13,7 +9,8 @@ export const BUCKET_NAME = 'assets'
 
 let s3ClientInstance = null
 
-export function getS3Client() {
+// Creates the S3 client once and reuses it. Returns null when the storage variables are not set.
+function getS3Client() {
   const endpoint = cleanEnvVar(process.env.AWS_ENDPOINT_URL_S3, 'AWS_ENDPOINT_URL_S3')
   const region = cleanEnvVar(process.env.AWS_REGION, 'AWS_REGION') || 'ap-southeast-1'
   const accessKeyId = cleanEnvVar(process.env.AWS_ACCESS_KEY_ID, 'AWS_ACCESS_KEY_ID')
@@ -38,9 +35,7 @@ export function getS3Client() {
   return s3ClientInstance
 }
 
-/**
- * Uploads an object to the Neon assets bucket
- */
+// Uploads a file (text or bytes) to the bucket under the given key.
 export async function uploadAsset(key, content, contentType = 'text/plain') {
   const client = getS3Client()
   if (!client) throw new Error('Neon Object Storage environment variables are not configured')
@@ -55,9 +50,7 @@ export async function uploadAsset(key, content, contentType = 'text/plain') {
   return client.send(command)
 }
 
-/**
- * Lists objects in the Neon assets bucket
- */
+// Returns the list of objects stored in the bucket.
 export async function listAssets() {
   const client = getS3Client()
   if (!client) throw new Error('Neon Object Storage environment variables are not configured')
@@ -70,9 +63,7 @@ export async function listAssets() {
   return response.Contents || []
 }
 
-/**
- * Retrieves an object from the Neon assets bucket
- */
+// Downloads one object from the bucket and returns its content as text.
 export async function getAsset(key) {
   const client = getS3Client()
   if (!client) throw new Error('Neon Object Storage environment variables are not configured')

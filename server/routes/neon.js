@@ -1,10 +1,9 @@
-// =============================================================================
-// [IS216 Project Addition: Neon Services Status & Testing Route]
-// Tests all 3 provisioned Neon services end-to-end:
+// Route table for /api/neon: a diagnostics check of the three Neon services (no page in the app calls it).
+// Mounted without requireUser in app.js.
+// /status tests all 3 provisioned Neon services end-to-end:
 // 1. Neon Postgres (queries database)
 // 2. Neon Object Storage (upload & read from S3-compatible assets bucket)
 // 3. Neon Functions (invokes remote hello function)
-// =============================================================================
 
 import { Router } from 'express'
 import { getDb } from '../config/neon.js'

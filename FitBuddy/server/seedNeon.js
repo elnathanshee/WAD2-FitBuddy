@@ -1,17 +1,20 @@
-// =============================================================================
-// [IS216 Project Addition: Neon PostgreSQL Seed Script]
-// Usage: node --env-file-if-exists=.env seedNeon.js
-// Seeds initial demo habits, 60 days of check-in history, and leaderboard rivals into Neon.
-// =============================================================================
+// Seed script for the demo data (run by hand, never by the app). WARNING: it first DELETES the demo
+// user (id '1') and the four rival athletes with all their habits and check-ins, then recreates them.
+// Usage: npm run seed:neon   (node --env-file-if-exists=.env seedNeon.js)
+// Creates the demo user with 5 habits and 60 days of check-ins, four rival athletes with a week of
+// workouts (so the leaderboard has scores), and the demo friendships (via seedFriends.js).
 
 import { getDb, initNeonSchema } from './config/neon.js'
 import { toDateKey, addDays } from './utils/dates.js'
 import { hashPassword } from './utils/auth.js'
 import { insertDemoFriendships } from './seedFriends.js'
 
-export const DEMO_USER_ID = '1'
+// The demo account everyone can log in with (demo@fitbuddy.com / password123)
+const DEMO_USER_ID = '1'
+// How many days of check-ins the demo user gets
 const HISTORY_DAYS = 60
 
+// The demo user's habits. pattern(daysAgo) says how much was logged that many days ago (0 = nothing).
 const demoHabits = [
   {
     habit: {
@@ -65,6 +68,7 @@ const demoHabits = [
   },
 ]
 
+// The leaderboard rivals (they all share the demo password)
 const rivals = [
   { userId: 'rival_alex', name: 'Alex Tan', email: 'alex@fitbuddy.com', color: '#4CAF50' },
   { userId: 'rival_bernice', name: 'Bernice Lim', email: 'bernice@fitbuddy.com', color: '#FF9800' },
@@ -72,7 +76,8 @@ const rivals = [
   { userId: 'rival_david', name: 'David Lee', email: 'david@fitbuddy.com', color: '#2196F3' },
 ]
 
-export async function seedNeon() {
+// Deletes the old demo data and inserts fresh demo data
+async function seedNeon() {
   await initNeonSchema()
   const sql = getDb()
 

@@ -1,3 +1,6 @@
+// Route table for /api/challenges (friend-vs-friend duels on the Dashboard). Handlers: controllers/challengeController.js.
+// Each route asks for a logged-in user itself, because app.js mounts this router without requireUser.
+
 import { Router } from 'express'
 import { listChallenges, createChallenge, recordChallengeProgress, acceptChallenge, declineChallenge, deleteChallenge } from '../controllers/challengeController.js'
 import { requireUser } from '../middleware/requireUser.js'

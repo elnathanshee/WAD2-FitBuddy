@@ -1,21 +1,16 @@
-// =============================================================================
-// [IS216 Project Addition: Neon Serverless PostgreSQL Database Configuration]
-// Technology: @neondatabase/serverless
-//
-// Optimized for Vercel Serverless Functions and local development.
-// Automatically initializes PostgreSQL tables (users, habits, check_ins, cheers, challenges, friendships).
-// =============================================================================
+// Database setup for the whole API (Neon serverless PostgreSQL).
+//  - getDb() gives every controller the `sql` tagged-template function for queries.
+//  - initNeonSchema() creates every table and index if it is missing; server.js runs it at startup.
+//  - cleanEnvVar() tidies environment variables pasted into the Vercel dashboard.
 
 // Third-party library: Neon serverless driver (https://github.com/neondatabase/serverless) — runs SQL on the Neon Postgres database
 import { neon } from '@neondatabase/serverless'
 
+// The Neon connection is created once and reused
 let sqlInstance = null
 
-/**
- * Robust cleaner for environment variables.
- * Strips accidental wrapping quotes (" or '), leading KEY_NAME= prefixes,
- * and trailing/leading whitespace that often gets pasted into Vercel UI.
- */
+// Cleans an environment variable value: removes wrapping quotes, a pasted "KEY_NAME=" prefix
+// and extra spaces (these often sneak in when pasting into the Vercel settings page).
 export function cleanEnvVar(val, keyName) {
   if (!val) return ''
   let cleaned = String(val).trim().replace(/^["']|["']$/g, '').trim()
@@ -26,6 +21,7 @@ export function cleanEnvVar(val, keyName) {
   return cleaned
 }
 
+// Returns the shared `sql` query function. Throws if DATABASE_URL (or NEON_DATABASE_URL) is not set.
 export function getDb() {
   const rawConn = process.env.DATABASE_URL || process.env.NEON_DATABASE_URL
   const connectionString = cleanEnvVar(rawConn, 'DATABASE_URL') || cleanEnvVar(rawConn, 'NEON_DATABASE_URL')
@@ -41,12 +37,12 @@ export function getDb() {
   return sqlInstance
 }
 
-/**
- * Initializes the PostgreSQL tables if they don't already exist.
- */
+// Creates every table and index if it does not exist yet (safe to run on every start).
+// Order matters: tables that other tables point to (users, habits, habit_groups ...) come first.
 export async function initNeonSchema() {
   const sql = getDb()
 
+  // ---- Users and accounts ----
   await sql`
     CREATE TABLE IF NOT EXISTS users (
       user_id VARCHAR(100) PRIMARY KEY,
@@ -67,6 +63,7 @@ export async function initNeonSchema() {
   await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS goal_target VARCHAR(80);`
   await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS goal_updated_at TIMESTAMPTZ;`
 
+  // ---- Habits and daily check-ins ----
   await sql`
     CREATE TABLE IF NOT EXISTS habits (
       id SERIAL PRIMARY KEY,
@@ -103,6 +100,7 @@ export async function initNeonSchema() {
     CREATE INDEX IF NOT EXISTS idx_check_ins_user_date ON check_ins(user_id, date);
   `
 
+  // ---- Leaderboard cheers and nudges ----
   await sql`
     CREATE TABLE IF NOT EXISTS cheers (
       id SERIAL PRIMARY KEY,
@@ -128,6 +126,7 @@ export async function initNeonSchema() {
     CREATE UNIQUE INDEX IF NOT EXISTS uniq_cheers_daily ON cheers(sender_id, recipient_id, type, sent_on);
   `
 
+  // ---- Friend-vs-friend challenges ----
   await sql`
     CREATE TABLE IF NOT EXISTS challenges (
       id SERIAL PRIMARY KEY,
@@ -149,6 +148,7 @@ export async function initNeonSchema() {
     CREATE INDEX IF NOT EXISTS idx_challenges_participants ON challenges(creator_id, opponent_id);
   `
 
+  // ---- Friends ----
   // Friend requests and friendships share one table. Rejecting, cancelling or
   // removing deletes the row, so the same two people can start over later.
   await sql`
@@ -178,6 +178,7 @@ export async function initNeonSchema() {
     CREATE INDEX IF NOT EXISTS idx_friendships_addressee ON friendships(addressee_id, status);
   `
 
+  // ---- Groups, group activities, check-ins and cheers ----
   await sql`CREATE TABLE IF NOT EXISTS habit_groups (
     id SERIAL PRIMARY KEY,
     name VARCHAR(60) NOT NULL,
@@ -222,6 +223,7 @@ export async function initNeonSchema() {
     UNIQUE (activity_id, user_id, checkin_date)
   )`
   await sql`CREATE INDEX IF NOT EXISTS idx_group_checkins_group_date ON group_checkins(group_id, checkin_date)`
+  // ---- Google Health connection (refresh token + one-time OAuth states) ----
   await sql`CREATE TABLE IF NOT EXISTS google_health_connections (
     user_id VARCHAR(100) PRIMARY KEY REFERENCES users(user_id) ON DELETE CASCADE,
     google_health_user_id VARCHAR(100) NOT NULL,
@@ -235,6 +237,7 @@ export async function initNeonSchema() {
     user_id VARCHAR(100) NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
     expires_at TIMESTAMPTZ NOT NULL
   )`
+  // Cheers sent to a group member for an activity (one per sender, recipient and day)
   await sql`CREATE TABLE IF NOT EXISTS group_activity_cheers (
     activity_id INTEGER NOT NULL REFERENCES group_activities(id) ON DELETE CASCADE,
     from_user_id VARCHAR(100) NOT NULL,

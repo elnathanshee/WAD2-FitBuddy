@@ -1,31 +1,28 @@
-// =============================================================================
-// [IS216 Project Addition: Neon PostgreSQL Habit Controller]
-// Technology: Node.js + PostgreSQL via @neondatabase/serverless
-//
-// Implements full Habit CRUD, atomic check-ins, history, and streak calculation
-// matching the database schema and frontend expectations.
-// =============================================================================
+// Handlers for /api/habits (the Habits page): create, read, update and delete habits, log progress
+// ("check-ins", one row per habit per day), and the history view with streaks.
+// All routes need a logged-in user, and every query is limited to that user's own habits.
+// Streak rules live in utils/streak.js.
 
 import { getDb } from '../config/neon.js'
 import { calculateStreak } from '../utils/streak.js'
-import { toDateKey, addDays, weekStart } from '../utils/dates.js'
+import { toDateKey, addDays, weekStart, isValidDateKey } from '../utils/dates.js'
 
+// Biggest amount a target or a single log may have
 const MAX_AMOUNT = 100000
 
+// Rounds to 2 decimal places (amounts are stored as NUMERIC(10, 2))
 function roundAmount(value) {
   return Math.round(value * 100) / 100
 }
 
-function isValidDateKey(value) {
-  return typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value) && addDays(value, 0) === value
-}
-
+// Error text for a check-in date that is not a real past-or-today day, or null when the date is fine
 function dateError(date) {
   if (!isValidDateKey(date)) return 'date must be a real day in YYYY-MM-DD format'
   if (date > toDateKey()) return 'Cannot check in for a future date'
   return null
 }
 
+// Database row -> the habit shape the frontend expects
 function formatHabitRow(row) {
   return {
     _id: String(row.id),
@@ -44,6 +41,20 @@ function formatHabitRow(row) {
   }
 }
 
+// Database row -> the check-in shape the frontend expects
+function formatCheckInRow(row) {
+  return {
+    _id: String(row.id),
+    userId: row.user_id,
+    habitId: String(row.habit_id),
+    date: row.date,
+    count: Number(row.count),
+  }
+}
+
+// Works out today's amount, the current period's amount and the streak for one habit.
+// A daily habit counts per day; a weekly habit adds up each Monday-Sunday week
+// (weekTotals is only returned for weekly habits).
 function summarise(habit, checkIns, today) {
   const todayCount = checkIns.find((c) => c.date === today)?.count ?? 0
 
@@ -73,6 +84,8 @@ function summarise(habit, checkIns, today) {
 }
 
 // GET /api/habits?today=YYYY-MM-DD
+// Responds 200 with an array of the user's habits (newest first), each with todayCount, periodCount
+// and streak { current, longest }. `today` is the browser's local date. Error: 400 bad date.
 export async function listHabits(req, res) {
   const sql = getDb()
   const { today = toDateKey() } = req.query
@@ -117,6 +130,8 @@ export async function listHabits(req, res) {
 }
 
 // POST /api/habits
+// Body: { name (max 50), category?, frequency?, target: { amount, unit }, icon? }
+// Responds 201 with the new habit. Error: 400 invalid name or amount.
 export async function createHabit(req, res) {
   const sql = getDb()
   const { name, category = 'other', frequency = 'daily', target, icon = '✅' } = req.body || {}
@@ -141,6 +156,7 @@ export async function createHabit(req, res) {
 }
 
 // GET /api/habits/:id
+// Responds 200 with one habit. Error: 404 not found (or not yours).
 export async function getHabit(req, res) {
   const sql = getDb()
   const habitId = parseInt(req.params.id, 10)
@@ -155,6 +171,8 @@ export async function getHabit(req, res) {
 }
 
 // PUT /api/habits/:id
+// Body: any of { name, category, frequency, target: { amount, unit }, icon }; missing fields keep their value.
+// Responds 200 with the updated habit. Errors: 404 not found, 400 empty name.
 export async function updateHabit(req, res) {
   const sql = getDb()
   const habitId = parseInt(req.params.id, 10)
@@ -195,6 +213,7 @@ export async function updateHabit(req, res) {
 }
 
 // DELETE /api/habits/:id
+// Deletes the habit and (by cascade) its check-ins. Responds 204. Error: 404 not found.
 export async function deleteHabit(req, res) {
   const sql = getDb()
   const habitId = parseInt(req.params.id, 10)
@@ -209,6 +228,8 @@ export async function deleteHabit(req, res) {
 }
 
 // POST /api/habits/:id/checkins
+// Body: { date: 'YYYY-MM-DD' (not in the future), count = 1 }. ADDS count to that day's total.
+// Responds 201 (new day) or 200 (day already had a log) with the check-in. Errors: 404, 400 bad date or count.
 export async function checkIn(req, res) {
   const sql = getDb()
   const habitId = parseInt(req.params.id, 10)
@@ -240,16 +261,12 @@ export async function checkIn(req, res) {
   `
 
   const isCreated = rows[0].is_new
-  res.status(isCreated ? 201 : 200).json({
-    _id: String(rows[0].id),
-    userId: rows[0].user_id,
-    habitId: String(rows[0].habit_id),
-    date: rows[0].date,
-    count: Number(rows[0].count),
-  })
+  res.status(isCreated ? 201 : 200).json(formatCheckInRow(rows[0]))
 }
 
 // PUT /api/habits/:id/checkins/:date
+// Body: { count }. SETS that day's total (0 deletes the check-in). Used by Undo and Edit.
+// Responds 200 with the check-in, or 204 when the total is 0. Errors: 404, 400 bad date or count.
 export async function setCheckIn(req, res) {
   const sql = getDb()
   const habitId = parseInt(req.params.id, 10)
@@ -286,16 +303,11 @@ export async function setCheckIn(req, res) {
     RETURNING id, user_id, habit_id, date, count
   `
 
-  res.json({
-    _id: String(rows[0].id),
-    userId: rows[0].user_id,
-    habitId: String(rows[0].habit_id),
-    date: rows[0].date,
-    count: Number(rows[0].count),
-  })
+  res.json(formatCheckInRow(rows[0]))
 }
 
 // DELETE /api/habits/:id/checkins/:date
+// Removes that day's check-in. Responds 204. Error: 404 no check-in on that day.
 export async function undoCheckIn(req, res) {
   const sql = getDb()
   const habitId = parseInt(req.params.id, 10)
@@ -312,7 +324,10 @@ export async function undoCheckIn(req, res) {
   res.status(204).end()
 }
 
-// GET /api/habits/:id/history
+// GET /api/habits/:id/history?today=&from=&to=
+// Responds 200 { habit, checkIns: [{ date, count, completed }], streak, weeks? } for the date range
+// (default: the last 30 days). weeks (week start, total, completed) is only included for weekly habits.
+// Errors: 404 not found, 400 bad dates.
 export async function getHistory(req, res) {
   const sql = getDb()
   const habitId = parseInt(req.params.id, 10)
@@ -343,9 +358,11 @@ export async function getHistory(req, res) {
   const { streak, weekTotals } = summarise(habit, allCheckIns, today)
   const reached = (total) => total >= habit.target.amount
 
-  const isCompleted = weekTotals
-    ? (checkIn) => reached(weekTotals.get(weekStart(checkIn.date)))
-    : (checkIn) => reached(checkIn.count)
+  // A weekly habit's day counts as completed when its whole WEEK reached the target
+  function isCompleted(checkIn) {
+    if (weekTotals) return reached(weekTotals.get(weekStart(checkIn.date)))
+    return reached(checkIn.count)
+  }
 
   const checkIns = allCheckIns
     .filter((c) => c.date >= from && c.date <= to)

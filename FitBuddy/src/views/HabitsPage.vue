@@ -241,7 +241,6 @@ async function onLogged(change) {
     celebrate()
     celebrating.value = true
     clearTimeout(celebrationTimer)
-  clearTimeout(undoTimer)
     celebrationTimer = setTimeout(() => (celebrating.value = false), 6000)
   }
 }

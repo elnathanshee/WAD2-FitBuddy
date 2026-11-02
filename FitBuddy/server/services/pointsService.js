@@ -1,3 +1,6 @@
+// Scoring rules for the weekly leaderboard (and the points part of achievements).
+// Everything here is pure (no database), so tests/points.test.js can check it with plain objects.
+// Used by neonLeaderboardController.js, achievementsController.js and achievementsService.js.
 import { addDays, weekStart } from '../utils/dates.js'
 
 // Scoring rules. Kept in one place so the API, the tests and any future
@@ -8,7 +11,8 @@ export const POINTS = {
   STREAK_MILESTONE: 30, // a run of completions reaching 7, 14, 21, ...
 }
 
-export const STREAK_MILESTONE_EVERY = 7
+// A streak bonus is paid every 7th completion in an unbroken run
+const STREAK_MILESTONE_EVERY = 7
 
 // How far back to read history. Only needed so a streak that began before this
 // week is measured at its true length when it crosses a milestone.

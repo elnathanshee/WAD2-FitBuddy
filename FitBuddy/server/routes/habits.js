@@ -1,3 +1,4 @@
+// Route table for /api/habits (habit CRUD, check-ins, history). Handlers: controllers/neonHabitController.js.
 import { Router } from 'express'
 import { listHabits, createHabit, getHabit, updateHabit, deleteHabit, checkIn, setCheckIn, undoCheckIn, getHistory } from '../controllers/neonHabitController.js'
 

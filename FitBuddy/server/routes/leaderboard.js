@@ -1,3 +1,4 @@
+// Route table for /api/leaderboard (weekly ranking, my score, profile, cheers). Handlers: controllers/neonLeaderboardController.js.
 import { Router } from 'express'
 import { weeklyLeaderboard, myScore, upsertProfile, sendCheer, getCheers } from '../controllers/neonLeaderboardController.js'
 

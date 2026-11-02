@@ -1,13 +1,11 @@
-// =============================================================================
-// [IS216 Project Addition: User Authentication Middleware]
-// Technology: JWT verification via server/utils/auth.js + fallback x-user-id
-//
-// Extracts and verifies JWT from "Authorization: Bearer <token>" header.
-// Falls back to "x-user-id" for testing and backward compatibility.
-// =============================================================================
+// Login check used by almost every route (see app.js and the routes/ files).
+// Finds out who is calling and stores their id on req.userId for the controllers to use.
+// Accepts either "Authorization: Bearer <token>" (the real login) or an "x-user-id" header
+// (kept for tests and the demo-athlete switcher). Otherwise responds 401.
 
 import { verifyToken } from '../utils/auth.js'
 
+// Express middleware: calls next() when the caller is identified, otherwise sends 401.
 export function requireUser(req, res, next) {
   // 1. Check Authorization Bearer header
   const authHeader = req.get('authorization')

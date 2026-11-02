@@ -1,7 +1,5 @@
-// =============================================================================
-// [IS216 Project Addition: OneSignal Notification Controller]
-// Technology: Express.js + OneSignal REST API
-// =============================================================================
+// Handlers for /api/notifications (OneSignal push notifications). All need a logged-in user.
+// The actual sending lives in services/notificationService.js.
 
 import { getOneSignalConfig } from '../config/onesignal.js'
 import {
@@ -13,7 +11,7 @@ import { toDateKey } from '../utils/dates.js'
 
 /**
  * GET /api/notifications/status
- * Returns OneSignal configuration status so the frontend can display setup hints.
+ * Responds 200 { configured, appId (shortened), fullAppId } so the frontend can show setup hints.
  */
 export async function getStatus(req, res) {
   const config = getOneSignalConfig()
@@ -26,7 +24,7 @@ export async function getStatus(req, res) {
 
 /**
  * POST /api/notifications/test
- * Sends an immediate test notification to the authenticated user.
+ * Body (optional): { title, message }. Sends a test push to the logged-in user and responds with the result.
  */
 export async function sendTestNotification(req, res) {
   const { title = '🎉 HabitBuddy Test Notification', message = 'OneSignal push notifications are working smoothly!' } =
@@ -43,33 +41,41 @@ export async function sendTestNotification(req, res) {
   res.json(result)
 }
 
+// Names of the user's daily habits whose target is not yet met today.
+async function findPendingDailyHabitNames(userId, today) {
+  const sql = getDb()
+  const habitRows = await sql`
+    SELECT h.id, h.name, h.frequency, h.target_amount,
+           COALESCE(SUM(c.count), 0)::float as today_logged
+    FROM habits h
+    LEFT JOIN check_ins c ON c.habit_id = h.id AND c.date = ${today}
+    WHERE h.user_id = ${userId}
+    GROUP BY h.id, h.name, h.frequency, h.target_amount
+  `
+
+  const pendingNames = []
+  for (const habit of habitRows) {
+    const isDaily = habit.frequency !== 'weekly'
+    if (isDaily && habit.today_logged < Number(habit.target_amount)) {
+      pendingNames.push(habit.name)
+    }
+  }
+  return pendingNames
+}
+
 /**
  * POST /api/notifications/remind-habits
- * Scans the current user's habits for today, identifies pending ones, and pushes a reminder.
+ * Finds today's unfinished daily habits and pushes a reminder. Responds with the send result plus pendingHabits.
  */
 export async function remindHabits(req, res) {
   const userId = req.userId
   const today = toDateKey()
-  const pendingHabitNames = []
+  let pendingHabitNames = []
 
   try {
-    const sql = getDb()
-    const habitRows = await sql`
-      SELECT h.id, h.name, h.frequency, h.target_amount,
-             COALESCE(SUM(c.count), 0)::float as today_logged
-      FROM habits h
-      LEFT JOIN check_ins c ON c.habit_id = h.id AND c.date = ${today}
-      WHERE h.user_id = ${userId}
-      GROUP BY h.id, h.name, h.frequency, h.target_amount
-    `
-
-    for (const h of habitRows) {
-      if (h.frequency !== 'weekly' && h.today_logged < Number(h.target_amount)) {
-        pendingHabitNames.push(h.name)
-      }
-    }
-  } catch (neonErr) {
-    // ignore, will use generic message
+    pendingHabitNames = await findPendingDailyHabitNames(userId, today)
+  } catch (dbError) {
+    // ignore: the reminder falls back to the generic message
   }
 
   const result = await sendReminderService(userId, {
@@ -85,7 +91,7 @@ export async function remindHabits(req, res) {
 
 /**
  * POST /api/notifications/broadcast
- * Broadcasts an announcement notification to all subscribed athletes.
+ * Body (optional): { title, message }. Sends an announcement push to every subscriber.
  */
 export async function broadcastNotification(req, res) {
   const { title = '📢 HabitBuddy Announcement', message = 'Check out this week’s leaderboard!' } = req.body || {}

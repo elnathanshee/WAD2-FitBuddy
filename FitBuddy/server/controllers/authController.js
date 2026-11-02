@@ -1,30 +1,45 @@
-// =============================================================================
-// [IS216 Project Addition: Authentication Controller with Neon PostgreSQL]
-// Technology: Express.js + Neon PostgreSQL + node:crypto salted scrypt hashing
-//
-// Features:
-// - User Registration with password hashing and initial habit bootstrapping
-// - Secure Login with JWT generation
-// - Profile resolution and Demo User switching
-// =============================================================================
+// Handlers for /api/auth: sign up, log in, who am I, demo accounts, profile and fitness goal.
+// Passwords are hashed and login tokens created by utils/auth.js.
+// Public routes: signup, login, demo-users. The rest need a logged-in user (req.userId).
 
 import { getDb } from '../config/neon.js'
 import { hashPassword, verifyPassword, createToken } from '../utils/auth.js'
 
+// The avatar colours a user can have (the profile form offers the same list)
 const AVATAR_COLORS = [
   '#4F46E5', '#10B981', '#F59E0B', '#EC4899',
   '#8B5CF6', '#06B6D4', '#EF4444', '#14B8A6',
 ]
 
+// The fitness goals a user can choose
+const ALLOWED_GOALS = ['wellness', 'weight-loss', 'muscle-gain', 'cardio', 'strength', 'mobility', 'sleep']
+
+// The free-text "goal target" (e.g. "run 5km"): trimmed and at most 80 characters, '' if not a string
+function cleanGoalTarget(value) {
+  if (typeof value !== 'string') return ''
+  return value.trim().slice(0, 80)
+}
+
+// The user shape sent to the frontend (never includes the password hash)
+function userToJson(row) {
+  return {
+    id: row.user_id,
+    name: row.display_name,
+    email: row.email,
+    avatarColor: row.avatar_color,
+  }
+}
+
 /**
  * POST /api/auth/signup
- * Body: { name, email, password }
+ * Body: { name, email, password, primaryGoal?, goalTarget? }
+ * Creates the account plus three starter habits for the chosen goal.
+ * Responds 201 { message, token, user }. Errors: 400 invalid fields, 409 email already used.
  */
 export async function signup(req, res) {
   const { name, email, password } = req.body || {}
-  const allowedGoals = ['wellness', 'weight-loss', 'muscle-gain', 'cardio', 'strength', 'mobility', 'sleep']
-  const primaryGoal = allowedGoals.includes(req.body?.primaryGoal) ? req.body.primaryGoal : 'wellness'
-  const goalTarget = typeof req.body?.goalTarget === 'string' ? req.body.goalTarget.trim().slice(0, 80) : ''
+  const primaryGoal = ALLOWED_GOALS.includes(req.body?.primaryGoal) ? req.body.primaryGoal : 'wellness'
+  const goalTarget = cleanGoalTarget(req.body?.goalTarget)
 
   if (!name || typeof name !== 'string' || name.trim().length === 0) {
     return res.status(400).json({ message: 'Full name is required.' })
@@ -80,17 +95,14 @@ export async function signup(req, res) {
   res.status(201).json({
     message: 'Account created successfully!',
     token,
-    user: {
-      id: newUser.user_id,
-      name: newUser.display_name,
-      email: newUser.email,
-      avatarColor: newUser.avatar_color,
-    },
+    user: userToJson(newUser),
   })
 }
 
+// The three starter habits a new account gets, depending on the goal they picked.
+// Each line is [name, category, target amount, unit, icon].
 function getGoalHabits(goal) {
-  const common = {
+  const habitsByGoal = {
     wellness: [
       ['Drink water', 'water', 8, 'glasses', '💧'], ['Take a mindful break', 'mindfulness', 10, 'minutes', '🌿'], ['Go for a walk', 'exercise', 20, 'minutes', '🚶'],
     ],
@@ -113,9 +125,13 @@ function getGoalHabits(goal) {
       ['Keep a bedtime routine', 'sleep', 1, 'times', '🌙'], ['Avoid screens before bed', 'sleep', 30, 'minutes', '📵'], ['Get morning daylight', 'wellness', 10, 'minutes', '☀️'],
     ],
   }
-  return common[goal].map(([name, category, targetAmount, targetUnit, icon]) => ({ name, category, frequency: 'daily', targetAmount, targetUnit, icon }))
+  return habitsByGoal[goal].map(([name, category, targetAmount, targetUnit, icon]) => ({ name, category, frequency: 'daily', targetAmount, targetUnit, icon }))
 }
 
+/**
+ * GET /api/auth/goal
+ * Responds 200 { goal: { primaryGoal, goalTarget, updatedAt } }. Error: 404 user not found.
+ */
 export async function getGoal(req, res) {
   const sql = getDb()
   const rows = await sql`SELECT primary_goal, goal_target, goal_updated_at FROM users WHERE user_id = ${req.userId} LIMIT 1`
@@ -123,11 +139,15 @@ export async function getGoal(req, res) {
   res.json({ goal: { primaryGoal: rows[0].primary_goal || 'wellness', goalTarget: rows[0].goal_target || '', updatedAt: rows[0].goal_updated_at } })
 }
 
+/**
+ * PUT /api/auth/goal
+ * Body: { primaryGoal (one of the allowed goals), goalTarget? }
+ * Responds 200 { goal }. Errors: 400 invalid goal, 404 user not found.
+ */
 export async function updateGoal(req, res) {
-  const allowedGoals = ['wellness', 'weight-loss', 'muscle-gain', 'cardio', 'strength', 'mobility', 'sleep']
   const primaryGoal = req.body?.primaryGoal
-  if (!allowedGoals.includes(primaryGoal)) return res.status(400).json({ message: 'Choose a valid goal.' })
-  const goalTarget = typeof req.body?.goalTarget === 'string' ? req.body.goalTarget.trim().slice(0, 80) : ''
+  if (!ALLOWED_GOALS.includes(primaryGoal)) return res.status(400).json({ message: 'Choose a valid goal.' })
+  const goalTarget = cleanGoalTarget(req.body?.goalTarget)
   const sql = getDb()
   const rows = await sql`UPDATE users SET primary_goal = ${primaryGoal}, goal_target = ${goalTarget || null}, goal_updated_at = NOW(), updated_at = NOW() WHERE user_id = ${req.userId} RETURNING primary_goal, goal_target, goal_updated_at`
   if (!rows.length) return res.status(404).json({ message: 'User not found.' })
@@ -137,6 +157,7 @@ export async function updateGoal(req, res) {
 /**
  * POST /api/auth/login
  * Body: { email, password }
+ * Responds 200 { message, token, user }. Errors: 400 missing fields, 401 wrong email or password.
  */
 export async function login(req, res) {
   const { email, password } = req.body || {}
@@ -177,18 +198,13 @@ export async function login(req, res) {
   res.json({
     message: 'Login successful',
     token,
-    user: {
-      id: user.user_id,
-      name: user.display_name,
-      email: user.email,
-      avatarColor: user.avatar_color,
-    },
+    user: userToJson(user),
   })
 }
 
 /**
  * GET /api/auth/me
- * Headers: Authorization: Bearer <token>
+ * Needs a logged-in user. Responds 200 { user }. Error: 404 user not found.
  */
 export async function getCurrentUser(req, res) {
   const sql = getDb()
@@ -203,20 +219,13 @@ export async function getCurrentUser(req, res) {
     return res.status(404).json({ message: 'User not found.' })
   }
 
-  const u = rows[0]
-  res.json({
-    user: {
-      id: u.user_id,
-      name: u.display_name,
-      email: u.email,
-      avatarColor: u.avatar_color,
-    },
-  })
+  res.json({ user: userToJson(rows[0]) })
 }
 
 /**
  * GET /api/auth/demo-users
- * Returns list of seeded demo profiles with pre-filled test credentials
+ * Public. Responds 200 { demoAccounts: [{ id, name, email, avatarColor }] } (the 8 oldest accounts,
+ * used by the demo-athlete switcher).
  */
 export async function getDemoUsers(req, res) {
   const sql = getDb()
@@ -228,16 +237,10 @@ export async function getDemoUsers(req, res) {
     LIMIT 8
   `
 
-  const demoAccounts = rows.map((u) => ({
-    id: u.user_id,
-    name: u.display_name,
-    email: u.email,
-    avatarColor: u.avatar_color,
-  }))
+  const demoAccounts = rows.map(userToJson)
 
   res.json({ demoAccounts })
 }
-
 
 /**
  * PUT /api/auth/profile
@@ -246,6 +249,7 @@ export async function getDemoUsers(req, res) {
  * Lets a signed-in user rename themselves and pick an avatar colour. Only those
  * two fields can be changed here - the email and the password hash are never
  * read from the body, so a request cannot overwrite them.
+ * Responds 200 { user }. Errors: 400 invalid name or colour, 404 user not found.
  */
 export async function updateProfile(req, res) {
   const name = typeof req.body?.name === 'string' ? req.body.name.trim() : ''
@@ -272,15 +276,5 @@ export async function updateProfile(req, res) {
   `
   if (!rows.length) return res.status(404).json({ message: 'User not found.' })
 
-  res.json({
-    user: {
-      id: rows[0].user_id,
-      name: rows[0].display_name,
-      email: rows[0].email,
-      avatarColor: rows[0].avatar_color,
-    },
-  })
+  res.json({ user: userToJson(rows[0]) })
 }
-
-// The colours the profile form offers, so the page and the check above agree.
-export { AVATAR_COLORS }

@@ -1,5 +1,5 @@
 // =============================================================================
-// [IS216 Project Addition: Gemini AI Route]
+// Route table for /api/ai (Gemini habit suggestions and coach chat). Handlers: controllers/aiController.js.
 // Express router mounted at /api/ai
 // =============================================================================
 

@@ -1,9 +1,6 @@
-// =============================================================================
-// [IS216 Project Addition: Neon PostgreSQL Leaderboard Controller]
-// Technology: Node.js + PostgreSQL via @neondatabase/serverless
-//
-// Computes live weekly leaderboard points, user rankings, streaks, and cheers.
-// =============================================================================
+// Handlers for /api/leaderboard (the Leaderboard page): the weekly ranking, my own score, my
+// profile name/colour, and cheers and nudges between athletes. All need a logged-in user.
+// Points are never stored: they are calculated from check-ins each time (rules in services/pointsService.js).
 
 import { getDb } from '../config/neon.js'
 import {
@@ -12,15 +9,65 @@ import {
   scoreWeek,
   POINTS,
 } from '../services/pointsService.js'
-import { toDateKey, addDays, weekStart } from '../utils/dates.js'
+import { addDays, weekStart, resolveToday } from '../utils/dates.js'
 import { relationFor, otherUserId } from '../utils/friends.js'
 import { sendCheerNotification } from '../services/notificationService.js'
 
-function resolveToday(value) {
-  return typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value) ? value : toDateKey()
+// A check-in query row -> the shape pointsService.js expects
+function toScoringRow(row) {
+  return {
+    userId: row.user_id,
+    habitId: row.habit_id,
+    date: row.date,
+    logged: row.logged,
+    frequency: row.frequency,
+    target: row.target,
+  }
 }
 
-// GET /api/leaderboard/weekly
+// Map of userId -> that user's scoring rows
+function groupRowsByUser(progressRows) {
+  const rowsByUser = new Map()
+  for (const row of progressRows) {
+    if (!rowsByUser.has(row.user_id)) rowsByUser.set(row.user_id, [])
+    rowsByUser.get(row.user_id).push(toScoringRow(row))
+  }
+  return rowsByUser
+}
+
+// Map of userId -> ids of that user's daily (not weekly) habits
+function groupDailyHabitsByUser(habitRows) {
+  const dailyHabitsByUser = new Map()
+  for (const habit of habitRows) {
+    if (habit.frequency === 'weekly') continue
+    if (!dailyHabitsByUser.has(habit.user_id)) dailyHabitsByUser.set(habit.user_id, [])
+    dailyHabitsByUser.get(habit.user_id).push(habit.id)
+  }
+  return dailyHabitsByUser
+}
+
+// Map of recipientId -> Set of cheer types ('cheer', 'nudge') I already sent them today
+function groupSentTypesByRecipient(sentRows) {
+  const sentTodayTypes = groupSentTypesByRecipient(sentRows)
+  return sentTodayTypes
+}
+
+// Adds a rank to each (already sorted) entry. Athletes with equal points share a rank.
+function addRanks(sortedEntries) {
+  let rank = 0
+  let previousPoints = null
+  return sortedEntries.map((entry, index) => {
+    if (entry.points !== previousPoints) {
+      rank = index + 1
+      previousPoints = entry.points
+    }
+    return { ...entry, rank }
+  })
+}
+
+// GET /api/leaderboard/weekly?today=YYYY-MM-DD
+// Responds 200 { weekStart, weekEnd, entries, rules }. Each entry is one athlete with points, a score
+// breakdown, cheersCount, what I already sent them today (sentToday), friendStatus and rank.
 export async function weeklyLeaderboard(req, res) {
   const sql = getDb()
   const today = resolveToday(req.query.today)
@@ -83,25 +130,8 @@ export async function weeklyLeaderboard(req, res) {
     ...progressRows.map((r) => r.user_id),
   ])
 
-  const rowsByUser = new Map()
-  for (const row of progressRows) {
-    if (!rowsByUser.has(row.user_id)) rowsByUser.set(row.user_id, [])
-    rowsByUser.get(row.user_id).push({
-      userId: row.user_id,
-      habitId: row.habit_id,
-      date: row.date,
-      logged: row.logged,
-      frequency: row.frequency,
-      target: row.target,
-    })
-  }
-
-  const dailyHabitsByUser = new Map()
-  for (const habit of habitRows) {
-    if (habit.frequency === 'weekly') continue
-    if (!dailyHabitsByUser.has(habit.user_id)) dailyHabitsByUser.set(habit.user_id, [])
-    dailyHabitsByUser.get(habit.user_id).push(habit.id)
-  }
+  const rowsByUser = groupRowsByUser(progressRows)
+  const dailyHabitsByUser = groupDailyHabitsByUser(habitRows)
 
   const profileByUser = new Map(profileRows.map((p) => [p.user_id, p]))
 
@@ -134,15 +164,7 @@ export async function weeklyLeaderboard(req, res) {
 
   scored.sort((a, b) => b.points - a.points || a.displayName.localeCompare(b.displayName))
 
-  let rank = 0
-  let previousPoints = null
-  const entries = scored.map((entry, index) => {
-    if (entry.points !== previousPoints) {
-      rank = index + 1
-      previousPoints = entry.points
-    }
-    return { ...entry, rank }
-  })
+  const entries = addRanks(scored)
 
   res.json({
     weekStart: weekStartKey,
@@ -152,7 +174,8 @@ export async function weeklyLeaderboard(req, res) {
   })
 }
 
-// The weekly points breakdown for one user (also used for friends' profiles)
+// The weekly points breakdown for one user: { weekStart, ...breakdown, rules }.
+// Used by GET /api/leaderboard/me and by friendController.js for a friend's profile.
 export async function weeklyBreakdown(userId, today) {
   const sql = getDb()
   const weekStartKey = weekStart(today)
@@ -177,14 +200,7 @@ export async function weeklyBreakdown(userId, today) {
     `,
   ])
 
-  const formattedRows = progressRows.map((r) => ({
-    userId: r.user_id,
-    habitId: r.habit_id,
-    date: r.date,
-    logged: r.logged,
-    frequency: r.frequency,
-    target: r.target,
-  }))
+  const formattedRows = progressRows.map(toScoringRow)
 
   const breakdown = scoreWeek({
     byHabit: completedPeriodsByHabit(formattedRows),
@@ -195,13 +211,16 @@ export async function weeklyBreakdown(userId, today) {
   return { weekStart: weekStartKey, ...breakdown, rules: POINTS }
 }
 
-// GET /api/leaderboard/me
+// GET /api/leaderboard/me?today=YYYY-MM-DD
+// Responds 200 { userId, weekStart, completions, completionPoints, ..., total, rules } for the logged-in user.
 export async function myScore(req, res) {
   const result = await weeklyBreakdown(req.userId, resolveToday(req.query.today))
   res.json({ userId: req.userId, ...result })
 }
 
 // PUT /api/leaderboard/profile
+// Body: { displayName (required, max 60), avatarColor? }. Creates or updates the user's row.
+// Responds 200 { userId, displayName, avatarColor }. Error: 400 missing displayName.
 export async function upsertProfile(req, res) {
   const sql = getDb()
   const { displayName, avatarColor } = req.body ?? {}
@@ -227,7 +246,24 @@ export async function upsertProfile(req, res) {
   })
 }
 
+// Sends the push notification for a cheer. Never blocks or fails the request.
+async function notifyRecipient(sql, senderId, recipientId, cheerType, message) {
+  try {
+    const [sender] = await sql`SELECT display_name FROM users WHERE user_id = ${senderId}`
+    sendCheerNotification(recipientId, {
+      senderName: sender?.display_name || 'An athlete',
+      cheerType,
+      message,
+    }).catch((err) => console.warn('[OneSignal Cheer Notification Warning]', err?.message))
+  } catch (notifyErr) {
+    // Non-blocking
+  }
+}
+
 // POST /api/leaderboard/cheer
+// Body: { recipientId, type = 'cheer' ('cheer', 'nudge', 'fire' or 'celebrate'), message? (max 100) }
+// One of each type per sender and recipient per Singapore day.
+// Responds 200 { success: true, message }. Errors: 400 missing recipient or yourself, 409 already sent today.
 export async function sendCheer(req, res) {
   const sql = getDb()
   const { recipientId, type = 'cheer', message = '' } = req.body || {}
@@ -261,22 +297,14 @@ export async function sendCheer(req, res) {
     })
   }
 
-  // Asynchronously trigger OneSignal push notification to the recipient
-  try {
-    const [sender] = await sql`SELECT display_name FROM users WHERE user_id = ${req.userId}`
-    sendCheerNotification(recipientId, {
-      senderName: sender?.display_name || 'An athlete',
-      cheerType,
-      message: cleanMsg,
-    }).catch((err) => console.warn('[OneSignal Cheer Notification Warning]', err?.message))
-  } catch (notifyErr) {
-    // Non-blocking
-  }
+  // Tell the recipient by push notification
+  await notifyRecipient(sql, req.userId, recipientId, cheerType, cleanMsg)
 
   res.json({ success: true, message: `Sent ${cheerType}!` })
 }
 
 // GET /api/leaderboard/cheers
+// Responds 200 { cheers: [...] }: the 10 newest cheers and nudges I received, with the sender's name and colour.
 export async function getCheers(req, res) {
   const sql = getDb()
   const rows = await sql`

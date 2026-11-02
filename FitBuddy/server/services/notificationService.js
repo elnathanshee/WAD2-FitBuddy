@@ -1,20 +1,31 @@
-// =============================================================================
-// [IS216 Project Addition: OneSignal Notification Service]
-// Technology: Node.js (fetch) + OneSignal REST API (v1 / v2)
-//
-// Dispatches Web Push Notifications to user devices via OneSignal.
-// Used for habit check-in reminders, friend cheers, and challenge alerts.
-// Includes a graceful simulated fallback when API keys are not yet configured.
-// =============================================================================
+// Sends push notifications through the OneSignal REST API (called with fetch).
+// Used by notificationController.js (reminders, test, broadcast), neonLeaderboardController.js
+// (cheers and nudges) and challengeController.js (challenge invites).
+// When the OneSignal keys are not set, the notification is only logged ("simulated").
 
 import { getOneSignalConfig } from '../config/onesignal.js'
 
 const ONESIGNAL_API_URL = 'https://api.onesignal.com/notifications'
 
+// Targets specific users by their HabitBuddy user id (OneSignal calls it external_id).
+function addRecipients(payload, userIds) {
+  const stringIds = userIds.map((id) => String(id))
+  // OneSignal v2 aliases + v1 external_user_ids for maximum cross-compatibility
+  payload.include_aliases = { external_id: stringIds }
+  payload.include_external_user_ids = stringIds
+}
+
+// How many devices OneSignal says it will notify. Falls back to 1 when it only returned an id.
+function countRecipients(result) {
+  if (typeof result.recipients === 'number') return result.recipients
+  if (result.id) return 1
+  return 0
+}
+
 /**
- * Sends a push notification through OneSignal REST API.
- * Supports targeting specific users by their HabitBuddy userId (external_id),
- * or broadcasting to all subscribed players.
+ * Sends a push notification through the OneSignal REST API.
+ * Targets specific users (userIds) or everyone subscribed (broadcast: true).
+ * Never throws: returns { success, ... } describing what happened (simulated: true without keys).
  */
 export async function sendPushNotification({
   userIds = [],
@@ -59,10 +70,7 @@ export async function sendPushNotification({
   if (broadcast) {
     payload.included_segments = ['Total Subscriptions']
   } else if (userIds.length > 0) {
-    const stringIds = userIds.map((id) => String(id))
-    // OneSignal v2 aliases + v1 external_user_ids for maximum cross-compatibility
-    payload.include_aliases = { external_id: stringIds }
-    payload.include_external_user_ids = stringIds
+    addRecipients(payload, userIds)
   } else {
     return {
       success: false,
@@ -91,7 +99,7 @@ export async function sendPushNotification({
       }
     }
 
-    const recipientsCount = typeof result.recipients === 'number' ? result.recipients : (result.id ? 1 : 0)
+    const recipientsCount = countRecipients(result)
 
     return {
       success: true,
@@ -114,7 +122,7 @@ export async function sendPushNotification({
 }
 
 /**
- * Sends a daily habit check-in reminder to an athlete.
+ * Sends a daily habit check-in reminder. Lists up to two unfinished habit names in the text.
  */
 export async function sendHabitReminder(userId, { habitNames = [], remainingCount = 0 } = {}) {
   const count = remainingCount || habitNames.length
@@ -136,7 +144,7 @@ export async function sendHabitReminder(userId, { habitNames = [], remainingCoun
 }
 
 /**
- * Sends a notification when a friend cheers or nudges the user.
+ * Tells a user that a friend cheered or nudged them (used by the leaderboard).
  */
 export async function sendCheerNotification(recipientId, { senderName = 'A friend', cheerType = 'cheer', message = '' } = {}) {
   const emojiMap = {
@@ -159,7 +167,7 @@ export async function sendCheerNotification(recipientId, { senderName = 'A frien
 }
 
 /**
- * Sends a notification when a friend challenges the user.
+ * Tells a user that a friend invited them to a challenge (used when a challenge is created).
  */
 export async function sendChallengeNotification(opponentId, { creatorName = 'A friend', title = 'Challenge', targetDays = 7 } = {}) {
   return sendPushNotification({

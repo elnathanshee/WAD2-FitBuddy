@@ -1,15 +1,11 @@
-// =============================================================================
-// [IS216 Project Addition: Gemini AI Goal Coach Controller]
-// Technology: Node.js (v22 built-in fetch) + Google Gemini API (v1beta REST)
-//
-// Description:
-// Receives user lifestyle descriptions or structured questionnaire answers,
-// sends an asynchronous HTTP POST request to the Google Gemini API, and enforces
-// structured JSON output matching the HabitBuddy habit schema (see config/neon.js).
-// =============================================================================
+// Handlers for /api/ai (the AI coach): habit suggestions and the multi-turn coach chat.
+// Each handler builds a request, sends it to the Google Gemini REST API with Node's built-in fetch,
+// asks for JSON output in the habit shape (see the habits table in config/neon.js), and cleans the answer.
+// The API key comes from the request body (set in the coach settings) or from GEMINI_API_KEY.
 
 import { cleanEnvVar } from '../config/neon.js'
 
+// The values a suggested habit may use (they must fit the habits table)
 const HABIT_CATEGORIES = ['exercise', 'water', 'sleep', 'study', 'other']
 const HABIT_FREQUENCIES = ['daily', 'weekly']
 
@@ -34,6 +30,7 @@ Every suggested habit MUST adhere to the HabitBuddy schema:
 - description: A short, encouraging 1-sentence explanation of why this habit helps their specific goal.
 `.trim()
 
+// The JSON shape Gemini must return for each habit
 const HABIT_SCHEMA = {
   type: 'object',
   properties: {
@@ -54,6 +51,7 @@ const HABIT_SCHEMA = {
   required: ['name', 'category', 'frequency', 'target', 'icon', 'description'],
 }
 
+// The key sent by the browser wins; otherwise the server's GEMINI_API_KEY is used
 function resolveApiKey(clientApiKey) {
   return cleanEnvVar(clientApiKey || process.env.GEMINI_API_KEY, 'GEMINI_API_KEY')
 }
@@ -110,9 +108,23 @@ async function callGemini(payload, apiKey) {
   return { data: JSON.parse(textOutput) }
 }
 
+// Turns the user's free-text description and/or questionnaire answers into the text sent to Gemini
+function buildUserContext(prompt, questionnaire) {
+  let userContext = ''
+  if (prompt && prompt.trim()) {
+    userContext += `User Lifestyle & Goal Description:\n"${prompt.trim()}"\n\n`
+  }
+  if (questionnaire && typeof questionnaire === 'object') {
+    userContext += `User Questionnaire Responses:\n${JSON.stringify(questionnaire, null, 2)}\n\n`
+  }
+  return userContext
+}
+
 /**
- * Controller: POST /api/ai/suggest-habits
- * Body: { prompt?: string, questionnaire?: object, apiKey?: string }
+ * POST /api/ai/suggest-habits
+ * Body: { prompt?: string, questionnaire?: object, apiKey?: string } (prompt or questionnaire is required)
+ * Responds 200 { suggestions: [habit] }.
+ * Errors: 400 no API key or nothing to analyse, 502 Gemini failed or timed out, 500 unexpected failure.
  */
 export async function suggestHabits(req, res) {
   const { prompt, questionnaire, apiKey: clientApiKey } = req.body || {}
@@ -122,13 +134,7 @@ export async function suggestHabits(req, res) {
   if (!apiKey) return res.status(400).json({ message: MISSING_KEY_MESSAGE })
 
   // 2. Build the context for Gemini
-  let userContext = ''
-  if (prompt && prompt.trim()) {
-    userContext += `User Lifestyle & Goal Description:\n"${prompt.trim()}"\n\n`
-  }
-  if (questionnaire && typeof questionnaire === 'object') {
-    userContext += `User Questionnaire Responses:\n${JSON.stringify(questionnaire, null, 2)}\n\n`
-  }
+  const userContext = buildUserContext(prompt, questionnaire)
 
   if (!userContext.trim()) {
     return res.status(400).json({
@@ -177,26 +183,31 @@ ${HABIT_RULES}
   }
 }
 
+// Only the latest turns are sent, and each one is cut to this many characters
 const MAX_CHAT_MESSAGES = 12
 const MAX_MESSAGE_LENGTH = 1000
 
+// True when messages is a non-empty list of { role: 'user' | 'model', text } with real text
+function isWellFormedConversation(messages) {
+  if (!Array.isArray(messages) || messages.length === 0) return false
+  return messages.every((m) => {
+    const hasValidRole = m?.role === 'user' || m?.role === 'model'
+    return hasValidRole && typeof m.text === 'string' && m.text.trim()
+  })
+}
+
 /**
- * Controller: POST /api/ai/coach-chat
+ * POST /api/ai/coach-chat
  * Multi-turn goal coach. The client sends the whole conversation each time.
  * Body: { messages: [{ role: 'user' | 'model', text: string }], apiKey?: string }
- * Returns: { reply: string, suggestions: Habit[] }
+ * Responds 200 { reply: string, suggestions: Habit[] }.
+ * Errors: 400 bad conversation or no API key, 502 Gemini failed or timed out, 500 unexpected failure.
  */
 export async function coachChat(req, res) {
   const { messages, apiKey: clientApiKey } = req.body || {}
 
   // 1. Validate the conversation: non-empty, well-formed, and ending with the user's turn
-  const valid =
-    Array.isArray(messages) &&
-    messages.length > 0 &&
-    messages.every(
-      (m) => (m?.role === 'user' || m?.role === 'model') && typeof m.text === 'string' && m.text.trim(),
-    )
-  if (!valid) {
+  if (!isWellFormedConversation(messages)) {
     return res.status(400).json({ message: 'Please send at least one message to the coach.' })
   }
   if (messages[messages.length - 1].role !== 'user') {

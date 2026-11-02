@@ -1,3 +1,6 @@
+// Route table for /api/groups (group activities on the Groups page). Handlers: controllers/groupController.js.
+// Mounted behind requireUser in app.js, so req.userId is always set.
+
 import { Router } from 'express'
 import { checkIn, cheerParticipant, createActivity, createGroup, deleteActivity, listGroups } from '../controllers/groupController.js'
 

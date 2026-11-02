@@ -20,6 +20,7 @@
 import { toDateKey, addDays, weekStart } from './dates.js'
 import { calculateStreak } from './streak.js'
 
+// The periods the Dashboard can show
 export const PERIODS = ['day', 'week', 'month']
 
 // The first and last day of the period `offset` periods before the current one.
@@ -40,10 +41,12 @@ export function periodRange(period, today, offset = 0) {
   }
 }
 
-export function rate(done, due) {
+// Completion rate as a whole percentage, or null when nothing was due
+function rate(done, due) {
   return due > 0 ? Math.round((done / due) * 100) : null
 }
 
+// Every 'YYYY-MM-DD' from `from` to `to`, inclusive
 function daysBetween(from, to) {
   const days = []
   for (let day = from; day <= to; day = addDays(day, 1)) days.push(day)
@@ -61,9 +64,12 @@ function indexCheckIns(checkIns) {
   return byHabit
 }
 
+// The day a habit starts counting: its creation day, or its earliest check-in if that is earlier
 function startDate(habit, days) {
   let start = habit.createdOn
-  for (const date of days.keys()) if (date < start) start = date
+  for (const date of days.keys()) {
+    if (date < start) start = date
+  }
   return start
 }
 
@@ -103,7 +109,8 @@ function habitProgress(habit, days, period, from, end) {
     }
   } else {
     const first = habit.start > from ? habit.start : from
-    for (const day of first <= end ? daysBetween(first, end) : []) {
+    const daysToCount = first <= end ? daysBetween(first, end) : []
+    for (const day of daysToCount) {
       const count = days.get(day) ?? 0
       due++
       amount += count
@@ -113,6 +120,7 @@ function habitProgress(habit, days, period, from, end) {
   return { done, due, amount: Math.round(amount * 100) / 100, rate: rate(done, due) }
 }
 
+// Adds up done/due over all habits for one period (`end` = the period's last day, capped at today)
 function periodTotals(habits, index, period, from, to, today) {
   const end = to < today ? to : today
   const progress = habits.map((h) => habitProgress(h, index.get(h.id) ?? new Map(), period, from, end))
@@ -133,7 +141,10 @@ function daySeries(habits, index, from, to, today) {
   })
 }
 
-const isPerfect = (day) => day.due > 0 && day.done === day.due
+// A "perfect" day had at least one daily habit due and all of them done
+function isPerfect(day) {
+  return day.due > 0 && day.done === day.due
+}
 
 // Current and longest streak per habit, as of today (same rules as the Habits page).
 function habitStreak(habit, days, today) {
@@ -155,10 +166,17 @@ function perfectDayStreak(habits, index, today) {
   return calculateStreak(perfect, today)
 }
 
+// Indexes the check-ins and gives each habit its `start` day
 function prepare(habits, checkIns) {
   const index = indexCheckIns(checkIns)
   const prepared = habits.map((h) => ({ ...h, start: startDate(h, index.get(h.id) ?? new Map()) }))
   return { index, habits: prepared }
+}
+
+// Percentage-point change from the previous period, or null if either period had nothing due
+function rateChange(currentRate, previousRate) {
+  if (currentRate === null || previousRate === null) return null
+  return currentRate - previousRate
 }
 
 /**
@@ -195,7 +213,7 @@ export function buildAnalytics(rawHabits, checkIns, { period, today, offset = 0 
       done: current.done,
       due: current.due,
       previousRate: previous.rate,
-      change: current.rate !== null && previous.rate !== null ? current.rate - previous.rate : null,
+      change: rateChange(current.rate, previous.rate),
       checkIns: checkInCount,
       activeHabits: habits.filter((h) => h.start <= current.end).length,
       perfectDays: days.filter(isPerfect).length,

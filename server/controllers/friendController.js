@@ -1,24 +1,17 @@
-// =============================================================================
-// [IS216 Project Addition: Social & Friends Controller]
-// Technology: Express.js + Neon PostgreSQL
-//
+// Handlers for /api/friends (the Friends page and a friend's profile). All need a logged-in user.
 // Find athletes, send / accept / reject / cancel friend requests, remove
 // friends, and view a friend's profile and weekly progress. A friendship is one
 // row in `friendships` per pair of people; rejecting, cancelling and removing
 // delete the row so the two can start again later. Emails are never returned.
-// =============================================================================
 
 import { getDb } from '../config/neon.js'
-import { toDateKey, addDays } from '../utils/dates.js'
+import { toDateKey, isValidDateKey } from '../utils/dates.js'
 import { buildAnalytics } from '../utils/analytics.js'
 import { relationFor, normaliseSearch } from '../utils/friends.js'
 import { loadUserData } from './analyticsController.js'
 import { weeklyBreakdown } from './neonLeaderboardController.js'
 
-function isValidDateKey(value) {
-  return typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value) && addDays(value, 0) === value
-}
-
+// True when the :id in the URL is a whole number
 function isRequestId(value) {
   return Number.isInteger(Number(value))
 }
@@ -36,6 +29,7 @@ export async function findPair(a, b) {
   return rows[0]
 }
 
+// One user's public details (never the email), or undefined
 async function findUser(userId) {
   const sql = getDb()
   const rows = await sql`
@@ -45,6 +39,8 @@ async function findUser(userId) {
 }
 
 // GET /api/friends
+// Responds 200 { friends, incoming, outgoing }: each a list of { requestId, userId, displayName,
+// avatarColor, since } for people I am friends with, who asked me, and whom I asked.
 export async function listFriends(req, res) {
   const sql = getDb()
   const me = req.userId
@@ -75,6 +71,8 @@ export async function listFriends(req, res) {
 }
 
 // GET /api/friends/search?q=
+// Finds athletes by part of a name or a whole email address (q must be 2+ characters, else 400).
+// Responds 200 { results: [{ userId, displayName, avatarColor, relation, requestId }] }, at most 10.
 export async function searchUsers(req, res) {
   const sql = getDb()
   const me = req.userId
@@ -109,6 +107,9 @@ export async function searchUsers(req, res) {
 }
 
 // POST /api/friends/requests  { userId }
+// Sends a friend request (or accepts it, if that person already asked me).
+// Responds 201 { relation: 'outgoing', requestId, message }, or 200 { relation: 'friends', ... } when accepted.
+// Errors: 400 missing id or yourself, 404 no such athlete, 409 already friends or already asked.
 export async function sendRequest(req, res) {
   const sql = getDb()
   const me = req.userId
@@ -165,6 +166,7 @@ export async function sendRequest(req, res) {
 }
 
 // POST /api/friends/requests/:id/accept
+// Only the person who was asked can accept. Responds 200 { relation: 'friends', message }; 404 if no such pending request.
 export async function acceptRequest(req, res) {
   const sql = getDb()
   if (!isRequestId(req.params.id)) {
@@ -184,6 +186,7 @@ export async function acceptRequest(req, res) {
 }
 
 // POST /api/friends/requests/:id/reject
+// Only the person who was asked can decline (the row is deleted). Responds 200 { relation: 'none', message }; 404 if none.
 export async function rejectRequest(req, res) {
   const sql = getDb()
   if (!isRequestId(req.params.id)) {
@@ -202,6 +205,7 @@ export async function rejectRequest(req, res) {
 }
 
 // DELETE /api/friends/requests/:id
+// Only the sender can cancel a request that is still pending. Responds 200 { relation: 'none', message }; 404 if none.
 export async function cancelRequest(req, res) {
   const sql = getDb()
   if (!isRequestId(req.params.id)) {
@@ -220,6 +224,7 @@ export async function cancelRequest(req, res) {
 }
 
 // DELETE /api/friends/:userId
+// Removes an accepted friendship. Responds 200 { relation: 'none', message }; 404 if you are not friends.
 export async function removeFriend(req, res) {
   const sql = getDb()
   const me = req.userId
@@ -239,6 +244,8 @@ export async function removeFriend(req, res) {
 }
 
 // GET /api/friends/:userId/profile?today=YYYY-MM-DD
+// A friend's (or your own) profile with this week's points and habit analytics.
+// Responds 200 { profile, points, analytics }. Errors: 400 bad date, 404 no such athlete, 403 not friends.
 export async function friendProfile(req, res) {
   const sql = getDb()
   const me = req.userId

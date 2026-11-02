@@ -1,22 +1,12 @@
-// =============================================================================
-// [IS216 Project Addition: Achievements Controller]
-// Technology: Express.js + Neon PostgreSQL via @neondatabase/serverless
-//
+// Handler for GET /api/achievements (the Achievements page).
 // Reads the user's whole check-in history, then asks achievementsService.js
 // which badges that history has earned. All the rules live in the service;
 // this file only fetches rows and sends JSON.
-// =============================================================================
 
 import { getDb } from '../config/neon.js'
 import { completedPeriodsByHabit } from '../services/pointsService.js'
 import { BADGES, buildStats, evaluateBadges } from '../services/achievementsService.js'
-import { toDateKey } from '../utils/dates.js'
-
-// The browser sends its own local date, because "today" in Singapore is not
-// "today" on the server. Anything that is not a real date key is ignored.
-function resolveToday(value) {
-  return typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value) ? value : toDateKey()
-}
+import { resolveToday } from '../utils/dates.js'
 
 // GET /api/achievements?today=YYYY-MM-DD
 // -> 200 { stats, badges: [...], earned, total }

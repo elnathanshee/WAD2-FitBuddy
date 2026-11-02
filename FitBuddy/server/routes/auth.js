@@ -1,10 +1,13 @@
 // =============================================================================
 // [IS216 Project Addition: Auth Routes]
+// Route table for /api/auth (signup, login, profile, goal).
 // Endpoints:
 // - POST /api/auth/signup
 // - POST /api/auth/login
 // - GET  /api/auth/me
 // - GET  /api/auth/demo-users
+// - GET and PUT /api/auth/goal, PUT /api/auth/profile
+// Handlers live in controllers/authController.js.
 // =============================================================================
 
 import { Router } from 'express'

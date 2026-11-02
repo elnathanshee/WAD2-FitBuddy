@@ -1,3 +1,7 @@
+// The Express app: registers CORS, JSON parsing, every /api route group, the 404 handler and the
+// error handler. server.js starts it; the tests import it directly.
+// Routes are available both with and without the /api prefix.
+//
 // Third-party library: Express (https://expressjs.com) — the web server and routing used by the whole API
 import express from 'express'
 // Third-party library: cors (https://github.com/expressjs/cors) — lets the browser call the API from another origin
@@ -22,10 +26,13 @@ const app = express()
 app.use(cors())
 app.use(express.json())
 
+// GET /api/health: a simple "is the server up" check
 app.get(['/api/health', '/health'], (req, res) => {
   res.json({ status: 'ok' })
 })
 
+// Route groups. requireUser (login check) is added here for the groups that always need it;
+// auth, neon, challenges, health-sync and analytics routes ask for it route by route instead.
 app.use(['/api/auth', '/auth'], authRoutes)
 app.use(['/api/neon', '/neon'], neonRoutes)
 app.use(['/api/habits', '/habits'], requireUser, habitRoutes)
@@ -39,6 +46,7 @@ app.use(['/api/analytics', '/analytics'], analyticsRoutes)
 app.use(['/api/achievements', '/achievements'], requireUser, achievementsRoutes)
 app.use(['/api/notifications', '/notifications'], requireUser, notificationRoutes)
 
+// Anything that matched no route above
 app.use((req, res) => {
   res.status(404).json({ message: `Route not found: ${req.method} ${req.originalUrl}` })
 })

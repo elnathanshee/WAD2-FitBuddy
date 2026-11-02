@@ -1,21 +1,13 @@
-import axios from 'axios'
-import { authService } from './authService'
-
-// Shared axios instance for calling the Express API.
+// Builds the Axios request config that sends the logged-in user's token and id.
+// Every service passes authConfig() as the last argument, e.g.
+//   axios.get('/api/habits', authConfig({ params: { today } }))
 // In development, Vite proxies /api to http://localhost:3000 (see vite.config.js).
-const api = axios.create({ baseURL: '/api' })
+import { useAuthStore } from '../stores/auth'
 
-// Attach the logged-in user's Bearer token and ID to every outgoing request.
-api.interceptors.request.use((config) => {
-  const token = localStorage.getItem('fitbuddy_token')
-  if (token) {
-    config.headers['Authorization'] = `Bearer ${token}`
-  }
-  const user = authService.getCurrentUser()
-  if (user?.id) {
-    config.headers['x-user-id'] = String(user.id)
-  }
-  return config
-})
-
-export default api
+export function authConfig(extra = {}) {
+  const auth = useAuthStore()
+  const headers = {}
+  if (auth.token) headers.Authorization = `Bearer ${auth.token}`
+  if (auth.user?.id) headers['x-user-id'] = String(auth.user.id)
+  return { headers, ...extra }
+}

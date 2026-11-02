@@ -1,5 +1,5 @@
 import { createRouter, createWebHistory } from 'vue-router'
-import { authService } from '../services/authService'
+import { useAuthStore } from '../stores/auth'
 import LoginPage from '../components/LoginPage.vue'
 import SignupPage from '../components/SignupPage.vue'
 import HomePage from '../views/HomePage.vue'
@@ -19,7 +19,7 @@ const router = createRouter({
   scrollBehavior: (to, from, savedPosition) => savedPosition || { top: 0 },
   routes: [
     // The entry point: Home when logged in, Login otherwise (decided in the guard below)
-    { path: '/', name: 'root', redirect: () => (authService.isAuthenticated() ? '/home' : '/login') },
+    { path: '/', name: 'root', redirect: () => (useAuthStore().isLoggedIn ? '/home' : '/login') },
     { path: '/login', name: 'login', component: LoginPage, meta: { title: 'Log in' } },
     { path: '/signup', name: 'signup', component: SignupPage, meta: { title: 'Sign up' } },
     {
@@ -77,16 +77,20 @@ const router = createRouter({
   ]
 })
 
-router.beforeEach((to, from, next) => {
-  const isAuthenticated = authService.isAuthenticated()
-  
-  if (to.meta.requiresAuth && !isAuthenticated) {
-    next({ name: 'login' })
-  } else if ((to.name === 'login' || to.name === 'signup') && isAuthenticated) {
-    next({ name: 'home' })
-  } else {
-    next()
+// Route guard: pages marked requiresAuth need a login. We remember where the user
+// wanted to go (redirect) so the Login page can send them back after logging in.
+router.beforeEach((to) => {
+  const auth = useAuthStore()
+  if (to.meta.requiresAuth && !auth.isLoggedIn) {
+    // Home is where Login goes by default, so no redirect is needed for it (keeps the URL a plain /login)
+    if (to.fullPath === '/home') return { path: '/login' }
+    return { path: '/login', query: { redirect: to.fullPath } }
   }
+  // Already logged in, so there is no need to see Login or Signup
+  if ((to.name === 'login' || to.name === 'signup') && auth.isLoggedIn) {
+    return { name: 'home' }
+  }
+  return true
 })
 
 // Each page gets its own tab title and meta description

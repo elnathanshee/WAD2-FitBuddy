@@ -206,10 +206,10 @@ import CountUp from '../CountUp.vue'
 import { analyticsService } from '../../services/analyticsService'
 import { LEVELS, levelFor } from '../../utils/completionLevels'
 import { CATEGORIES } from '../../utils/habitOptions'
-import { useBackground } from '../../composables/useBackground'
+import { useThemeStore } from '../../stores/theme'
 import { fromDateKey } from '../../utils/dates'
 
-const { isDark } = useBackground()
+const theme = useThemeStore()
 
 ChartJS.register(BarElement, LineElement, PointElement, ArcElement, CategoryScale, LinearScale, Filler, Tooltip, Legend)
 
@@ -358,7 +358,7 @@ const categoryChart = computed(() => {
       {
         data: entries.map(([, count]) => count),
         backgroundColor: entries.map(([value]) => CATEGORY_COLOURS[value] ?? EXTRA_COLOURS[extra++ % EXTRA_COLOURS.length]),
-        borderColor: isDark.value ? '#232621' : '#ffffff', // thin gaps in the card colour make each slice easy to tell apart
+        borderColor: theme.isDark ? '#232621' : '#ffffff', // thin gaps in the card colour make each slice easy to tell apart
         borderWidth: 2,
       },
     ],
@@ -374,8 +374,8 @@ const categoryShare = (i) => {
 // ---- Chart options --------------------------------------------------------
 
 // Axis text and gridlines follow the light/dark theme (same values as --fb-text-2 / --fb-hairline)
-const chartText = computed(() => (isDark.value ? '#c2c0b7' : '#5d5850'))
-const chartGrid = computed(() => (isDark.value ? '#41453e' : '#efebe3'))
+const chartText = computed(() => (theme.isDark ? '#c2c0b7' : '#5d5850'))
+const chartGrid = computed(() => (theme.isDark ? '#41453e' : '#efebe3'))
 
 const percentScale = { min: 0, max: 100, ticks: { callback: (v) => `${v}%`, stepSize: 25 } }
 const axisTitle = (text) => ({ display: true, text, font: { weight: '700' }, color: chartText.value })

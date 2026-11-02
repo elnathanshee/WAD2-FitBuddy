@@ -3,7 +3,9 @@
 // Frontend service calling the Express /api/ai endpoints via Axios
 // =============================================================================
 
-import api from './api'
+// Third-party library: Axios (https://axios-http.com) — used for HTTP calls to the Express API
+import axios from 'axios'
+import { authConfig } from './api'
 
 export const aiService = {
   /**
@@ -15,11 +17,7 @@ export const aiService = {
    * @returns {Promise<Array>} List of habit objects matching Habit schema
    */
   async suggestHabits({ prompt, questionnaire, apiKey }) {
-    const { data } = await api.post('/ai/suggest-habits', {
-      prompt,
-      questionnaire,
-      apiKey,
-    })
+    const { data } = await axios.post('/api/ai/suggest-habits', { prompt, questionnaire, apiKey }, authConfig())
     return data.suggestions || []
   },
   /**
@@ -29,7 +27,7 @@ export const aiService = {
    * @returns {Promise<{reply: string, suggestions: Array}>} Coach reply + habits it suggests (may be empty)
    */
   async coachChat(messages, apiKey) {
-    const { data } = await api.post('/ai/coach-chat', { messages, apiKey })
+    const { data } = await axios.post('/api/ai/coach-chat', { messages, apiKey }, authConfig())
     return { reply: data.reply, suggestions: data.suggestions || [] }
   },
 }

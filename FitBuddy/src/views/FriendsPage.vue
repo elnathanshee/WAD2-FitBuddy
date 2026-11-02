@@ -228,7 +228,7 @@
 <script setup>
 import { computed, onMounted, ref, watch } from 'vue'
 import { friendService } from '../services/friendService'
-import { useFriendRequests } from '../composables/useFriendRequests'
+import { useFriendRequestsStore } from '../stores/friendRequests'
 import { errorMessage } from '../services/habitService'
 import FriendRow from '../components/friends/FriendRow.vue'
 import AppModal from '../components/habits/AppModal.vue'
@@ -284,8 +284,8 @@ function friendsSinceLabel(iso) {
 }
 
 // Keep the navbar badge in step with the list on this page
-const { setIncomingCount } = useFriendRequests()
-watch(() => incoming.value.length, setIncomingCount)
+const friendRequests = useFriendRequestsStore()
+watch(() => incoming.value.length, friendRequests.setIncomingCount)
 
 async function load() {
   loading.value = true
@@ -295,7 +295,7 @@ async function load() {
     friends.value = data.friends
     incoming.value = data.incoming
     outgoing.value = data.outgoing
-    setIncomingCount(data.incoming.length)
+    friendRequests.setIncomingCount(data.incoming.length)
     loaded.value = true
   } catch (err) {
     error.value = errorMessage(err)

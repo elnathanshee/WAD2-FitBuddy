@@ -121,11 +121,12 @@
 import { computed, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { friendService } from '../services/friendService'
-import { authService } from '../services/authService'
+import { useAuthStore } from '../stores/auth'
 import { errorMessage } from '../services/habitService'
 import { toDateKey, fromDateKey } from '../utils/dates'
 import AppModal from '../components/habits/AppModal.vue'
 
+const auth = useAuthStore()
 const route = useRoute()
 const router = useRouter()
 
@@ -136,7 +137,7 @@ const notice = ref('') // friendly message for 403 / 404
 const confirming = ref(false)
 const removing = ref(false)
 
-const isSelf = computed(() => String(authService.getCurrentUser()?.id) === String(data.value?.profile.userId))
+const isSelf = computed(() => String(auth.user?.id) === String(data.value?.profile.userId))
 
 const fmt = (iso, options) => new Date(iso).toLocaleDateString(undefined, options)
 

@@ -30,11 +30,11 @@
             <i class="bi" :class="isActive(item) ? item.iconActive : item.icon" aria-hidden="true"></i>
             <!-- Badge: number of pending incoming friend requests (hidden at 0) -->
             <span
-              v-if="item.name === 'friends' && incomingCount > 0"
+              v-if="item.name === 'friends' && friendRequests.incomingCount > 0"
               class="tab-badge position-absolute top-0 start-100 translate-middle badge rounded-pill text-bg-danger"
               data-testid="friends-request-badge"
             >
-              {{ incomingCount }}<span class="visually-hidden"> friend requests</span>
+              {{ friendRequests.incomingCount }}<span class="visually-hidden"> friend requests</span>
             </span>
           </span>
           <span>{{ item.label }}</span>
@@ -101,10 +101,10 @@
                 type="button"
                 role="radio"
                 class="appearance-mode pressable"
-                :class="{ selected: themeMode === mode.value }"
-                :aria-checked="themeMode === mode.value"
+                :class="{ selected: theme.themeMode === mode.value }"
+                :aria-checked="theme.themeMode === mode.value"
                 :data-testid="`appearance-${mode.value}`"
-                @click="setThemeMode(mode.value)"
+                @click="theme.setThemeMode(mode.value)"
               >
                 <i class="bi" :class="mode.icon" aria-hidden="true"></i>
                 <span>{{ mode.label }}</span>
@@ -121,28 +121,28 @@
                 role="switch"
                 aria-label="Switch to night mode automatically"
                 data-testid="appearance-auto-toggle"
-                :checked="themeMode === 'auto'"
-                @change="setThemeMode($event.target.checked ? 'auto' : 'light')"
+                :checked="theme.themeMode === 'auto'"
+                @change="theme.setThemeMode($event.target.checked ? 'auto' : 'light')"
               />
             </label>
           </li>
-          <li><h6 class="dropdown-header px-2">{{ isDark ? 'Dark' : 'Light' }} backgrounds</h6></li>
+          <li><h6 class="dropdown-header px-2">{{ theme.isDark ? 'Dark' : 'Light' }} backgrounds</h6></li>
           <li class="px-2 pb-2">
-            <div class="bg-picker" role="radiogroup" :aria-label="`${isDark ? 'Dark' : 'Light'} background`" data-testid="bg-picker">
+            <div class="bg-picker" role="radiogroup" :aria-label="`${theme.isDark ? 'Dark' : 'Light'} background`" data-testid="bg-picker">
               <button
-                v-for="bg in BACKGROUNDS"
+                v-for="bg in theme.visibleBackgrounds"
                 :key="bg.id"
                 type="button"
                 role="radio"
                 class="bg-swatch pressable"
-                :class="{ selected: background === bg.id }"
+                :class="{ selected: theme.background === bg.id }"
                 :data-bg-preview="bg.id"
-                :aria-checked="background === bg.id"
+                :aria-checked="theme.background === bg.id"
                 :aria-label="bg.label"
                 :title="bg.label"
                 :data-testid="`bg-${bg.id}`"
                 :style="bg.preview ? { backgroundImage: `url(${bg.preview})`, backgroundSize: 'cover', backgroundPosition: 'center' } : {}"
-                @click="setBackground(bg.id)"
+                @click="theme.setBackground(bg.id)"
               ></button>
             </div>
             <div class="mt-3">
@@ -205,9 +205,9 @@
 <script setup>
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
-import { authService } from '../services/authService'
-import { useBackground } from '../composables/useBackground'
-import { useFriendRequests } from '../composables/useFriendRequests'
+import { useAuthStore } from '../stores/auth'
+import { useThemeStore } from '../stores/theme'
+import { useFriendRequestsStore } from '../stores/friendRequests'
 import BrandMark from './BrandMark.vue'
 import NotificationModal from './notifications/NotificationModal.vue'
 import EditProfileModal from './profile/EditProfileModal.vue'
@@ -217,12 +217,13 @@ const showEditProfileModal = ref(false)
 
 const router = useRouter()
 const route = useRoute()
-const { background, setBackground, BACKGROUNDS, themeMode, setThemeMode, isDark, addCustomBackground, removeCustomBackground } = useBackground()
+const auth = useAuthStore()
+const theme = useThemeStore()
 const uploadTheme = ref('light')
 const backgroundFile = ref(null)
 const backgroundMessage = ref('')
 const backgroundError = ref(false)
-const customBackgrounds = computed(() => BACKGROUNDS.value.filter((bg) => bg.custom))
+const customBackgrounds = computed(() => theme.visibleBackgrounds.filter((bg) => bg.custom))
 
 async function saveUploadedBackground(event) {
   const file = event.target.files?.[0]
@@ -245,7 +246,7 @@ async function saveUploadedBackground(event) {
     bitmap.close()
     const image = canvas.toDataURL('image/jpeg', 0.78)
     const label = file.name.replace(/\.[^.]+$/, '').slice(0, 24) || 'My photo'
-    const result = addCustomBackground(image, uploadTheme.value, label)
+    const result = theme.addCustomBackground(image, uploadTheme.value, label)
     if (result.error) throw new Error(result.error)
     backgroundMessage.value = `Saved to ${uploadTheme.value} backgrounds.`
   } catch (err) {
@@ -257,12 +258,12 @@ async function saveUploadedBackground(event) {
 }
 
 function removeBackground(id) {
-  removeCustomBackground(id)
+  theme.removeCustomBackground(id)
   backgroundMessage.value = 'Custom background removed.'
   backgroundError.value = false
 }
 // Shared pending-request count that feeds the Friends tab badge
-const { incomingCount, refreshFriendRequests } = useFriendRequests()
+const friendRequests = useFriendRequestsStore()
 
 const navItems = [
   { name: 'home', to: '/home', label: 'Home', icon: 'bi-house', iconActive: 'bi-house-fill' },
@@ -286,24 +287,12 @@ const demoAthletes = [
   { name: 'David Lee', email: 'david@fitbuddy.com', color: '#2196F3' },
 ]
 
-const isAuthenticated = computed(() => {
-  route.path // Dependency to trigger re-evaluation on route change
-  return authService.isAuthenticated()
-})
-
-// Bumped after the profile is saved, so the computed below re-reads the stored
-// user and the name and avatar in the bar update straight away.
-const profileVersion = ref(0)
-
-const currentUser = computed(() => {
-  route.path
-  profileVersion.value
-  return authService.getCurrentUser()
-})
+// Both come from the auth store, so the bar updates by itself after login, logout or a profile edit
+const isAuthenticated = computed(() => auth.isLoggedIn)
+const currentUser = computed(() => auth.user)
 
 const onProfileSaved = () => {
   showEditProfileModal.value = false
-  profileVersion.value++
 }
 
 const isActive = (item) => route.path.startsWith(item.to)
@@ -336,12 +325,12 @@ watch(
   () => {
     nextTick(placeIndicator)
     // Keep the badge current as the user moves between pages (logged in only)
-    if (isAuthenticated.value) refreshFriendRequests()
+    if (isAuthenticated.value) friendRequests.refreshFriendRequests()
   },
 )
 onMounted(() => {
   // Load the badge count on first render (logged in only)
-  if (isAuthenticated.value) refreshFriendRequests()
+  if (isAuthenticated.value) friendRequests.refreshFriendRequests()
   nextTick(placeIndicator)
   window.addEventListener('resize', placeIndicator)
   document.fonts?.ready.then(placeIndicator)
@@ -349,14 +338,14 @@ onMounted(() => {
 onUnmounted(() => window.removeEventListener('resize', placeIndicator))
 
 const handleLogout = () => {
-  authService.logout()
+  auth.logout()
   indicatorReady.value = false
   router.push('/login')
 }
 
 const switchAthlete = async (email) => {
   try {
-    await authService.login(email, 'password123')
+    await auth.login(email, 'password123')
     window.location.reload()
   } catch (err) {
     console.error('Failed to switch athlete:', err)

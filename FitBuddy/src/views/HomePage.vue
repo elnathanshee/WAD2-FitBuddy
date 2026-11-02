@@ -116,7 +116,7 @@ import ChallengesSection from '../components/dashboard/ChallengesSection.vue'
 import FitnessTrackerWidget from '../components/dashboard/FitnessTrackerWidget.vue'
 import HighlightsCarousel from '../components/HighlightsCarousel.vue'
 import StreakMedal3D from '../components/three/StreakMedal3D.vue'
-import { authService } from '../services/authService'
+import { useAuthStore } from '../stores/auth'
 import { habitService, errorMessage } from '../services/habitService'
 import { analyticsService } from '../services/analyticsService'
 import { leaderboardService } from '../services/leaderboardService'
@@ -124,8 +124,8 @@ import { CATEGORIES } from '../utils/habitOptions'
 import { toDateKey } from '../utils/dates'
 import { formatAmount, habitStatus, periodLabel, STATUS } from '../utils/habitOptions'
 
-const user = authService.getCurrentUser()
-const firstName = (user?.name || 'Athlete').split(' ')[0]
+const auth = useAuthStore()
+const firstName = (auth.user?.name || 'Athlete').split(' ')[0]
 
 const habits = ref([])
 const loading = ref(true)

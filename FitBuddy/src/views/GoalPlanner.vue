@@ -45,7 +45,9 @@
 
 <script setup>
 import { computed, onMounted, ref, watch } from 'vue'
-import api from '../services/api'
+// Third-party library: Axios (https://axios-http.com) — used for HTTP calls to the Express API
+import axios from 'axios'
+import { authConfig } from '../services/api'
 import { habitService } from '../services/habitService'
 import { GOAL_OPTIONS, GOAL_HABITS } from '../utils/goalOptions'
 
@@ -64,7 +66,7 @@ watch(primaryGoal, () => { saved.value = false; success.value = '' })
 
 onMounted(async () => {
   try {
-    const [{ data }, habits] = await Promise.all([api.get('/auth/goal'), habitService.list()])
+    const [{ data }, habits] = await Promise.all([axios.get('/api/auth/goal', authConfig()), habitService.list()])
     primaryGoal.value = data.goal.primaryGoal || 'wellness'
     goalTarget.value = data.goal.goalTarget || ''
     updatedAt.value = data.goal.updatedAt || ''
@@ -79,7 +81,7 @@ async function saveGoal() {
   error.value = ''
   success.value = ''
   try {
-    const { data } = await api.put('/auth/goal', { primaryGoal: primaryGoal.value, goalTarget: goalTarget.value })
+    const { data } = await axios.put('/api/auth/goal', { primaryGoal: primaryGoal.value, goalTarget: goalTarget.value }, authConfig())
     updatedAt.value = data.goal.updatedAt
     let added = 0
     for (const habit of suggestions.value) {

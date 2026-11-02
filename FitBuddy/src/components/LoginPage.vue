@@ -89,10 +89,11 @@
 import BrandMark from './BrandMark.vue'
 import { ref } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
-import { authService } from '../services/authService'
+import { useAuthStore } from '../stores/auth'
 
 const router = useRouter()
 const route = useRoute()
+const auth = useAuthStore()
 
 const email = ref('')
 const password = ref('')
@@ -114,8 +115,11 @@ const handleLogin = async () => {
   errorMsg.value = ''
   loading.value = true
   try {
-    await authService.login(email.value, password.value)
-    router.push('/home')
+    await auth.login(email.value, password.value)
+    // Go back to the page the user originally wanted (set by the route guard), otherwise Home.
+    // Only paths on this site are accepted, so the link cannot send people elsewhere.
+    const redirect = route.query.redirect
+    router.push(typeof redirect === 'string' && redirect.startsWith('/') ? redirect : '/home')
   } catch (err) {
     errorMsg.value = err.response?.data?.message || 'Invalid email or password.'
   } finally {

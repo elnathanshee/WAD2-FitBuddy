@@ -81,7 +81,9 @@
 
 <script setup>
 import { computed, onMounted, reactive, ref } from 'vue'
-import api from '../services/api'
+// Third-party library: Axios (https://axios-http.com) — used for HTTP calls to the Express API
+import axios from 'axios'
+import { authConfig } from '../services/api'
 import { GOAL_OPTIONS } from '../utils/goalOptions'
 import { allMealRecipes, MEAL_FILTERS, recipesForGoal } from '../utils/mealRecipes'
 import { loadMealPreferences, saveMealPreferences as persistMealPreferences } from '../utils/mealPreferences'
@@ -185,7 +187,7 @@ function addRecipe() {
 
 onMounted(async () => {
   try {
-    const { data } = await api.get('/auth/goal')
+    const { data } = await axios.get('/api/auth/goal', authConfig())
     goal.value = data.goal.primaryGoal || 'wellness'
   } catch { /* show the general wellness plan if no saved goal is available */ }
   try { const habits = await habitService.list(toDateKey()); completedHabits.value = habits.filter((habit) => habit.periodCount >= habit.target.amount).length } catch { /* goal and saved favorites still personalize the picks */ }

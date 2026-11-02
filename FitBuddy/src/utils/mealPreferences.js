@@ -1,7 +1,7 @@
-import { authService } from '../services/authService'
+import { useAuthStore } from '../stores/auth'
 
 const defaults = () => ({ dietary: [], allergies: '', favorites: [], weeklyPlan: {}, customRecipes: [] })
-const storageKey = () => `fitbuddy_meal_preferences_${authService.getCurrentUser()?.id || 'guest'}`
+const storageKey = () => `fitbuddy_meal_preferences_${useAuthStore().user?.id || 'guest'}`
 
 export function loadMealPreferences() {
   try { return { ...defaults(), ...JSON.parse(localStorage.getItem(storageKey()) || '{}') } }

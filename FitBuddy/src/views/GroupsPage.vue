@@ -101,7 +101,7 @@
 <script setup>
 import { onMounted, ref } from 'vue'
 import { RouterLink } from 'vue-router'
-import { authService } from '../services/authService'
+import { useAuthStore } from '../stores/auth'
 import { friendService } from '../services/friendService'
 import { groupService } from '../services/groupService'
 import { errorMessage } from '../services/habitService'
@@ -113,7 +113,8 @@ const activityForms = ref({}), selectedForActivity = ref({}), cheerTargets = ref
 const deletingActivity = ref(null)
 const loading = ref(false), loaded = ref(false), creating = ref(false), busy = ref(false)
 const error = ref(''), notice = ref(''), noticeError = ref(false)
-const currentUserId = String(authService.getCurrentUser()?.id ?? '')
+const auth = useAuthStore()
+const currentUserId = String(auth.user?.id ?? '')
 
 function makeActivityForm(group) { const today = toDateKey(); return { title: '', startDate: today, endDate: today, endDateEdited: false, points: 10, memberIds: group.members.map(member => member.userId) } }
 function setupForms() {

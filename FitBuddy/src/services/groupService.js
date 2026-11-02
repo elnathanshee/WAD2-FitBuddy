@@ -1,10 +1,12 @@
-import api from './api'
+// Third-party library: Axios (https://axios-http.com) — used for HTTP calls to the Express API
+import axios from 'axios'
+import { authConfig } from './api'
 
 export const groupService = {
-  async list() { return (await api.get('/groups')).data },
-  async create(name, memberIds) { return (await api.post('/groups', { name, memberIds })).data },
-  async createActivity(groupId, activity) { return (await api.post(`/groups/${groupId}/activities`, activity)).data },
-  async deleteActivity(groupId, activityId) { return (await api.delete(`/groups/${groupId}/activities/${activityId}`)).data },
-  async checkIn(activityId, userIds) { return (await api.post(`/groups/activities/${activityId}/check-in`, { userIds })).data },
-  async cheer(activityId, userId) { return (await api.post(`/groups/activities/${activityId}/cheer`, { userId })).data },
+  async list() { return (await axios.get('/api/groups', authConfig())).data },
+  async create(name, memberIds) { return (await axios.post('/api/groups', { name, memberIds }, authConfig())).data },
+  async createActivity(groupId, activity) { return (await axios.post(`/api/groups/${groupId}/activities`, activity, authConfig())).data },
+  async deleteActivity(groupId, activityId) { return (await axios.delete(`/api/groups/${groupId}/activities/${activityId}`, authConfig())).data },
+  async checkIn(activityId, userIds) { return (await axios.post(`/api/groups/activities/${activityId}/check-in`, { userIds }, authConfig())).data },
+  async cheer(activityId, userId) { return (await axios.post(`/api/groups/activities/${activityId}/cheer`, { userId }, authConfig())).data },
 }

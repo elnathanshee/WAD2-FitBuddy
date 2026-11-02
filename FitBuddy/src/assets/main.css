@@ -242,7 +242,7 @@ html[data-theme='dark'] .btn-dark {
   --bs-btn-active-border-color: var(--fb-text-2);
 }
 
-/* ---------- Backgrounds (chosen in the account menu, see composables/useBackground.js) ---------- */
+/* ---------- Backgrounds (chosen in the account menu, see stores/theme.js) ---------- */
 html[data-bg] body {
   background-attachment: fixed;
 }

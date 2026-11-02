@@ -183,7 +183,7 @@ import AppModal from '../habits/AppModal.vue'
 import { challengeService } from '../../services/challengeService'
 import { errorMessage } from '../../services/habitService'
 import { friendService } from '../../services/friendService'
-import { authService } from '../../services/authService'
+import { useAuthStore } from '../../stores/auth'
 import { celebrate } from '../../utils/celebrate'
 
 const props = defineProps({
@@ -202,7 +202,8 @@ const submitting = ref(false)
 const respondingId = ref(null)
 
 // Current user id, compared as strings since ids may be numbers or strings
-const myId = String(authService.getCurrentUser()?.id ?? '')
+const auth = useAuthStore()
+const myId = String(auth.user?.id ?? '')
 const isMine = (id) => String(id) === myId
 
 // The list in display order: invites for me, invites I sent, declined, then duels

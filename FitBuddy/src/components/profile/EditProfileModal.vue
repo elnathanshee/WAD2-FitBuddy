@@ -65,14 +65,15 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue'
 import AppModal from '../habits/AppModal.vue'
-import { authService } from '../../services/authService'
+import { useAuthStore } from '../../stores/auth'
 import { errorMessage } from '../../services/habitService'
 
 const props = defineProps({
-  // The logged-in user, as stored by authService
+  // The logged-in user, from the auth store
   user: { type: Object, required: true },
 })
 const emit = defineEmits(['saved', 'close'])
+const auth = useAuthStore()
 
 // The same eight colours the server accepts (see AVATAR_COLORS in
 // server/controllers/authController.js). Anything else is rejected with a 400.
@@ -108,7 +109,7 @@ async function save() {
 
   saving.value = true
   try {
-    const user = await authService.updateProfile(name.value.trim(), avatarColor.value)
+    const user = await auth.updateProfile(name.value.trim(), avatarColor.value)
     emit('saved', user)
   } catch (err) {
     error.value = errorMessage(err)

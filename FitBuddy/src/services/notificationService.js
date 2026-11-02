@@ -1,13 +1,17 @@
 // =============================================================================
 // [IS216 Project Addition: OneSignal Frontend Notification Service]
 // Technology: OneSignal Web SDK (v16) + Axios Backend API
+// Third-party library: OneSignal (https://onesignal.com) — used for web push notifications.
+// Its script is loaded in index.html and reached through window.OneSignalDeferred.
 //
 // Manages device push registration, user external_id linking, permission prompts,
 // and triggering habit reminders / test push alerts through the Express server.
 // =============================================================================
 
-import api from './api'
-import { authService } from './authService'
+// Third-party library: Axios (https://axios-http.com) — used for HTTP calls to the Express API
+import axios from 'axios'
+import { authConfig } from './api'
+import { useAuthStore } from '../stores/auth'
 
 let isInitialized = false
 let currentConfig = null
@@ -45,9 +49,9 @@ export async function initOneSignal() {
       isInitialized = true
 
       // If user is already logged in, associate their ID with OneSignal
-      const user = authService.getCurrentUser()
-      if (user?.id) {
-        await OneSignal.login(String(user.id))
+      const auth = useAuthStore()
+      if (auth.user?.id) {
+        await OneSignal.login(String(auth.user.id))
       }
     })
   } catch (err) {
@@ -124,7 +128,7 @@ export function getPermissionState() {
  */
 export async function getNotificationStatus() {
   try {
-    const { data } = await api.get('/notifications/status')
+    const { data } = await axios.get('/api/notifications/status', authConfig())
     return data
   } catch (err) {
     return { configured: false, appId: null }
@@ -135,7 +139,7 @@ export async function getNotificationStatus() {
  * Triggers an immediate test notification to the logged-in user's device.
  */
 export async function sendTestNotification(customPayload = {}) {
-  const { data } = await api.post('/notifications/test', customPayload)
+  const { data } = await axios.post('/api/notifications/test', customPayload, authConfig())
   return data
 }
 
@@ -143,7 +147,7 @@ export async function sendTestNotification(customPayload = {}) {
  * Scans today's pending habits and sends an automated check-in reminder.
  */
 export async function sendHabitReminder() {
-  const { data } = await api.post('/notifications/remind-habits')
+  const { data } = await axios.post('/api/notifications/remind-habits', {}, authConfig())
   return data
 }
 

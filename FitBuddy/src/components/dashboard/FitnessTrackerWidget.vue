@@ -102,7 +102,7 @@ import { computed, onMounted, onUnmounted } from 'vue'
 import CountUp from '../CountUp.vue'
 import { healthSyncService } from '../../services/healthSyncService'
 import { errorMessage, habitService } from '../../services/habitService'
-import { authService } from '../../services/authService'
+import { useAuthStore } from '../../stores/auth'
 
 const emit = defineEmits(['synced'])
 
@@ -129,7 +129,8 @@ const availableHabits = ref([])
 const mappings = ref({ steps: [], activeMinutes: [], water: [] })
 const updates = sharedUpdates
 let autoSyncTimer
-const settingsKey = `fitbuddy_health_sync_${authService.getCurrentUser()?.id || 'guest'}`
+const auth = useAuthStore()
+const settingsKey = `fitbuddy_health_sync_${auth.user?.id || 'guest'}`
 
 const syncSources = computed(() => [
   { key: 'steps', label: 'Step tracker', habits: availableHabits.value.filter((h) => h.target?.unit === 'steps' || /step/i.test(h.name)) },

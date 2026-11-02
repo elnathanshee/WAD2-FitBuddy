@@ -3,31 +3,33 @@
 // Connects to /api/leaderboard on Express + Neon PostgreSQL
 // =============================================================================
 
-import api from './api'
+// Third-party library: Axios (https://axios-http.com) — used for HTTP calls to the Express API
+import axios from 'axios'
+import { authConfig } from './api'
 
 export const leaderboardService = {
   async weekly(today) {
-    const { data } = await api.get('/leaderboard/weekly', { params: { today } })
+    const { data } = await axios.get('/api/leaderboard/weekly', authConfig({ params: { today } }))
     return data
   },
 
   async myScore(today) {
-    const { data } = await api.get('/leaderboard/me', { params: { today } })
+    const { data } = await axios.get('/api/leaderboard/me', authConfig({ params: { today } }))
     return data
   },
 
   async saveProfile({ displayName, avatarColor }) {
-    const { data } = await api.put('/leaderboard/profile', { displayName, avatarColor })
+    const { data } = await axios.put('/api/leaderboard/profile', { displayName, avatarColor }, authConfig())
     return data
   },
 
   async sendCheer(recipientId, type = 'cheer', message = '') {
-    const { data } = await api.post('/leaderboard/cheer', { recipientId, type, message })
+    const { data } = await axios.post('/api/leaderboard/cheer', { recipientId, type, message }, authConfig())
     return data
   },
 
   async getCheers() {
-    const { data } = await api.get('/leaderboard/cheers')
+    const { data } = await axios.get('/api/leaderboard/cheers', authConfig())
     return data
   },
 }

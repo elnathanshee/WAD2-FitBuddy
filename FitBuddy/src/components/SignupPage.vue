@@ -79,10 +79,11 @@
 import BrandMark from './BrandMark.vue'
 import { ref, reactive, computed } from 'vue'
 import { useRouter } from 'vue-router'
-import { authService } from '../services/authService'
+import { useAuthStore } from '../stores/auth'
 import { GOAL_OPTIONS } from '../utils/goalOptions'
 
 const router = useRouter()
+const auth = useAuthStore()
 const form = reactive({
   name: '',
   email: '',
@@ -105,7 +106,7 @@ const handleSignup = async () => {
   errorMsg.value = ''
   loading.value = true
   try {
-    await authService.signup({ name: form.name, email: form.email, password: form.password, primaryGoal: form.primaryGoal, goalTarget: form.goalTarget })
+    await auth.signup({ name: form.name, email: form.email, password: form.password, primaryGoal: form.primaryGoal, goalTarget: form.goalTarget })
     router.push('/home')
   } catch (err) {
     errorMsg.value = err.response?.data?.message || 'An error occurred during signup.'

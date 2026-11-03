@@ -174,6 +174,7 @@
       </section>
 
       <!-- Your friends -->
+      <ChallengesSection />
       <section class="surface p-3 px-md-4" data-testid="friends-list">
         <h2 class="section-title mb-2">Your friends</h2>
         <div v-if="friends.length === 0" class="text-center py-4">
@@ -231,6 +232,7 @@ import { friendService } from '../services/friendService'
 import { useFriendRequestsStore } from '../stores/friendRequests'
 import { errorMessage } from '../services/habitService'
 import FriendRow from '../components/friends/FriendRow.vue'
+import ChallengesSection from '../components/dashboard/ChallengesSection.vue'
 import AppModal from '../components/habits/AppModal.vue'
 
 const friends = ref([])

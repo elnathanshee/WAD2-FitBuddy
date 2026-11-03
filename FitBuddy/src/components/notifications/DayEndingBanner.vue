@@ -105,10 +105,13 @@ onMounted(() => {
   }, 60000)
 })
 
+// Beyond WAD2 syllabus: onUnmounted stops the 1-minute countdown timer when the user leaves the page.
 onUnmounted(() => {
   if (timer) clearInterval(timer)
 })
 
+// Beyond WAD2 syllabus: watch triggers the once-per-day automatic notification check
+// after the parent page finishes loading the user's habits from the API.
 watch(
   () => props.habits,
   (list) => {
@@ -125,4 +128,3 @@ watch(
   min-width: 0;
 }
 </style>
-

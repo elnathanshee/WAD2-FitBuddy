@@ -1,5 +1,6 @@
 // Client for /api/health-sync: simulated Google Health wearable activity data
 // and automatic habit check-in sync.
+// Third-party library: Axios (https://axios-http.com) — used for HTTP calls to the Express API
 import axios from 'axios'
 import { authConfig } from './api'
 

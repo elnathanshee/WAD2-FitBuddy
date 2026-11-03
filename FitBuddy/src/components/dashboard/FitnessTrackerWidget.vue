@@ -156,12 +156,16 @@
 import { computed, ref, watch, onMounted } from 'vue'
 import { healthSyncService } from '../../services/healthSyncService'
 import { errorMessage } from '../../services/habitService'
+import { useHealthSyncStore } from '../../stores/healthSync'
 
 const props = defineProps({
   habitsCount: { type: Number, default: 0 },
   completedToday: { type: Number, default: 0 },
 })
 const emit = defineEmits(['synced'])
+
+const healthSync = useHealthSyncStore()
+const updates = computed(() => healthSync.updates)
 
 const loading = ref(true)
 const syncing = ref(false)
@@ -184,8 +188,6 @@ const metrics = ref({
   distanceKm: null,
   caloriesBurned: null,
 })
-
-const updates = ref([])
 
 const hasMetrics = computed(() =>
   [metrics.value.steps, metrics.value.activeMinutes, metrics.value.distanceKm, metrics.value.caloriesBurned]
@@ -246,6 +248,7 @@ function resetMetrics() {
 function applyStatus(status) {
   connected.value = Boolean(status?.connected)
   connectedAt.value = status?.connectedAt || null
+  healthSync.lastSyncedAt = status?.lastSyncedAt || healthSync.lastSyncedAt
   lastSyncError.value = status?.lastSyncError || ''
 }
 
@@ -256,6 +259,7 @@ function applyTodayPayload(data) {
   lastSyncError.value = data?.lastSyncError || lastSyncError.value
   if (data?.metrics) {
     metrics.value = { ...metrics.value, ...data.metrics }
+    healthSync.lastSyncedAt = data.metrics.lastSynced || healthSync.lastSyncedAt
   } else {
     resetMetrics()
   }
@@ -319,6 +323,7 @@ async function triggerSync(options = {}) {
     lastSyncError.value = ''
     if (data?.metrics) {
       metrics.value = { ...metrics.value, ...data.metrics }
+      healthSync.lastSyncedAt = data.metrics.lastSynced || new Date().toISOString()
     }
 
     const now = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
@@ -335,7 +340,7 @@ async function triggerSync(options = {}) {
         when: now,
       })),
     ]
-    updates.value = [...fresh, ...updates.value].slice(0, 5)
+    healthSync.updates = [...fresh, ...healthSync.updates].slice(0, 5)
     feedbackKind.value = 'success'
     feedback.value = data?.message || 'Simulated Google Health activity synced.'
     emit('synced', data)
@@ -355,9 +360,10 @@ async function disconnectGoogle() {
     await healthSyncService.disconnectGoogle()
     connected.value = false
     connectedAt.value = null
+    healthSync.lastSyncedAt = null
     lastSyncError.value = ''
     showSettings.value = false
-    updates.value = []
+    healthSync.updates = []
     resetMetrics()
     feedbackKind.value = 'success'
     feedback.value = 'Google Health disconnected.'
@@ -369,6 +375,8 @@ async function disconnectGoogle() {
   }
 }
 
+// Beyond WAD2 syllabus: watch refreshes the simulated Google Health baseline
+// whenever the user logs or completes a habit on the Home page.
 watch(
   () => [props.habitsCount, props.completedToday],
   () => {

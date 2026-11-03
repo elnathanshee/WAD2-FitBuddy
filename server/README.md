@@ -17,7 +17,7 @@
    npm run dev
    ```
    Check it's up: http://localhost:3000/api/health → `{"status":"ok"}`
-5. In another terminal, start the frontend (`cd ../FitBuddy && pnpm dev`). Vite
+5. In another terminal, start the frontend (`cd ../FitBuddy && npm run dev`). Vite
    forwards `/api/*` calls to this server.
 
 Optional demo data: `npm run seed:neon` (habits and check-ins) and
@@ -34,10 +34,11 @@ server/
 │   ├── onesignal.js       OneSignal push setup
 │   └── storage.js         file storage setup
 ├── middleware/
-│   └── requireUser.js     PLACEHOLDER auth: reads x-user-id header → req.userId
-├── routes/                URL → controller function (habits, leaderboard, ...)
+│   └── requireUser.js     reads Bearer JWT or x-user-id header → req.userId
+├── routes/                URL → controller function (habits, leaderboard, groups, notifications, ...)
 ├── controllers/           request handlers (neonHabitController.js,
-│                          neonLeaderboardController.js, ...)
+│                          neonLeaderboardController.js, groupController.js,
+│                          healthSyncController.js, notificationController.js, ...)
 ├── services/
 │   ├── pointsService.js   scoring rules
 │   ├── achievementsService.js
@@ -50,13 +51,13 @@ server/
 
 ## API
 
-Every `/api/habits` route needs the `x-user-id` header. `src/services/api.js` in the
+Every `/api/habits` route needs the `Authorization: Bearer <token>` or `x-user-id` header. `src/services/api.js` in the
 frontend adds it for you.
 
 | Method | URL | Body | Success |
 |---|---|---|---|
-| GET | `/api/habits?today` | | 200 list (each with `todayCount` and `streak`) |
-| POST | `/api/habits` | habit fields | 201 habit |
+| GET | `/api/habits?today` | | 200 list (each with `todayCount`, `periodCount`, `customDays`, and `streak`) |
+| POST | `/api/habits` | habit fields (including optional `customDays` for weekly habits) | 201 habit |
 | GET | `/api/habits/:id` | | 200 habit |
 | PUT | `/api/habits/:id` | fields to change | 200 habit |
 | DELETE | `/api/habits/:id` | | 204 |
@@ -64,8 +65,12 @@ frontend adds it for you.
 | PUT | `/api/habits/:id/checkins/:date` | `{ count }` (replaces the total; 0 clears it) | 200 check-in / 204 |
 | DELETE | `/api/habits/:id/checkins/:date` | | 204 |
 | GET | `/api/habits/:id/history?from&to&today` | | 200 `{ habit, checkIns, streak }` |
+| POST | `/api/notifications/day-ending` | `{ habitNames? }` | 200 urgent day-ending warning notification |
+| GET / POST | `/api/groups` | `{ name, memberIds }` | 200 list / 201 created group |
+| GET | `/api/health-sync/today` | | 200 simulated Google Health metrics for today |
+| POST | `/api/health-sync/google/sync` | `{ preset?, reset? }` | 200 synced simulated metrics + updated habits |
 
-Errors: 400 validation · 401 no user · 404 not found / not yours · 501 not implemented yet.
+Errors: 400 validation · 401 no user · 404 not found / not yours.
 
 ## Tests
 
@@ -96,7 +101,7 @@ Generated with AI (Claude), as boilerplate/test/mock-data assistance:
   (sliding pill, mobile tab bar, account menu), the new Home page
   (`views/HomePage.vue`), the stats-only `views/Dashboard.vue`, and the restyle of
   `Leaderboard.vue`, `HabitsPage.vue`, `HabitCard.vue`, `AppModal.vue`,
-  `ChallengesSection.vue`, `FitnessTrackerWidget.vue` (Google Health card),
+  `ChallengesSection.vue`, `GroupsSection.vue`, `FitnessTrackerWidget.vue` (Google Health card),
   `AnalyticsDashboard.vue`, `MonthlyHeatmap.vue` and the login/sign-up pages
 - Visual refresh (implemented by Claude): warm palette, bottom navigation on every
   screen size, divider-based layouts, 3-colour month calendar, reordered Dashboard,

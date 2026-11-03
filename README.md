@@ -1,6 +1,6 @@
 # FitBuddy
 
-FitBuddy is a social habit and fitness tracker built for SMU IS216 (WAD2). Users create daily habits, log progress, build streaks and earn points and badges. They can compete with friends on a weekly leaderboard, send cheers and nudges, join groups and challenges, plan goals and meals, chat with an AI goal coach and see Google Health activity.
+FitBuddy is a social habit and fitness tracker built for SMU IS216 (WAD2). Users create daily and weekly habits (with optional custom days of the week), receive day-ending countdown notifications when time is running out, log progress, build streaks and earn points and badges. They can compete with friends on a weekly leaderboard, send cheers and nudges, check in together in habit groups (featured on the Home page), challenge friends on the Friends page, plan goals and meals, chat with an AI goal coach and sync simulated Google Health wearable activity.
 
 - **GitHub:** https://github.com/elnathanshee/WAD2-FitBuddy
 - **Deployed app:** https://wad-2-fit-buddy.vercel.app
@@ -34,8 +34,9 @@ Environment variables in `server/.env` (see `server/.env.example`):
 | `DATABASE_URL` | **Required** | Neon Postgres connection string |
 | `PORT` | Optional | API port (default 3000) |
 | `GEMINI_API_KEY` | Optional | AI goal coach (https://aistudio.google.com). Without it the coach is unavailable |
-| `GOOGLE_HEALTH_CLIENT_ID`, `GOOGLE_HEALTH_CLIENT_SECRET`, `GOOGLE_HEALTH_REDIRECT_URI`, `APP_URL`, `HEALTH_TOKEN_ENCRYPTION_KEY` | Optional | Connecting a real Google Health account (see `docs/google-health-setup.md`). Without them the card shows its "Connect" state |
-| `ONESIGNAL_APP_ID`, `ONESIGNAL_REST_API_KEY` | Optional | Web push notifications and reminders |
+| `ONESIGNAL_APP_ID`, `ONESIGNAL_REST_API_KEY` | Optional | Web push notifications, habit reminders, and day-ending warnings (falls back to simulated/local browser notifications when unset) |
+
+> **Google Health (Simulated Data):** The Google Health widget on the Home page uses built-in simulated wearable activity data (steps, active minutes, distance, and calories) with activity presets and automatic exercise habit check-in sync—no Google Cloud OAuth credentials are required.
 
 To create the demo data in an empty database run `cd server && npm run seed:neon` (and `npm run seed:friends` for friend links).
 
@@ -73,7 +74,7 @@ All accounts use the password `password123`:
 cd server && npm test
 ```
 
-Covers points, streaks, achievements, analytics, challenges, friends, OneSignal helpers and the AI endpoint.
+Covers points, streaks, achievements, analytics, challenges, friends, OneSignal helpers (including day-ending notifications) and the AI endpoint.
 
 **End-to-end tests (Playwright).** Start the backend and frontend first (see above), then:
 
@@ -87,8 +88,8 @@ npm run test:e2e:ui                    # interactive UI mode
 
 | Spec file | Covers |
 |---|---|
-| `e2e/habits.spec.js` | Habit create/edit/delete, daily check-ins, history and streaks |
-| `e2e/navigation.spec.js` | Login, Home page, tabs reach every page, Google Health card, logout |
+| `e2e/habits.spec.js` | Habit create/edit/delete, weekly custom days, daily check-ins, history and streaks |
+| `e2e/navigation.spec.js` | Login, Home page (habits, habit groups, simulated Google Health), tabs reach every page, logout |
 | `e2e/friends.spec.js` | Search, send/accept/decline friend requests, friend profile, server friend rules |
 | `e2e/leaderboard.spec.js` | Weekly leaderboard, cheers and nudges (once per day each) |
 | `e2e/challenges.spec.js` | Challenging friends, pending/declined invites, server rules |
@@ -101,8 +102,8 @@ The E2E tests run against the shared Neon database. Data they create is prefixed
 
 ```
 FitBuddy/                  Vue 3 frontend (Vite)
-  src/views/               Page-level screens (Dashboard, Leaderboard, Friends, Groups, planners...)
-  src/components/          Reusable components grouped by feature (habits, navbar, dashboard, three...)
+  src/views/               Page-level screens (HomePage, Dashboard, HabitsPage, Leaderboard, FriendsPage, GroupsPage, planners...)
+  src/components/          Reusable components grouped by feature (habits, navbar, dashboard, notifications, three...)
   src/stores/              Pinia stores (auth, theme, friend requests, coach chat, health sync)
   src/services/            Axios calls to the API, one file per feature
   src/router/              Routes and the login guard
@@ -110,15 +111,15 @@ FitBuddy/                  Vue 3 frontend (Vite)
   api/, server/            Copy of the backend, for deploying from the FitBuddy folder
 server/                    Express backend
   routes/, controllers/    URL routes and their handlers
-  services/, utils/        Business logic (points, streaks, achievements...) and helpers
+  services/, utils/        Business logic (points, streaks, achievements, notifications...) and helpers
   middleware/, config/     Auth, database and storage setup
   tests/                   Vitest unit tests
 api/index.js               Vercel serverless entry (wraps the Express app)
 scripts/                   Build and tooling scripts
-docs/                      Extra documentation (Google Health setup)
+docs/                      Extra documentation (Google Health simulated data guide)
 ```
 
-`FitBuddy/server/` is a mirror of `server/`; edit `server/` and copy changes across.
+`FitBuddy/server/` is a mirror of `server/`; edit `server/` and run `node scripts/build.js` to sync changes across.
 
 ## Third-party libraries and credits
 
@@ -132,7 +133,6 @@ docs/                      Extra documentation (Google Health setup)
 - [emoji-picker-element](https://github.com/nolanlawson/emoji-picker-element): emoji picker for habit icons
 - [Express](https://expressjs.com) and [cors](https://github.com/expressjs/cors): backend server
 - [Neon serverless driver](https://github.com/neondatabase/serverless): Postgres access
-- [google-auth-library](https://github.com/googleapis/google-auth-library-nodejs): Google OAuth for Google Health
 - [AWS SDK S3 client](https://github.com/aws/aws-sdk-js-v3): image storage
 - [Vitest](https://vitest.dev), [Supertest](https://github.com/forwardemail/supertest), [Playwright](https://playwright.dev): testing
 - Fonts: [Fredoka](https://fonts.google.com/specimen/Fredoka) and [Nunito](https://fonts.google.com/specimen/Nunito) (Google Fonts)
@@ -140,8 +140,8 @@ docs/                      Extra documentation (Google Health setup)
 ## External APIs (asynchronous HTTP)
 
 - **Google Gemini API**: AI goal coach (`server/controllers/aiController.js`, called with `fetch`)
-- **Google Health API** (Google OAuth): steps, active minutes, distance and calories (`server/controllers/healthSyncController.js`)
-- **OneSignal REST API**: web push notifications and reminders (`server/services/notificationService.js`, `FitBuddy/src/services/notificationService.js`)
+- **Google Health Activity Feed (Simulated)**: wearable steps, active minutes, distance and calories with automatic habit sync (`server/controllers/healthSyncController.js`)
+- **OneSignal REST API**: web push notifications, daily habit reminders, and day-ending countdown alerts (`server/services/notificationService.js`, `FitBuddy/src/services/notificationService.js`)
 
 ## AI usage disclosure
 

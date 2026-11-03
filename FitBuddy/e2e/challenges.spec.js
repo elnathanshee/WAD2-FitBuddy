@@ -29,6 +29,7 @@ test('the New challenge dropdown lists only friends', async ({ page, request }) 
   const { friends } = await res.json()
 
   await login(page)
+  await page.goto('/friends')
   await page.getByTestId('home-challenges').getByRole('button', { name: 'Start a challenge' }).click()
 
   if (friends.length === 0) {
@@ -122,8 +123,8 @@ test.describe('challenge invites', () => {
     expect((await listChallenges(request, USER_HEADERS)).some((c) => c.id === created.id)).toBe(false)
   })
 
-  // UI check: a friend's invite shows on Home and disappears once declined
-  test('UI: declining an invite from a friend removes it from Home', async ({ page, request }) => {
+  // UI check: a friend's invite shows on the Friends page and disappears once declined
+  test('UI: declining an invite from a friend removes it from the Challenges card', async ({ page, request }) => {
     const friend = await pickFriend(request)
     test.skip(!friend, 'The demo user has no friends')
     const friendHeaders = { 'x-user-id': friend.userId }
@@ -131,6 +132,7 @@ test.describe('challenge invites', () => {
     const invite = await createChallengeVia(request, friendHeaders, USER_HEADERS['x-user-id'], 'decline me')
     try {
       await login(page)
+      await page.goto('/friends')
       const row = page.getByTestId('challenge-invite').filter({ hasText: invite.title })
       await expect(row).toBeVisible()
       const count = Number(await page.getByTestId('challenge-invite-count').innerText())
@@ -144,13 +146,14 @@ test.describe('challenge invites', () => {
     }
   })
 
-  // UI check: the creator can cancel a pending challenge from Home
+  // UI check: the creator can cancel a pending challenge
   test('UI: cancelling a challenge I sent', async ({ page, request }) => {
     const friend = await pickFriend(request)
     test.skip(!friend, 'The demo user has no friends')
 
     const sent = await createChallengeVia(request, USER_HEADERS, friend.userId, 'cancel me')
     await login(page)
+    await page.goto('/friends')
     const row = page.getByTestId('challenge-pending').filter({ hasText: sent.title })
     await expect(row).toBeVisible()
     await expect(row).toContainText('Waiting for')

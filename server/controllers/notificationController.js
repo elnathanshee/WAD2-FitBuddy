@@ -27,23 +27,36 @@ function getTodayWeekdayShort() {
 }
 
 async function queryUnfinishedHabitsDueToday(userId, today) {
-  const sql = getDb()
-  const habits = await sql`
-    SELECT h.id, h.name, h.frequency, h.target_amount,
-           COALESCE(c.count, 0) AS today_count
-    FROM habits h
-    LEFT JOIN check_ins c
-      ON c.habit_id = h.id AND c.user_id = h.user_id AND c.date = ${today}
-    WHERE h.user_id = ${userId}
-  `
+  if (!process.env.DATABASE_URL) {
+    return []
+  }
+  try {
+    const sql = getDb()
+    const todayWeekday = getTodayWeekdayShort()
+    const habits = await sql`
+      SELECT h.id, h.name, h.frequency, h.target_amount, h.custom_days,
+             COALESCE(c.count, 0) AS today_count
+      FROM habits h
+      LEFT JOIN check_ins c
+        ON c.habit_id = h.id AND c.user_id = h.user_id AND c.date = ${today}
+      WHERE h.user_id = ${userId}
+    `
 
-  return habits.filter((h) => {
-    const doneToday = Number(h.today_count) >= Number(h.target_amount)
-    if (h.frequency !== 'weekly') {
-      return !doneToday
-    }
-    return Number(h.today_count) <= 0
-  })
+    return habits.filter((h) => {
+      const doneToday = Number(h.today_count) >= Number(h.target_amount)
+      if (h.frequency !== 'weekly') {
+        return !doneToday
+      }
+      if (Array.isArray(h.custom_days) && h.custom_days.length > 0) {
+        if (!h.custom_days.includes(todayWeekday)) {
+          return false
+        }
+      }
+      return Number(h.today_count) <= 0
+    })
+  } catch {
+    return []
+  }
 }
 
 // GET /api/notifications/status

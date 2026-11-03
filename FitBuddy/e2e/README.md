@@ -2,11 +2,11 @@
 
 | Spec | Covers |
 |---|---|
-| `habits.spec.js` | Habit CRUD, daily check-ins, completion history, streaks, access control |
-| `navigation.spec.js` | Login lands on Home; Home sections; bottom navigation on every page; Dashboard is stats-only, in order, with a 3-colour calendar; logout in the account menu |
+| `habits.spec.js` | Habit CRUD, weekly custom days (`Mon`–`Sun`), daily check-ins, completion history, streaks, access control |
+| `navigation.spec.js` | Login lands on Home; Home sections (`home-hero`, `home-habits`, `home-groups`, `google-health`); top bar navigation on every page; Dashboard is stats-only, in order, with a 3-colour calendar; logout in the account menu |
 | `coach-chat.spec.js` | AI coach button position, chat send/reply, multi-turn history, adding a suggested habit, error + retry (Gemini is mocked with `page.route`) |
 | `leaderboard.spec.js` | Cheer/nudge buttons, once-per-day lock (UI + reload), server 409 on a repeat, cheer and nudge limited separately; Global / Friends tabs (opens on Global, Friends shows only you + friends, re-ranked) |
-| `challenges.spec.js` | Only friends can be challenged: server 403 for a non-friend, the New challenge dropdown lists exactly your friends (read-only). Invites: a new challenge is pending, the friend declines, the creator dismisses, permission rules (403 / 400), declining an invite and cancelling a sent one in the UI, and the friend-request count badges (navbar + Friends page). Test challenges are titled `E2E ...` and deleted again; none are ever accepted |
+| `challenges.spec.js` | Only friends can be challenged: server 403 for a non-friend, the New challenge dropdown lists exactly your friends (read-only). Invites: a new challenge is pending, the friend declines, the creator dismisses, permission rules (403 / 400), declining an invite and cancelling a sent one in the UI (on the Friends page), and the friend-request count badges (navbar + Friends page). Test challenges are titled `E2E ...` and deleted again; none are ever accepted |
 | `friends.spec.js` | User search, sending / cancelling a request, accepting + removing a friend, declining, a friend's profile (stats, week strip, habits), server rules (403 / 400 / 409, no emails), friend links on the leaderboard. Only `rival_david` is changed; his friendship is reset before and after each test |
 | `experience.spec.js` | Highlights carousel (buttons, dots, autoplay, pause on hover, no autoplay with reduced motion, slide links), background picker (persists after reload), 3D medal/trophy load or fall back, page titles |
 
@@ -18,15 +18,15 @@ Tests log in as the seeded demo account `demo@fitbuddy.com` / `password123`.
 One-time setup:
 
 ```bash
-pnpm install
+npm install
 npx playwright install chromium
 ```
 
 Then, with the API running against the Neon database (see `TEAM_HANDOVER.md`):
 
 ```bash
-pnpm test:e2e        # headless, prints results
-pnpm test:e2e:ui     # interactive UI mode, good for debugging
+npm run test:e2e      # headless, prints results
+npm run test:e2e:ui   # interactive UI mode, good for debugging
 npx playwright show-report   # open the HTML report from the last run
 ```
 
@@ -50,6 +50,7 @@ restyling the page won't break them. The Habits page (`/habits`) must use these:
 | `habit-category-select` | Category `<select>` | option values: `exercise` `water` `sleep` `study` `other` |
 | `habit-custom-category-input` | Text `<input>` | Shown when category is `other` |
 | `habit-frequency-select` | Frequency `<select>` | option values: `daily` `weekly` |
+| `habit-custom-days` / `habit-custom-day-<Day>` | Custom days fieldset & toggle buttons | Shown when frequency is `weekly` (`Mon`–`Sun`) |
 | `habit-target-label` | Target heading | "Daily target" or "Weekly target", following the frequency |
 | `habit-target-amount-input` | Number `<input>` | Per day (daily) or per Monday–Sunday week (weekly). Decimals allowed |
 | `habit-target-unit-select` | Unit `<select>` | Common units, plus "Other…" |
@@ -58,6 +59,7 @@ restyling the page won't break them. The Habits page (`/habits`) must use these:
 | `habit-form-error` | Error message | Shown when saving fails validation (e.g. empty name). Use your own validation or show the server's 400 message — HTML `required` alone shows no element. |
 | `habit-card` | One per habit in the list | Must contain the habit name as text |
 | `habit-frequency` | Inside card | "Daily" or "Weekly" |
+| `habit-custom-days-label` | Inside card | Optional custom weekly days, e.g. `Mon, Thu` |
 | `habit-status` | Inside card | "Not started" / "In progress" / "Completed"; the card also has `data-status` |
 | `habit-progress` | Inside card | Progress for today (daily) or this week (weekly), text like `1 / 3` |
 | `habit-streak` | Inside card | **Only the number**, e.g. `3` (put "day streak" in a separate element) |
@@ -69,6 +71,7 @@ restyling the page won't break them. The Habits page (`/habits`) must use these:
 | `edit-total-link` | Popup button | Switches to setting today's total |
 | `edit-total-input` / `edit-total-save-btn` | Popup | REPLACES today's total; 0 clears it |
 | `celebration-banner` | Page | Shown when the last habit of the day is completed |
+| `day-ending-banner` / `day-ending-notify-btn` | Page | Shown when unfinished habits remain for today, with countdown to midnight |
 | `habit-edit-btn` | Inside card | Opens `habit-form` pre-filled |
 | `habit-delete-btn` | Inside card | Opens a confirmation |
 | `confirm-delete-btn` | Confirmation dialog button | |
@@ -83,11 +86,12 @@ Other pages:
 
 | data-testid | Element | Notes |
 |---|---|---|
-| `navbar` / `tabbar` | Top bar / bottom navigation | |
-| `tab-<page>` | Bottom navigation links (every screen size) | `<page>` is `home`, `habits`, `dashboard`, `leaderboard`, `friends` |
+| `navbar` / `tabbar` | Top bar / page tabs | |
+| `tab-<page>` | Navigation links (every screen size) | `<page>` is `home`, `habits`, `dashboard`, `leaderboard`, `friends`, `groups` |
 | `account-menu-btn` / `logout-btn` | Account dropdown and its Log out item | |
-| `home-hero`, `home-habits`, `home-challenges`, `google-health` | Home page sections | |
-| `health-sync-btn` / `health-updates` / `health-steps` (also `-active`, `-distance`, `-calories`) | Google Health card | |
+| `home-hero`, `home-habits`, `home-groups`, `google-health` | Home page sections | |
+| `new-group-btn` / `group-card` / `group-checkin-btn` | Habit groups section on Home | |
+| `health-sync-btn` / `health-updates` / `health-steps` (also `-active`, `-distance`, `-calories`) | Simulated Google Health card | |
 | `ai-coach-btn` | Floating coach button (Habits page) | |
 | `coach-panel`, `coach-input`, `coach-send`, `coach-chip`, `coach-close` | Coach chat panel | |
 | `coach-message` | One chat bubble | `data-role` is `user`, `model` or `error` |
@@ -97,7 +101,7 @@ Other pages:
 | `leaderboard-toast` | Confirmation toast | |
 | `lb-tab-global` / `lb-tab-friends` | Leaderboard tabs | `aria-selected` marks the active one |
 | `lb-friends-empty` | Friends tab hint | Shown when you have no friends yet |
-| `challenge-opponent-select` / `challenge-no-friends` | New challenge modal (Home) | Dropdown of friends, or the no-friends message |
+| `home-challenges`, `challenge-opponent-select` / `challenge-no-friends` | Challenges section (Friends page) | Dropdown of friends, or the no-friends message |
 | `leaderboard-friend-link` | Inside a row | Link on a friend's name to their profile |
 | `add-friend-btn` | Inside a row | Add friend / Accept / Requested; `aria-label` has the text |
 | `friends-search-input` / `friends-search-btn` / `friends-search-error` / `friends-search-empty` | Friends page search | |
@@ -112,12 +116,3 @@ Other pages:
 | `carousel-slide`, `carousel-prev`, `carousel-next`, `carousel-dot` | Carousel parts | Dots have `aria-selected` |
 | `bg-picker`, `bg-<id>` | Background picker in the account menu | ids: `paper`, `dots`, `topo`, `track`, `field`; the choice is `<html data-bg>` |
 | `streak-medal`, `trophy-3d` | 3D models | `data-state` is `loading`, `ready` or `fallback` |
-
-Example:
-
-```html
-<div class="card" data-testid="habit-card">
-  <h5>{{ habit.name }}</h5>
-  <span data-testid="habit-streak">{{ habit.streak.current }}</span> day streak
-</div>
-```

@@ -80,6 +80,26 @@ test.describe('Create', () => {
     await expect(card).toContainText('week streak')
   })
 
+  test('weekly habits can specify custom days of the week', async ({ page }) => {
+    const name = uniqueHabitName('Swim')
+    await page.goto('/habits')
+
+    await page.getByTestId('add-habit-btn').click()
+    const form = page.getByTestId('habit-form')
+    await form.getByTestId('habit-name-input').fill(name)
+    await form.getByTestId('habit-frequency-select').selectOption('weekly')
+    await expect(form.getByTestId('habit-custom-days')).toBeVisible()
+    await form.getByTestId('habit-custom-day-Mon').click()
+    await form.getByTestId('habit-custom-day-Thu').click()
+    await form.getByTestId('habit-target-amount-input').fill('2')
+    await form.getByTestId('habit-target-unit-select').selectOption('sessions')
+    await form.getByTestId('habit-save-btn').click()
+
+    const card = habitCard(page, name)
+    await expect(card.getByTestId('habit-frequency')).toHaveText('Weekly')
+    await expect(card.getByTestId('habit-custom-days-label')).toHaveText('Mon, Thu')
+  })
+
   test('saves a custom category, custom unit, decimal target and chosen emoji', async ({ page }) => {
     const name = uniqueHabitName('Meditate')
     await page.goto('/habits')

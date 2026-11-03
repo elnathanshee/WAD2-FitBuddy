@@ -5,6 +5,7 @@ import app from '../app.js'
 import {
   sendPushNotification,
   sendHabitReminder,
+  sendDayEndingNotification,
   sendCheerNotification,
   sendChallengeNotification,
 } from '../services/notificationService.js'
@@ -41,6 +42,17 @@ describe('OneSignal Notifications API', () => {
     expect(res.status).toBe(200)
     expect(res.body.success).toBe(true)
   })
+
+  it('POST /api/notifications/day-ending triggers urgent day-ending warning', async () => {
+    const res = await request(app)
+      .post('/api/notifications/day-ending')
+      .set(DEMO_USER)
+      .send({ habitNames: ['Drink Water', 'Evening Walk'] })
+
+    expect(res.status).toBe(200)
+    expect(res.body.success).toBe(true)
+    expect(res.body.remainingCount).toBe(2)
+  })
 })
 
 describe('OneSignal Notification Service Functions', () => {
@@ -63,6 +75,18 @@ describe('OneSignal Notification Service Functions', () => {
     expect(result.success).toBe(true)
   })
 
+  it('sendDayEndingNotification constructs urgent day-ending format', async () => {
+    const result = await sendDayEndingNotification('user-123', {
+      habitNames: ['Morning Run', 'Drink Water'],
+      remainingCount: 2,
+      hoursLeft: 2,
+      minutesLeft: 15,
+    })
+
+    expect(result.success).toBe(true)
+    expect(result.notification.title).toContain('Time is Running Out')
+  })
+
   it('sendCheerNotification handles friend cheer', async () => {
     const result = await sendCheerNotification('user-456', {
       senderName: 'Alex',
@@ -83,4 +107,3 @@ describe('OneSignal Notification Service Functions', () => {
     expect(result.success).toBe(true)
   })
 })
-

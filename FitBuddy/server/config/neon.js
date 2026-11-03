@@ -223,6 +223,7 @@ export async function initNeonSchema() {
     UNIQUE (activity_id, user_id, checkin_date)
   )`
   await sql`CREATE INDEX IF NOT EXISTS idx_group_checkins_group_date ON group_checkins(group_id, checkin_date)`
+  await sql`ALTER TABLE habits ADD COLUMN IF NOT EXISTS custom_days VARCHAR(100);`
   // ---- Google Health connection (refresh token + one-time OAuth states) ----
   await sql`CREATE TABLE IF NOT EXISTS google_health_connections (
     user_id VARCHAR(100) PRIMARY KEY REFERENCES users(user_id) ON DELETE CASCADE,

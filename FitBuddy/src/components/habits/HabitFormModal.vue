@@ -80,6 +80,34 @@
         />
       </div>
 
+      <fieldset v-if="form.frequency === 'weekly'" class="mb-3" data-testid="habit-custom-days">
+        <legend class="form-label fw-semibold fs-6 mb-1">
+          Custom days <span class="text-muted fw-normal small">(optional)</span>
+        </legend>
+        <div class="d-flex flex-wrap gap-1" role="group" aria-label="Custom days of the week">
+          <button
+            v-for="day in WEEK_DAYS"
+            :key="day.value"
+            type="button"
+            class="btn btn-sm"
+            :class="form.customDays.includes(day.value) ? 'btn-primary' : 'btn-outline-secondary'"
+            :aria-pressed="form.customDays.includes(day.value)"
+            :data-testid="`habit-custom-day-${day.value}`"
+            @click="toggleCustomDay(day.value)"
+          >
+            {{ day.label }}
+          </button>
+        </div>
+        <div class="form-text">
+          <template v-if="form.customDays.length">
+            Scheduled on: <strong>{{ form.customDays.join(', ') }}</strong>
+          </template>
+          <template v-else>
+            Pick specific day(s) of the week for this weekly habit, or leave unselected for any day.
+          </template>
+        </div>
+      </fieldset>
+
       <fieldset class="mb-3">
         <legend class="form-label fw-semibold fs-6" data-testid="habit-target-label">
           {{ form.frequency === 'weekly' ? 'Weekly target' : 'Daily target' }}
@@ -147,7 +175,7 @@ import AppModal from './AppModal.vue'
 import EmojiPickerField from './EmojiPickerField.vue'
 import { habitService, errorMessage } from '../../services/habitService'
 import {
-  CATEGORIES, PRESET_CATEGORY_VALUES, UNIT_GROUPS, ALL_UNITS, CUSTOM, roundAmount,
+  CATEGORIES, PRESET_CATEGORY_VALUES, UNIT_GROUPS, ALL_UNITS, CUSTOM, WEEK_DAYS, roundAmount,
   suggestHabitSettings,
 } from '../../utils/habitOptions'
 
@@ -171,11 +199,22 @@ const form = ref({
   category: isPresetCategory ? savedCategory : 'other',
   customCategory: isPresetCategory || savedCategory === 'other' ? '' : savedCategory,
   frequency: props.habit?.frequency ?? 'daily',
+  customDays: Array.isArray(props.habit?.customDays) ? [...props.habit.customDays] : [],
   targetAmount: props.habit?.target.amount ?? 1,
   targetUnit: isPresetUnit ? savedUnit : CUSTOM,
   customUnit: isPresetUnit ? '' : savedUnit,
   icon: props.habit?.icon ?? '✅',
 })
+
+function toggleCustomDay(dayValue) {
+  const current = new Set(form.value.customDays)
+  if (current.has(dayValue)) {
+    current.delete(dayValue)
+  } else {
+    current.add(dayValue)
+  }
+  form.value.customDays = WEEK_DAYS.map((d) => d.value).filter((d) => current.has(d))
+}
 
 // The starting values, used when a name has no suggestion (or the suggestion is cleared)
 const defaults = {
@@ -261,6 +300,7 @@ async function save() {
     // An empty custom category is saved as plain "other"
     category: form.value.category === 'other' ? form.value.customCategory.trim() || 'other' : form.value.category,
     frequency: form.value.frequency,
+    customDays: form.value.frequency === 'weekly' ? form.value.customDays : [],
     target: {
       amount: roundAmount(form.value.targetAmount),
       unit: form.value.targetUnit === CUSTOM ? form.value.customUnit.trim() : form.value.targetUnit,

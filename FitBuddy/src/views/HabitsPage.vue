@@ -10,6 +10,8 @@
       </button>
     </div>
 
+    <DayEndingBanner :habits="habits" />
+
     <div
       v-if="celebrating"
       class="alert alert-success d-flex align-items-center gap-2 fw-semibold celebration-banner"
@@ -138,6 +140,7 @@ import LogProgressModal from '../components/habits/LogProgressModal.vue'
 import HabitHistoryModal from '../components/habits/HabitHistoryModal.vue'
 import AppModal from '../components/habits/AppModal.vue'
 import CoachChat from '../components/habits/CoachChat.vue'
+import DayEndingBanner from '../components/notifications/DayEndingBanner.vue'
 import { habitService, errorMessage } from '../services/habitService'
 import { toDateKey } from '../utils/dates'
 import { celebrate } from '../utils/celebrate'

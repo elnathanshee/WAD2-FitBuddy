@@ -1,292 +1,266 @@
-// Handlers for /api/health-sync: connecting a user's Google Health account (OAuth), reading today's
-// steps / active minutes / distance / calories, and copying them into the user's habits.
-// The refresh token Google gives us is encrypted (AES-256-GCM) before it is stored in the database.
-// Errors thrown here carry a `status`, which the error handler in app.js sends back as the response status.
-import crypto from 'node:crypto'
-// Third-party library: google-auth-library (https://github.com/googleapis/google-auth-library-nodejs) — Google OAuth sign-in for Google Health
-import { OAuth2Client } from 'google-auth-library'
+// Handlers for /api/health-sync: simulated Google Health wearable activity data
+// (steps, active minutes, distance, calories) and automatic habit check-in sync.
+
 import { getDb } from '../config/neon.js'
 import { toDateKey } from '../utils/dates.js'
 
-// Google Health REST API address and the one permission (scope) we ask the user for
-const API = 'https://health.googleapis.com/v4'
-const SCOPE = 'https://www.googleapis.com/auth/googlehealth.activity_and_fitness.readonly'
+const STEPS_GOAL = 10000
+const ACTIVE_MINUTES_GOAL = 30
+const STEP_HABIT_PATTERN = /\b(step|steps|walk|walking|run|running|jog|jogging)\b/i
+const ACTIVE_HABIT_PATTERN = /\b(workout|exercise|gym|training|active|cardio|yoga|stretch|cycling|swim)\b/i
 
-// Reads the Google Health settings from environment variables.
-// Returns the keys, the redirect address Google sends the user back to, the app's own base address,
-// and `configured` / `missingConfig` so the status route can say what is missing.
-function settings() {
-  const clientId = process.env.GOOGLE_HEALTH_CLIENT_ID?.trim()
-  const clientSecret = process.env.GOOGLE_HEALTH_CLIENT_SECRET?.trim()
-  const encryptionKey = process.env.HEALTH_TOKEN_ENCRYPTION_KEY?.trim()
-  const appUrl = process.env.APP_URL?.trim().replace(/\/$/, '')
-  const fallbackHost = process.env.VERCEL_PROJECT_PRODUCTION_URL || process.env.VERCEL_URL
-  const baseUrl = appUrl || (fallbackHost ? `https://${fallbackHost}` : `http://localhost:${process.env.PORT || 3000}`)
-  const redirectUri = process.env.GOOGLE_HEALTH_REDIRECT_URI?.trim() || `${baseUrl}/api/health-sync/google/callback`
-  const missingConfig = [
-    !clientId && 'GOOGLE_HEALTH_CLIENT_ID',
-    !clientSecret && 'GOOGLE_HEALTH_CLIENT_SECRET',
-    !encryptionKey && 'HEALTH_TOKEN_ENCRYPTION_KEY',
-  ].filter(Boolean)
-  return { clientId, clientSecret, encryptionKey, redirectUri, baseUrl, configured: missingConfig.length === 0, missingConfig }
+// Per-user simulated state in memory (connected by default; stores simulated sync boosts for today)
+const disconnectedUsers = new Set()
+const userSyncBoosts = new Map() // key: `${userId}:${today}` -> { steps, activeMinutes, lastSynced, connectedAt }
+
+const SIMULATED_PRESETS = {
+  default: { label: 'Daily activity sync', steps: 1850, activeMinutes: 12 },
+  walk: { label: 'Brisk walk (20 min)', steps: 2400, activeMinutes: 20 },
+  run: { label: '5K outdoor run', steps: 5200, activeMinutes: 30 },
+  workout: { label: 'Gym / HIIT session', steps: 1600, activeMinutes: 35 },
 }
 
-// Creates the Google OAuth client. Throws 503 if the client id or secret is missing.
-function oauthClient() {
-  const config = settings()
-  if (!config.clientId || !config.clientSecret) {
-    const error = new Error('Google Health is not configured yet. Add the Google OAuth client ID and secret to the server environment.')
-    error.status = 503
-    throw error
+function getBoostState(userId, today) {
+  const key = `${userId}:${today}`
+  if (!userSyncBoosts.has(key)) {
+    userSyncBoosts.set(key, {
+      steps: 0,
+      activeMinutes: 0,
+      connectedAt: new Date().toISOString(),
+      lastSynced: new Date().toISOString(),
+    })
   }
-  return new OAuth2Client(config.clientId, config.clientSecret, config.redirectUri)
+  return userSyncBoosts.get(key)
 }
 
-// The 32-byte key used to encrypt stored refresh tokens (derived from HEALTH_TOKEN_ENCRYPTION_KEY)
-function tokenKey() {
-  const secret = process.env.HEALTH_TOKEN_ENCRYPTION_KEY?.trim()
-  if (!secret) {
-    const error = new Error('Health token encryption is not configured on the server.')
-    error.status = 503
-    throw error
+async function getCompletedHabitsTodayCount(userId, today) {
+  try {
+    const sql = getDb()
+    const rows = await sql`
+      SELECT COUNT(*)::int AS cnt
+      FROM check_ins
+      WHERE user_id = ${userId} AND date = ${today} AND count > 0
+    `
+    return rows[0]?.cnt ?? 0
+  } catch {
+    return 0
   }
-  return crypto.createHash('sha256').update(secret).digest()
 }
 
-// Encrypts a refresh token. Result is "iv.authTag.encrypted" (each part base64url).
-function encryptToken(token) {
-  const iv = crypto.randomBytes(12)
-  const cipher = crypto.createCipheriv('aes-256-gcm', tokenKey(), iv)
-  const encrypted = Buffer.concat([cipher.update(token, 'utf8'), cipher.final()])
-  return [iv, cipher.getAuthTag(), encrypted].map((part) => part.toString('base64url')).join('.')
+async function buildSimulatedMetrics(userId, today = toDateKey()) {
+  const boost = getBoostState(userId, today)
+  const completedCount = await getCompletedHabitsTodayCount(userId, today)
+
+  const steps = Math.min(30000, 5420 + completedCount * 1250 + boost.steps)
+  const activeMinutes = Math.min(240, 22 + completedCount * 8 + boost.activeMinutes)
+  const distanceKm = Number((steps * 0.00076).toFixed(2))
+  const caloriesBurned = Math.round(steps * 0.042 + activeMinutes * 4.5)
+
+  return {
+    steps,
+    stepsGoal: STEPS_GOAL,
+    activeMinutes,
+    activeMinutesGoal: ACTIVE_MINUTES_GOAL,
+    distanceKm,
+    caloriesBurned,
+    lastSynced: boost.lastSynced,
+    source: 'Google Health (Simulated)',
+    simulated: true,
+  }
 }
 
-// Reverses encryptToken()
-function decryptToken(value) {
-  const [ivText, tagText, encryptedText] = value.split('.')
-  const decipher = crypto.createDecipheriv('aes-256-gcm', tokenKey(), Buffer.from(ivText, 'base64url'))
-  decipher.setAuthTag(Buffer.from(tagText, 'base64url'))
-  return Buffer.concat([decipher.update(Buffer.from(encryptedText, 'base64url')), decipher.final()]).toString('utf8')
+function roundAmount(value) {
+  return Math.round(value * 100) / 100
 }
 
-// An Error with an HTTP status, so the error handler in app.js can send it to the browser
-function publicError(message, status = 400) {
-  const error = new Error(message)
-  error.status = status
-  return error
+function normalizeUnit(unit) {
+  return String(unit || '').trim().toLowerCase()
+}
+
+function mappedHabitAmount(habit, metrics) {
+  const unit = normalizeUnit(habit.target_unit)
+  const name = String(habit.name || '')
+  const category = String(habit.category || '').toLowerCase()
+  const isExerciseHabit = category === 'exercise' || STEP_HABIT_PATTERN.test(name) || ACTIVE_HABIT_PATTERN.test(name)
+  if (!isExerciseHabit) return null
+
+  if (unit === 'steps') {
+    return metrics.steps > 0 ? metrics.steps : null
+  }
+  if (unit === 'km') {
+    return metrics.distanceKm > 0 ? roundAmount(metrics.distanceKm) : null
+  }
+  if (unit === 'miles') {
+    return metrics.distanceKm > 0 ? roundAmount(metrics.distanceKm * 0.621371) : null
+  }
+  if (unit === 'metres' || unit === 'meters') {
+    return metrics.distanceKm > 0 ? Math.round(metrics.distanceKm * 1000) : null
+  }
+  if (unit === 'minutes') {
+    return metrics.activeMinutes > 0 ? metrics.activeMinutes : null
+  }
+  if (unit === 'hours') {
+    return metrics.activeMinutes > 0 ? roundAmount(metrics.activeMinutes / 60) : null
+  }
+  if (unit === 'kcal') {
+    return metrics.caloriesBurned > 0 ? metrics.caloriesBurned : null
+  }
+
+  const targetAmount = Number(habit.target_amount) || 1
+  if (STEP_HABIT_PATTERN.test(name) && metrics.steps >= 6000) {
+    return targetAmount
+  }
+  if (metrics.activeMinutes >= 20 || metrics.steps >= 7000) {
+    return targetAmount
+  }
+  return null
+}
+
+async function syncHabitsFromMetrics(userId, metrics) {
+  const sql = getDb()
+  const today = toDateKey()
+  const habits = await sql`
+    SELECT id, name, category, target_amount, target_unit
+    FROM habits
+    WHERE user_id = ${userId}
+  `
+
+  const updatedHabits = []
+  for (const habit of habits) {
+    const mappedAmount = mappedHabitAmount(habit, metrics)
+    if (!mappedAmount || mappedAmount <= 0) continue
+
+    const existing = await sql`
+      SELECT count
+      FROM check_ins
+      WHERE user_id = ${userId} AND habit_id = ${habit.id} AND date = ${today}
+      LIMIT 1
+    `
+    const nextCount = Math.max(Number(existing[0]?.count ?? 0), roundAmount(mappedAmount))
+
+    await sql`
+      INSERT INTO check_ins (user_id, habit_id, date, count)
+      VALUES (${userId}, ${habit.id}, ${today}, ${nextCount})
+      ON CONFLICT (habit_id, date)
+      DO UPDATE SET count = GREATEST(check_ins.count, EXCLUDED.count), updated_at = NOW()
+    `
+
+    updatedHabits.push({
+      id: habit.id,
+      name: habit.name,
+      syncedCount: nextCount,
+      unit: habit.target_unit,
+    })
+  }
+
+  return updatedHabits
 }
 
 // GET /api/health-sync/google/status
-// Responds 200 { configured, missingConfig, connected, connectedAt, lastSyncedAt }.
 export async function getGoogleHealthStatus(req, res) {
-  const config = settings()
-  const sql = getDb()
-  const [connection] = await sql`SELECT connected_at, last_synced_at FROM google_health_connections WHERE user_id = ${req.userId}`
-  res.json({ configured: config.configured, missingConfig: config.missingConfig, connected: Boolean(connection), connectedAt: connection?.connected_at || null, lastSyncedAt: connection?.last_synced_at || null })
+  const userId = String(req.userId)
+  const today = toDateKey()
+  const connected = !disconnectedUsers.has(userId)
+  const boost = getBoostState(userId, today)
+
+  res.json({
+    configured: true,
+    simulated: true,
+    missingConfig: [],
+    connected,
+    connectedAt: connected ? boost.connectedAt : null,
+    lastSyncedAt: connected ? boost.lastSynced : null,
+    lastSyncError: '',
+  })
 }
 
-// GET /api/health-sync/google/connect
-// Saves a one-time "state" value (valid 10 minutes) and responds 200 { url } - the Google consent page to open.
-// Error: 503 when Google Health is not configured on the server.
+// GET or POST /api/health-sync/google/connect
 export async function startGoogleHealthConnect(req, res) {
-  const config = settings()
-  const client = oauthClient()
-  if (!config.configured) throw publicError('Add GOOGLE_HEALTH_CLIENT_ID, GOOGLE_HEALTH_CLIENT_SECRET, and HEALTH_TOKEN_ENCRYPTION_KEY to the server environment.', 503)
-  const sql = getDb()
-  await sql`DELETE FROM google_health_oauth_states WHERE expires_at < NOW()`
-  const state = crypto.randomBytes(32).toString('base64url')
-  const stateHash = crypto.createHash('sha256').update(state).digest('hex')
-  await sql`INSERT INTO google_health_oauth_states (state_hash, user_id, expires_at) VALUES (${stateHash}, ${req.userId}, NOW() + INTERVAL '10 minutes')`
-  const url = client.generateAuthUrl({
-    access_type: 'offline', include_granted_scopes: true, prompt: 'consent', state,
-    scope: [SCOPE],
+  const userId = String(req.userId)
+  const today = toDateKey()
+  disconnectedUsers.delete(userId)
+  const boost = getBoostState(userId, today)
+  boost.connectedAt = new Date().toISOString()
+  boost.lastSynced = boost.connectedAt
+  const metrics = await buildSimulatedMetrics(userId, today)
+
+  res.json({
+    connected: true,
+    simulated: true,
+    metrics,
+    message: 'Connected to simulated Google Health data.',
   })
-  res.json({ url })
 }
 
-// Sends the browser back to the app's home page with ?googleHealth=<status>
-// (connected, cancelled, expired, not-linked or error) so the page can show a message.
-function appRedirect(req, res, status) {
-  const baseUrl = settings().baseUrl
-  const destination = new URL('/', baseUrl)
-  destination.searchParams.set('googleHealth', status)
-  return res.redirect(destination.toString())
-}
-
-// GET /api/health-sync/google/callback?code=&state=
-// Google sends the browser here after the user answers the consent page. No login header is available,
-// so the user is found from the saved `state`. Always ends with a redirect to the app (see appRedirect).
-export async function googleHealthCallback(req, res) {
-  const { code, state, error: oauthError } = req.query
-  if (oauthError || typeof code !== 'string' || typeof state !== 'string') {
-    const status = oauthError === 'access_denied' ? 'cancelled' : 'error'
-    return appRedirect(req, res, status)
-  }
-  try {
-    const sql = getDb()
-    const stateHash = crypto.createHash('sha256').update(state).digest('hex')
-    const [stateRow] = await sql`DELETE FROM google_health_oauth_states WHERE state_hash = ${stateHash} AND expires_at > NOW() RETURNING user_id`
-    if (!stateRow) return appRedirect(req, res, 'expired')
-
-    const client = oauthClient()
-    const { tokens } = await client.getToken(code)
-    if (!tokens.access_token) throw publicError('Google did not return an access token.')
-    client.setCredentials(tokens)
-    const identity = await googleRequest(client, '/users/me/identity')
-    if (!identity.healthUserId) throw publicError('This Google account is not linked to a Google Health profile. Open the Google Health app and link this account first.')
-
-    const [existing] = await sql`SELECT encrypted_refresh_token FROM google_health_connections WHERE user_id = ${stateRow.user_id}`
-    const refreshToken = tokens.refresh_token || (existing ? decryptToken(existing.encrypted_refresh_token) : null)
-    if (!refreshToken) throw publicError('Google did not grant ongoing access. Reconnect and approve the requested access.')
-    const encryptedToken = encryptToken(refreshToken)
-    const scopes = (tokens.scope || SCOPE).split(' ').filter(Boolean)
-    await sql`INSERT INTO google_health_connections (user_id, google_health_user_id, encrypted_refresh_token, granted_scopes, connected_at)
-      VALUES (${stateRow.user_id}, ${identity.healthUserId}, ${encryptedToken}, ${scopes}, NOW())
-      ON CONFLICT (user_id) DO UPDATE SET google_health_user_id = EXCLUDED.google_health_user_id,
-        encrypted_refresh_token = EXCLUDED.encrypted_refresh_token, granted_scopes = EXCLUDED.granted_scopes, connected_at = NOW()`
-    return appRedirect(req, res, 'connected')
-  } catch (error) {
-    console.error('Google Health OAuth callback failed:', error.message)
-    return appRedirect(req, res, error.message.includes('not linked') ? 'not-linked' : 'error')
-  }
-}
-
-// Calls the Google Health API with the user's access token and returns the JSON body.
-// Throws an error carrying Google's status when the request fails.
-async function googleRequest(client, path, init = {}) {
-  const { token } = await client.getAccessToken()
-  if (!token) throw publicError('Google access expired. Reconnect your Google Health account.', 401)
-  const response = await fetch(`${API}${path}`, {
-    ...init,
-    headers: { Authorization: `Bearer ${token}`, Accept: 'application/json', ...(init.body ? { 'Content-Type': 'application/json' } : {}), ...init.headers },
-  })
-  const body = await response.json().catch(() => ({}))
-  if (!response.ok) {
-    const message = body.error?.message || body.error_description || 'Google Health could not return activity data.'
-    const error = publicError(message, response.status)
-    error.googleStatus = response.status
-    throw error
-  }
-  return body
-}
-
-// 'YYYY-MM-DD' -> the {date, time} object (midnight) the Google Health API expects
-function civilDateTime(date) {
-  const [year, month, day] = date.split('-').map(Number)
-  return { date: { year, month, day }, time: { hours: 0, minutes: 0, seconds: 0, nanos: 0 } }
-}
-
-// Asks Google for one day's total of one data type (steps, distance ...). Returns the data point or null.
-async function dailyMetric(client, type, date) {
-  const next = new Date(`${date}T12:00:00Z`)
-  next.setUTCDate(next.getUTCDate() + 1)
-  const endDate = next.toISOString().slice(0, 10)
-  const result = await googleRequest(client, `/users/me/dataTypes/${type}/dataPoints:dailyRollUp`, {
-    method: 'POST', body: JSON.stringify({ range: { start: civilDateTime(date), end: civilDateTime(endDate) }, windowSizeDays: 1, pageSize: 1 }),
-  })
-  return result.rollupDataPoints?.[0] || null
-}
-
-// Reads today's steps, active minutes, distance and calories from Google and returns them with the app's goals
-async function readTodayMetrics(client, date) {
-  const types = ['steps', 'active-minutes', 'distance', 'active-energy-burned']
-  const [steps, active, distance, calories] = await Promise.all(types.map((type) => dailyMetric(client, type, date)))
-  const activeMinutes = (active?.activeMinutes?.activeMinutesRollupByActivityLevel || []).reduce((sum, level) => sum + Number(level.activeMinutesSum || 0), 0)
-  return {
-    steps: Number(steps?.steps?.countSum || 0), stepsGoal: 10000,
-    activeMinutes, activeMinutesGoal: 30,
-    distanceKm: (Number(distance?.distance?.millimetersSum || 0) / 1_000_000).toFixed(2),
-    caloriesBurned: Number(calories?.activeEnergyBurned?.kcalSum || 0),
-    lastSynced: new Date().toISOString(),
-  }
-}
-
-// Loads the user's saved connection and returns a Google client ready to use.
-// Throws 409 when the user has not connected Google Health.
-async function getConnectedClient(userId) {
-  const sql = getDb()
-  const [connection] = await sql`SELECT encrypted_refresh_token, connected_at, last_synced_at FROM google_health_connections WHERE user_id = ${userId}`
-  if (!connection) throw publicError('Connect your Google Health account before syncing.', 409)
-  const client = oauthClient()
-  client.setCredentials({ refresh_token: decryptToken(connection.encrypted_refresh_token) })
-  return { client, connection }
+// GET /api/health-sync/google/callback
+export async function googleHealthCallback(_req, res) {
+  res.redirect('/home?googleHealth=connected')
 }
 
 // GET /api/health-sync/today
-// Responds 200 { connected: false, metrics: null } or { connected: true, metrics } for today's numbers.
 export async function getTodayMetrics(req, res) {
-  const sql = getDb()
-  const [connection] = await sql`SELECT last_synced_at FROM google_health_connections WHERE user_id = ${req.userId}`
-  if (!connection) return res.json({ connected: false, metrics: null })
-  const { client } = await getConnectedClient(req.userId)
-  const metrics = await readTodayMetrics(client, toDateKey())
-  res.json({ connected: true, metrics: { ...metrics, lastSynced: connection.last_synced_at || null } })
-}
+  const userId = String(req.userId)
+  const today = toDateKey()
+  const connected = !disconnectedUsers.has(userId)
+  if (!connected) {
+    return res.json({
+      connected: false,
+      simulated: true,
+      metrics: null,
+      lastSyncError: '',
+    })
+  }
 
-// The habit ids (as strings) the user chose to fill from each metric.
-// body.mappings looks like { steps: ['3', '7'], activeMinutes: ['5'] }.
-function readMappings(body) {
-  const mappings = {}
-  for (const key of ['steps', 'activeMinutes']) {
-    const ids = body.mappings?.[key]
-    mappings[key] = Array.isArray(ids) ? [...new Set(ids.map(String))] : []
-  }
-  return mappings
-}
-
-// What to log for one habit today, or undefined when the habit is not mapped.
-// A habit measured in steps / minutes gets the real number; any other unit just gets 1 ("done").
-function countForHabit(habit, mappings, metrics) {
-  const id = String(habit.id)
-  if (mappings.steps.includes(id)) {
-    return habit.target_unit === 'steps' ? metrics.steps : 1
-  }
-  if (mappings.activeMinutes.includes(id)) {
-    return habit.target_unit === 'minutes' ? metrics.activeMinutes : 1
-  }
-  return undefined
+  const metrics = await buildSimulatedMetrics(userId, today)
+  res.json({
+    connected: true,
+    simulated: true,
+    metrics,
+    lastSyncError: '',
+  })
 }
 
 // POST /api/health-sync/google/sync
-// Body: { mappings: { steps: [habitId...], activeMinutes: [habitId...] } } (max 50 habits in total).
-// Reads today's metrics and sets today's check-in of each mapped habit.
-// Responds 200 { message, provider, syncedAt, metrics, updatedHabits }. Errors: 409 not connected, 400 too many habits.
 export async function syncGoogleHealth(req, res) {
-  const { client } = await getConnectedClient(req.userId)
-  const date = toDateKey()
-  const metrics = await readTodayMetrics(client, date)
-  const body = req.body || {}
-  const mappings = readMappings(body)
-  const selected = new Set(Object.values(mappings).flat())
-  if (selected.size > 50) throw publicError('Too many habit mappings were selected.', 400)
-  const sql = getDb()
-  const habits = selected.size ? await sql`SELECT id, name, target_unit FROM habits WHERE user_id = ${req.userId}` : []
-  const updates = []
-  const done = new Set()
-  for (const habit of habits) {
-    const id = String(habit.id)
-    if (done.has(id)) continue
-    const count = countForHabit(habit, mappings, metrics)
-    if (count === undefined) continue
-    await sql`INSERT INTO check_ins (user_id, habit_id, date, count) VALUES (${req.userId}, ${habit.id}, ${date}, ${count})
-      ON CONFLICT (habit_id, date) DO UPDATE SET count = EXCLUDED.count, updated_at = NOW()`
-    updates.push({ id: habit.id, name: habit.name, syncedCount: count, unit: habit.target_unit })
-    done.add(id)
+  const userId = String(req.userId)
+  const today = toDateKey()
+  disconnectedUsers.delete(userId)
+
+  const presetKey = String(req.body?.preset || 'default')
+  const preset = SIMULATED_PRESETS[presetKey] || SIMULATED_PRESETS.default
+  const boost = getBoostState(userId, today)
+
+  if (req.body?.reset) {
+    boost.steps = 0
+    boost.activeMinutes = 0
+  } else {
+    boost.steps += preset.steps
+    boost.activeMinutes += preset.activeMinutes
   }
-  await sql`UPDATE google_health_connections SET last_synced_at = NOW() WHERE user_id = ${req.userId}`
-  res.json({ message: 'Synced current activity from Google Health.', provider: 'Google Health', syncedAt: metrics.lastSynced, metrics, updatedHabits: updates })
+  boost.lastSynced = new Date().toISOString()
+
+  const metrics = await buildSimulatedMetrics(userId, today)
+  const updatedHabits = await syncHabitsFromMetrics(userId, metrics)
+
+  res.json({
+    connected: true,
+    simulated: true,
+    preset: preset.label,
+    metrics,
+    updatedHabits,
+    message: updatedHabits.length
+      ? `Synced simulated Google Health activity and updated ${updatedHabits.length} habit(s).`
+      : 'Synced simulated Google Health activity for today.',
+  })
 }
 
 // DELETE /api/health-sync/google/connection
-// Revokes the token at Google (if possible) and deletes the saved connection. Responds 200 { connected: false, message }.
 export async function disconnectGoogleHealth(req, res) {
-  const { client, connection } = await getConnectedClient(req.userId)
-  try {
-    await client.revokeToken(decryptToken(connection.encrypted_refresh_token))
-  } catch {
-    // Remove local credentials even if Google already revoked them.
-  }
-  const sql = getDb()
-  await sql`DELETE FROM google_health_connections WHERE user_id = ${req.userId}`
-  res.json({ connected: false, message: 'Google Health disconnected.' })
+  const userId = String(req.userId)
+  disconnectedUsers.add(userId)
+  res.json({
+    connected: false,
+    simulated: true,
+    message: 'Simulated Google Health feed paused.',
+  })
 }

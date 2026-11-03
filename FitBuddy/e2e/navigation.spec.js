@@ -13,11 +13,11 @@ test.beforeEach(async ({ page }) => {
 })
 
 test.describe('Home page', () => {
-  test('is the first page after login and shows habits, challenges and Google Health', async ({ page }) => {
+  test('is the first page after login and shows habits, habit groups and Google Health', async ({ page }) => {
     await expect(page).toHaveURL(/\/home$/)
     await expect(page.getByTestId('home-hero')).toBeVisible()
     await expect(page.getByTestId('home-habits')).toBeVisible()
-    await expect(page.getByTestId('home-challenges')).toBeVisible()
+    await expect(page.getByTestId('home-groups')).toBeVisible()
     await expect(page.getByTestId('google-health')).toBeVisible()
   })
 
@@ -32,21 +32,18 @@ test.describe('Home page', () => {
     await expect(page.locator('main').getByRole('button', { name: /log ?out/i })).toHaveCount(0)
   })
 
-  test('the challenges section has a single "Start a challenge" button', async ({ page }) => {
-    const challenges = page.getByTestId('home-challenges')
-    await expect(challenges.getByRole('button', { name: 'Start a challenge' })).toHaveCount(1)
-    await expect(challenges.getByRole('button', { name: /^new$/i })).toHaveCount(0)
+  test('the habit groups section has a "New group" button', async ({ page }) => {
+    const groups = page.getByTestId('home-groups')
+    await expect(groups.getByTestId('new-group-btn')).toHaveCount(1)
   })
 
-  // Google Health now uses a real OAuth connection, which needs Google credentials.
-  // These tests answer the status/metrics calls themselves so they work for anyone.
   const METRICS = { steps: 6200, stepsGoal: 10000, activeMinutes: 25, activeMinutesGoal: 30, distanceKm: 4.2, caloriesBurned: 310 }
   async function mockGoogleHealth(page, connected) {
     await page.route('**/api/health-sync/google/status', (route) =>
-      route.fulfill({ json: { configured: true, missingConfig: [], connected } }),
+      route.fulfill({ json: { configured: true, simulated: true, missingConfig: [], connected } }),
     )
     await page.route('**/api/health-sync/today', (route) =>
-      route.fulfill({ json: { connected, metrics: connected ? METRICS : null } }),
+      route.fulfill({ json: { connected, simulated: true, metrics: connected ? METRICS : null } }),
     )
     await page.reload()
   }
@@ -153,7 +150,7 @@ test.describe('Dashboard', () => {
 
     // Home-only sections are not on the Dashboard any more
     await expect(page.getByTestId('google-health')).toHaveCount(0)
-    await expect(page.getByTestId('home-challenges')).toHaveCount(0)
+    await expect(page.getByTestId('home-groups')).toHaveCount(0)
     await expect(page.locator('main').getByRole('button', { name: /log ?out/i })).toHaveCount(0)
   })
 

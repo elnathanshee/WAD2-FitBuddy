@@ -10,6 +10,31 @@ import { toDateKey, addDays, weekStart, isValidDateKey } from '../utils/dates.js
 // Biggest amount a target or a single log may have
 const MAX_AMOUNT = 100000
 
+// Valid custom day names for weekly habits (ordered Monday to Sunday)
+const VALID_DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
+
+let customDaysColumnVerified = false
+async function ensureCustomDaysColumn(sql) {
+  if (customDaysColumnVerified) return
+  try {
+    await sql`ALTER TABLE habits ADD COLUMN IF NOT EXISTS custom_days VARCHAR(100)`
+    customDaysColumnVerified = true
+  } catch {
+    // Ignore if table does not exist in unit mock
+  }
+}
+
+function normaliseCustomDays(input, frequency) {
+  if (frequency !== 'weekly' || !input) return null
+  const raw = Array.isArray(input)
+    ? input.map((d) => String(d).trim())
+    : String(input)
+        .split(',')
+        .map((d) => d.trim())
+  const chosen = VALID_DAYS.filter((day) => raw.includes(day))
+  return chosen.length > 0 ? chosen.join(',') : null
+}
+
 // Rounds to 2 decimal places (amounts are stored as NUMERIC(10, 2))
 function roundAmount(value) {
   return Math.round(value * 100) / 100
@@ -31,6 +56,12 @@ function formatHabitRow(row) {
     name: row.name,
     category: row.category,
     frequency: row.frequency,
+    customDays: row.custom_days
+      ? String(row.custom_days)
+          .split(',')
+          .map((d) => d.trim())
+          .filter(Boolean)
+      : [],
     target: {
       amount: Number(row.target_amount),
       unit: row.target_unit,
@@ -88,6 +119,7 @@ function summarise(habit, checkIns, today) {
 // and streak { current, longest }. `today` is the browser's local date. Error: 400 bad date.
 export async function listHabits(req, res) {
   const sql = getDb()
+  await ensureCustomDaysColumn(sql)
   const { today = toDateKey() } = req.query
   if (!isValidDateKey(today)) {
     return res.status(400).json({ message: 'today must be a real day in YYYY-MM-DD format' })
@@ -130,11 +162,12 @@ export async function listHabits(req, res) {
 }
 
 // POST /api/habits
-// Body: { name (max 50), category?, frequency?, target: { amount, unit }, icon? }
+// Body: { name (max 50), category?, frequency?, customDays?, target: { amount, unit }, icon? }
 // Responds 201 with the new habit. Error: 400 invalid name or amount.
 export async function createHabit(req, res) {
   const sql = getDb()
-  const { name, category = 'other', frequency = 'daily', target, icon = '✅' } = req.body || {}
+  await ensureCustomDaysColumn(sql)
+  const { name, category = 'other', frequency = 'daily', customDays, target, icon = '✅' } = req.body || {}
 
   const trimmedName = String(name || '').trim()
   if (!trimmedName) return res.status(400).json({ message: 'Habit name is required' })
@@ -145,10 +178,11 @@ export async function createHabit(req, res) {
     return res.status(400).json({ message: `Target amount must be a number between 0.01 and ${MAX_AMOUNT}` })
   }
   const unit = String(target?.unit || 'times').slice(0, 20).trim()
+  const customDaysStr = normaliseCustomDays(customDays, frequency)
 
   const rows = await sql`
-    INSERT INTO habits (user_id, name, category, frequency, target_amount, target_unit, icon)
-    VALUES (${req.userId}, ${trimmedName}, ${category}, ${frequency}, ${roundAmount(amount)}, ${unit}, ${icon})
+    INSERT INTO habits (user_id, name, category, frequency, custom_days, target_amount, target_unit, icon)
+    VALUES (${req.userId}, ${trimmedName}, ${category}, ${frequency}, ${customDaysStr}, ${roundAmount(amount)}, ${unit}, ${icon})
     RETURNING *
   `
 
@@ -159,6 +193,7 @@ export async function createHabit(req, res) {
 // Responds 200 with one habit. Error: 404 not found (or not yours).
 export async function getHabit(req, res) {
   const sql = getDb()
+  await ensureCustomDaysColumn(sql)
   const habitId = parseInt(req.params.id, 10)
   if (isNaN(habitId)) return res.status(404).json({ message: 'Habit not found' })
 
@@ -171,10 +206,11 @@ export async function getHabit(req, res) {
 }
 
 // PUT /api/habits/:id
-// Body: any of { name, category, frequency, target: { amount, unit }, icon }; missing fields keep their value.
+// Body: any of { name, category, frequency, customDays, target: { amount, unit }, icon }; missing fields keep their value.
 // Responds 200 with the updated habit. Errors: 404 not found, 400 empty name.
 export async function updateHabit(req, res) {
   const sql = getDb()
+  await ensureCustomDaysColumn(sql)
   const habitId = parseInt(req.params.id, 10)
   if (isNaN(habitId)) return res.status(404).json({ message: 'Habit not found' })
 
@@ -184,7 +220,7 @@ export async function updateHabit(req, res) {
   if (existing.length === 0) return res.status(404).json({ message: 'Habit not found' })
 
   const current = existing[0]
-  const { name, category, frequency, target, icon } = req.body || {}
+  const { name, category, frequency, customDays, target, icon } = req.body || {}
 
   const newName = name !== undefined ? String(name).trim() : current.name
   if (!newName) return res.status(400).json({ message: 'Habit name is required' })
@@ -192,6 +228,12 @@ export async function updateHabit(req, res) {
   const newCategory = category !== undefined ? String(category).trim() : current.category
   const newFrequency = frequency !== undefined ? String(frequency).trim() : current.frequency
   const newIcon = icon !== undefined ? String(icon).trim() : current.icon
+  const newCustomDays =
+    newFrequency !== 'weekly'
+      ? null
+      : customDays !== undefined
+        ? normaliseCustomDays(customDays, newFrequency)
+        : current.custom_days ?? null
 
   let newAmount = current.target_amount
   let newUnit = current.target_unit
@@ -203,6 +245,7 @@ export async function updateHabit(req, res) {
   const updated = await sql`
     UPDATE habits
     SET name = ${newName}, category = ${newCategory}, frequency = ${newFrequency},
+        custom_days = ${newCustomDays},
         target_amount = ${newAmount}, target_unit = ${newUnit}, icon = ${newIcon},
         updated_at = NOW()
     WHERE id = ${habitId} AND user_id = ${req.userId}
@@ -330,6 +373,7 @@ export async function undoCheckIn(req, res) {
 // Errors: 404 not found, 400 bad dates.
 export async function getHistory(req, res) {
   const sql = getDb()
+  await ensureCustomDaysColumn(sql)
   const habitId = parseInt(req.params.id, 10)
   if (isNaN(habitId)) return res.status(404).json({ message: 'Habit not found' })
 
@@ -378,4 +422,3 @@ export async function getHistory(req, res) {
   }
   res.json(body)
 }
-

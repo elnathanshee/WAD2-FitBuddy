@@ -20,10 +20,23 @@
             <span class="text-muted text-capitalize">{{ habit.category }}</span>
             <span class="text-muted" aria-hidden="true">·</span>
             <span class="text-muted" data-testid="habit-frequency">{{ frequencyText }}</span>
+            <template v-if="customDaysText">
+              <span class="text-muted" aria-hidden="true">·</span>
+              <span class="text-muted" data-testid="habit-custom-days-label">{{ customDaysText }}</span>
+            </template>
           </div>
-          <span class="status-label small fw-semibold" data-testid="habit-status">
-            <span class="status-dot" aria-hidden="true"></span>{{ STATUS[status].label }}
-          </span>
+          <div class="d-flex align-items-center flex-wrap gap-2">
+            <span class="status-label small fw-semibold" data-testid="habit-status">
+              <span class="status-dot" aria-hidden="true"></span>{{ STATUS[status].label }}
+            </span>
+            <span
+              v-if="isScheduledToday && !isDone"
+              class="badge rounded-pill text-bg-warning mt-1"
+              style="font-size: 0.7rem"
+            >
+              Scheduled today
+            </span>
+          </div>
         </div>
         <div class="text-center flex-shrink-0" :title="`Longest streak: ${habit.streak.longest} ${streakUnit}s`">
           <div class="streak-number display-num" :class="{ 'text-muted': !habit.streak.current }">
@@ -97,7 +110,7 @@
 
 <script setup>
 import { computed } from 'vue'
-import { formatAmount, habitStatus, periodLabel, STATUS } from '../../utils/habitOptions'
+import { formatAmount, habitStatus, periodLabel, STATUS, todayWeekdayShort } from '../../utils/habitOptions'
 
 const props = defineProps({
   // A habit from GET /api/habits, including periodCount and streak
@@ -114,6 +127,18 @@ const progressPercent = computed(() =>
 
 const frequencyText = computed(() => (props.habit.frequency === 'weekly' ? 'Weekly' : 'Daily'))
 const streakUnit = computed(() => (props.habit.frequency === 'weekly' ? 'week' : 'day'))
+
+const customDaysText = computed(() => {
+  if (props.habit.frequency !== 'weekly') return ''
+  const days = props.habit.customDays
+  return Array.isArray(days) && days.length > 0 ? days.join(', ') : ''
+})
+
+const isScheduledToday = computed(() => {
+  if (props.habit.frequency !== 'weekly') return false
+  const days = props.habit.customDays
+  return Array.isArray(days) && days.includes(todayWeekdayShort())
+})
 </script>
 
 <style scoped>

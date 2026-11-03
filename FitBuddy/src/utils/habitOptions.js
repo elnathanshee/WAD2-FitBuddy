@@ -10,6 +10,22 @@ export const CATEGORIES = [
 ]
 export const PRESET_CATEGORY_VALUES = CATEGORIES.map((c) => c.value).filter((v) => v !== 'other')
 
+// Days of the week for custom weekly habit schedules
+export const WEEK_DAYS = [
+  { value: 'Mon', label: 'Mon', full: 'Monday' },
+  { value: 'Tue', label: 'Tue', full: 'Tuesday' },
+  { value: 'Wed', label: 'Wed', full: 'Wednesday' },
+  { value: 'Thu', label: 'Thu', full: 'Thursday' },
+  { value: 'Fri', label: 'Fri', full: 'Friday' },
+  { value: 'Sat', label: 'Sat', full: 'Saturday' },
+  { value: 'Sun', label: 'Sun', full: 'Sunday' },
+]
+
+export function todayWeekdayShort(date = new Date()) {
+  const names = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+  return names[date.getDay()]
+}
+
 // Lightweight name-based defaults for new habits. These only prefill the form;
 // every suggested field stays editable by the user.
 const HABIT_SUGGESTIONS = [

@@ -1,7 +1,7 @@
 <!--
   Home: the first page after login. A quick read of today: habit progress,
-  active challenges, and Google Health activity. Deeper stats live on the
-  Dashboard; managing habits lives on the Habits page.
+  day-ending notification banner, habit groups, and simulated Google Health activity.
+  Deeper stats live on the Dashboard; managing habits lives on the Habits page.
 -->
 <template>
   <div class="container py-4 py-md-5 home">
@@ -29,6 +29,9 @@
         </div>
       </div>
     </header>
+
+    <!-- Day-ending / time running out alert banner -->
+    <DayEndingBanner :habits="habits" />
 
     <!-- Auto-scrolling highlights -->
     <div class="mb-4 mb-md-5">
@@ -85,7 +88,13 @@
                   </span>
                   <span class="bar"><span :style="{ transform: `scaleX(${ready ? share(habit) : 0})` }"></span></span>
                   <span class="habit-meta">
-                    <span>{{ periodLabel(habit) }} · {{ STATUS[habitStatus(habit)].label }}</span>
+                    <span>
+                      {{ periodLabel(habit) }}
+                      <template v-if="habit.frequency === 'weekly' && habit.customDays?.length">
+                        ({{ habit.customDays.join(', ') }})
+                      </template>
+                      · {{ STATUS[habitStatus(habit)].label }}
+                    </span>
                     <span v-if="habit.streak.current" class="streak">
                       <i class="bi bi-fire" aria-hidden="true"></i>{{ habit.streak.current }}
                     </span>
@@ -96,15 +105,21 @@
           </ul>
         </section>
 
-        <!-- Challenges in progress -->
+        <!-- Habit groups (replaces active challenges on the Home page) -->
         <!-- flex-grow-1: stretches so the left column's bottom lines up with Google Health -->
-        <ChallengesSection v-reveal class="flex-grow-1" active-only />
+        <GroupsSection v-reveal class="flex-grow-1" @checked-in="onSynced" />
       </div>
 
-      <!-- Google Health -->
+      <!-- Google Health (Simulated) -->
       <div class="col-12 col-lg-4">
         <!-- h-100: spans the full height of the two cards beside it -->
-        <FitnessTrackerWidget v-reveal="80" class="h-100" @synced="onSynced" />
+        <FitnessTrackerWidget
+          v-reveal="80"
+          class="h-100"
+          :habits-count="habits.length"
+          :completed-today="doneCount"
+          @synced="onSynced"
+        />
       </div>
     </div>
   </div>
@@ -112,8 +127,9 @@
 
 <script setup>
 import { computed, nextTick, onMounted, ref } from 'vue'
-import ChallengesSection from '../components/dashboard/ChallengesSection.vue'
+import GroupsSection from '../components/dashboard/GroupsSection.vue'
 import FitnessTrackerWidget from '../components/dashboard/FitnessTrackerWidget.vue'
+import DayEndingBanner from '../components/notifications/DayEndingBanner.vue'
 import HighlightsCarousel from '../components/HighlightsCarousel.vue'
 import StreakMedal3D from '../components/three/StreakMedal3D.vue'
 import { useAuthStore } from '../stores/auth'

@@ -1,181 +1,175 @@
-// Sends push notifications through the OneSignal REST API (called with fetch).
-// Used by notificationController.js (reminders, test, broadcast), neonLeaderboardController.js
-// (cheers and nudges) and challengeController.js (challenge invites).
-// When the OneSignal keys are not set, the notification is only logged ("simulated").
+// Sends push notifications through OneSignal's REST API (https://onesignal.com/api/v1/notifications)
+// using ONESIGNAL_APP_ID and ONESIGNAL_REST_API_KEY from .env. When those keys are not set,
+// returns { simulated: true } so the app and tests still work without a OneSignal account.
+// Called by controllers/notificationController.js.
 
-import { getOneSignalConfig } from '../config/onesignal.js'
+const ONESIGNAL_API_URL = 'https://onesignal.com/api/v1/notifications'
 
-const ONESIGNAL_API_URL = 'https://api.onesignal.com/notifications'
-
-// Targets specific users by their HabitBuddy user id (OneSignal calls it external_id).
-function addRecipients(payload, userIds) {
-  const stringIds = userIds.map((id) => String(id))
-  // OneSignal v2 aliases + v1 external_user_ids for maximum cross-compatibility
-  payload.include_aliases = { external_id: stringIds }
-  payload.include_external_user_ids = stringIds
+function getOneSignalConfig() {
+  return {
+    appId: process.env.ONESIGNAL_APP_ID || '',
+    restApiKey: process.env.ONESIGNAL_REST_API_KEY || '',
+  }
 }
 
-// How many devices OneSignal says it will notify. Falls back to 1 when it only returned an id.
-function countRecipients(result) {
-  if (typeof result.recipients === 'number') return result.recipients
-  if (result.id) return 1
-  return 0
+export function isOneSignalConfigured() {
+  const { appId, restApiKey } = getOneSignalConfig()
+  return Boolean(appId && restApiKey)
 }
 
 /**
- * Sends a push notification through the OneSignal REST API.
- * Targets specific users (userIds) or everyone subscribed (broadcast: true).
- * Never throws: returns { success, ... } describing what happened (simulated: true without keys).
+ * Send a push notification via OneSignal REST API
+ * @param {Object} options
+ * @param {string[]} [options.userIds] - External user IDs (maps to FitBuddy user_id)
+ * @param {string} options.title - Notification heading
+ * @param {string} options.message - Notification body content
+ * @param {string} [options.url] - Optional click target URL
+ * @param {Object} [options.data] - Optional custom payload data
  */
-export async function sendPushNotification({
-  userIds = [],
-  title = 'HabitBuddy',
-  message = '',
-  url = null,
-  data = {},
-  broadcast = false,
-}) {
-  const { appId, restApiKey, isConfigured } = getOneSignalConfig()
+export async function sendPushNotification({ userIds = [], title, message, url, data = {} }) {
+  const { appId, restApiKey } = getOneSignalConfig()
 
-  // Graceful simulation mode when OneSignal credentials are not set
-  if (!isConfigured) {
-    console.log('[OneSignal Simulated Push]', {
-      targets: broadcast ? 'ALL_SUBSCRIBERS' : userIds,
-      title,
-      message,
-      url,
-    })
+  // Graceful fallback when OneSignal keys are not configured in .env
+  if (!appId || !restApiKey) {
     return {
       success: true,
       simulated: true,
-      message:
-        'OneSignal keys not configured in server/.env. Notification simulated successfully in local console mode.',
-      notification: { title, message, userIds, broadcast, url },
+      provider: 'onesignal',
+      notification: {
+        title,
+        message,
+        targetUsers: userIds.length > 0 ? userIds : ['all_subscribed'],
+        data,
+        timestamp: new Date().toISOString(),
+      },
     }
   }
 
-  // OneSignal REST API payload
   const payload = {
     app_id: appId,
-    target_channel: 'push',
     headings: { en: title },
     contents: { en: message },
-    data: { ...data, timestamp: new Date().toISOString() },
+    data,
   }
 
   if (url) {
     payload.url = url
   }
 
-  if (broadcast) {
-    payload.included_segments = ['Total Subscriptions']
-  } else if (userIds.length > 0) {
-    addRecipients(payload, userIds)
+  if (userIds.length > 0) {
+    payload.include_aliases = { external_id: userIds.map(String) }
+    payload.target_channel = 'push'
   } else {
-    return {
-      success: false,
-      message: 'No recipient userIds specified and broadcast was not set.',
-    }
+    payload.included_segments = ['Subscribed Users']
   }
 
-  try {
-    const response = await fetch(ONESIGNAL_API_URL, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json; charset=utf-8',
-        Authorization: `Key ${restApiKey}`,
-      },
-      body: JSON.stringify(payload),
-    })
-
-    const result = await response.json()
-
-    if (!response.ok) {
-      console.warn('[OneSignal API Warning/Error]', result)
-      return {
-        success: false,
-        status: response.status,
-        errors: result.errors || [result.message || 'OneSignal API rejected the request'],
-      }
-    }
-
-    const recipientsCount = countRecipients(result)
-
-    return {
-      success: true,
-      simulated: false,
-      id: result.id,
-      recipients: recipientsCount,
-      errors: result.errors || null,
-      message:
-        recipientsCount === 0
-          ? 'Notification processed by OneSignal! However, no active device subscriptions are registered yet. Click "Enable" in the app on this device to subscribe!'
-          : `Notification successfully sent to ${recipientsCount} subscriber(s)!`,
-    }
-  } catch (err) {
-    console.error('[OneSignal Error]', err)
-    return {
-      success: false,
-      error: err.message,
-    }
-  }
-}
-
-/**
- * Sends a daily habit check-in reminder. Lists up to two unfinished habit names in the text.
- */
-export async function sendHabitReminder(userId, { habitNames = [], remainingCount = 0 } = {}) {
-  const count = remainingCount || habitNames.length
-
-  let message = "Don't forget to check in on your habits today to keep your streak alive! 🏃"
-  if (habitNames.length > 0) {
-    const sample = habitNames.slice(0, 2).join(', ')
-    const more = habitNames.length > 2 ? ` (+${habitNames.length - 2} more)` : ''
-    message = `You still have ${count} habit(s) to complete today: ${sample}${more}. Keep your streak going! 🔥`
-  }
-
-  return sendPushNotification({
-    userIds: [userId],
-    title: '⏰ HabitBuddy Reminder',
-    message,
-    url: '/habits',
-    data: { type: 'habit_reminder', remainingCount: count },
+  const response = await fetch(ONESIGNAL_API_URL, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json; charset=utf-8',
+      Authorization: `Basic ${restApiKey}`,
+    },
+    body: JSON.stringify(payload),
   })
+
+  const result = await response.json()
+
+  if (!response.ok) {
+    throw new Error(result.errors?.[0] || `OneSignal API error (${response.status})`)
+  }
+
+  return {
+    success: true,
+    simulated: false,
+    provider: 'onesignal',
+    id: result.id,
+    recipients: result.recipients,
+    notification: {
+      title,
+      message,
+      targetUsers: userIds.length > 0 ? userIds : ['all_subscribed'],
+      timestamp: new Date().toISOString(),
+    },
+  }
 }
 
 /**
- * Tells a user that a friend cheered or nudged them (used by the leaderboard).
+ * Send a habit reminder notification for incomplete daily habits
  */
-export async function sendCheerNotification(recipientId, { senderName = 'A friend', cheerType = 'cheer', message = '' } = {}) {
-  const emojiMap = {
-    cheer: '🎉',
-    nudge: '👋',
-    fire: '🔥',
-    celebrate: '🏆',
-  }
-  const emoji = emojiMap[cheerType] || '🎉'
-  const title = `${emoji} ${senderName} sent you a ${cheerType}!`
-  const body = message ? `"${message}"` : 'Keep up the momentum and stay consistent!'
+export async function sendHabitReminder(userId, { habitNames = [], remainingCount = 0 }) {
+  const title = remainingCount > 0
+    ? `⏰ ${remainingCount} Habit${remainingCount > 1 ? 's' : ''} Waiting Today!`
+    : '🎉 All Habits Complete Today!'
+
+  const preview = habitNames.slice(0, 3).join(', ')
+  const message = remainingCount > 0
+    ? `Don't break your streak! Still left today: ${preview}${habitNames.length > 3 ? '...' : ''}.`
+    : 'Awesome consistency! You completed every habit on your list today.'
 
   return sendPushNotification({
-    userIds: [recipientId],
+    userIds: [String(userId)],
     title,
-    message: body,
-    url: '/leaderboard',
-    data: { type: 'friend_cheer', cheerType, senderName },
+    message,
+    data: { type: 'habit_reminder', remainingCount },
   })
 }
 
 /**
- * Tells a user that a friend invited them to a challenge (used when a challenge is created).
+ * Send an urgent notification when time is running out / the day is about to end
  */
-export async function sendChallengeNotification(opponentId, { creatorName = 'A friend', title = 'Challenge', targetDays = 7 } = {}) {
+export async function sendDayEndingNotification(
+  userId,
+  { habitNames = [], remainingCount = 0, hoursLeft = 0, minutesLeft = 0 }
+) {
+  const timeText = hoursLeft > 0 ? `${hoursLeft}h ${minutesLeft}m` : `${minutesLeft}m`
+  const title =
+    remainingCount > 0
+      ? `⏳ Time is Running Out! (${timeText} left today)`
+      : '🌙 Day Ending Soon — All Habits Complete!'
+
+  const preview = habitNames.slice(0, 3).join(', ')
+  const message =
+    remainingCount > 0
+      ? `The day is about to end and ${remainingCount} habit${remainingCount > 1 ? 's are' : ' is'} still unfinished: ${preview}${habitNames.length > 3 ? '...' : ''}. Log now before midnight!`
+      : 'Great job finishing all your habits before the day ends!'
+
   return sendPushNotification({
-    userIds: [opponentId],
-    title: `⚔️ Challenge from ${creatorName}!`,
-    message: `${creatorName} challenged you to "${title}" (${targetDays} days). Tap to view and accept!`,
-    url: '/home',
-    data: { type: 'challenge_invite', creatorName, title },
+    userIds: [String(userId)],
+    title,
+    message,
+    data: { type: 'day_ending_warning', remainingCount, hoursLeft, minutesLeft },
   })
 }
 
+/**
+ * Send a cheer notification when another user cheers/nudges on the leaderboard
+ */
+export async function sendCheerNotification(recipientId, { senderName = 'A FitBuddy athlete', cheerType = 'cheer', message = '' }) {
+  const emojiMap = {
+    cheer: '👏',
+    fire: '🔥',
+    muscle: '💪',
+    star: '⭐',
+    nudge: '⚡',
+  }
+  const emoji = emojiMap[cheerType] || '👏'
+
+  return sendPushNotification({
+    userIds: [String(recipientId)],
+    title: `${emoji} ${senderName} sent you a ${cheerType}!`,
+    message: message || 'Keep pushing your daily habits on the FitBuddy Leaderboard!',
+    data: { type: 'leaderboard_cheer', cheerType, senderName },
+  })
+}
+
+/**
+ * Send a challenge notification when a friend invites or completes a challenge
+ */
+export async function sendChallengeNotification(opponentId, { creatorName = 'A friend', title = '7-Day Habit Duel', targetDays = 7 }) {
+  return sendPushNotification({
+    userIds: [String(opponentId)],
+    title: `🏆 New FitBuddy Challenge: ${title}`,
+    message: `${creatorName} challenged you to a ${targetDays}-day habit duel!`,
+    data: { type: 'friend_challenge', title, targetDays },
+  })
+}

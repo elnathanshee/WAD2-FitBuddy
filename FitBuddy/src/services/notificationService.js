@@ -187,7 +187,11 @@ export async function sendTestNotification(customPayload = {}) {
  * Scans today's pending habits and sends an automated check-in reminder.
  */
 export async function sendHabitReminder() {
-  const { data } = await axios.post('/api/notifications/remind-habits', {}, authConfig())
+  const { data } = await axios.post(
+    '/api/notifications/remind-habits',
+    { today: toDateKey(), todayWeekday: todayWeekdayShort() },
+    authConfig()
+  )
   if (data.simulated && data.notification) {
     showLocalBrowserNotification(data.notification.title, data.notification.message)
   }
@@ -200,7 +204,17 @@ export async function sendHabitReminder() {
 export async function sendDayEndingNotification(habitNames = []) {
   const { hoursLeft, minutesLeft, timeText } = getTimeRemainingToday()
   try {
-    const { data } = await axios.post('/api/notifications/day-ending', { habitNames }, authConfig())
+    const { data } = await axios.post(
+      '/api/notifications/day-ending',
+      {
+        habitNames,
+        today: toDateKey(),
+        todayWeekday: todayWeekdayShort(),
+        hoursLeft,
+        minutesLeft,
+      },
+      authConfig()
+    )
     if (data.simulated && data.notification) {
       showLocalBrowserNotification(data.notification.title, data.notification.message)
     }

@@ -2,7 +2,7 @@
 // (steps, active minutes, distance, calories) and automatic habit check-in sync.
 
 import { getDb } from '../config/neon.js'
-import { toDateKey } from '../utils/dates.js'
+import { toDateKey, resolveToday } from '../utils/dates.js'
 
 const STEPS_GOAL = 10000
 const ACTIVE_MINUTES_GOAL = 30
@@ -116,9 +116,8 @@ function mappedHabitAmount(habit, metrics) {
   return null
 }
 
-async function syncHabitsFromMetrics(userId, metrics) {
+async function syncHabitsFromMetrics(userId, metrics, today = toDateKey()) {
   const sql = getDb()
-  const today = toDateKey()
   const habits = await sql`
     SELECT id, name, category, target_amount, target_unit
     FROM habits
@@ -159,7 +158,7 @@ async function syncHabitsFromMetrics(userId, metrics) {
 // GET /api/health-sync/google/status
 export async function getGoogleHealthStatus(req, res) {
   const userId = String(req.userId)
-  const today = toDateKey()
+  const today = resolveToday(req.query?.today ?? req.body?.today)
   const connected = !disconnectedUsers.has(userId)
   const boost = getBoostState(userId, today)
 
@@ -177,7 +176,7 @@ export async function getGoogleHealthStatus(req, res) {
 // GET or POST /api/health-sync/google/connect
 export async function startGoogleHealthConnect(req, res) {
   const userId = String(req.userId)
-  const today = toDateKey()
+  const today = resolveToday(req.body?.today ?? req.query?.today)
   disconnectedUsers.delete(userId)
   const boost = getBoostState(userId, today)
   boost.connectedAt = new Date().toISOString()
@@ -200,7 +199,7 @@ export async function googleHealthCallback(_req, res) {
 // GET /api/health-sync/today
 export async function getTodayMetrics(req, res) {
   const userId = String(req.userId)
-  const today = toDateKey()
+  const today = resolveToday(req.query?.today ?? req.body?.today)
   const connected = !disconnectedUsers.has(userId)
   if (!connected) {
     return res.json({
@@ -223,7 +222,7 @@ export async function getTodayMetrics(req, res) {
 // POST /api/health-sync/google/sync
 export async function syncGoogleHealth(req, res) {
   const userId = String(req.userId)
-  const today = toDateKey()
+  const today = resolveToday(req.body?.today ?? req.query?.today)
   disconnectedUsers.delete(userId)
 
   const presetKey = String(req.body?.preset || 'default')
@@ -240,7 +239,7 @@ export async function syncGoogleHealth(req, res) {
   boost.lastSynced = new Date().toISOString()
 
   const metrics = await buildSimulatedMetrics(userId, today)
-  const updatedHabits = await syncHabitsFromMetrics(userId, metrics)
+  const updatedHabits = await syncHabitsFromMetrics(userId, metrics, today)
 
   res.json({
     connected: true,

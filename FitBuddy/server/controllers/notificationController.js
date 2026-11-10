@@ -3,7 +3,7 @@
 // All routes need a logged-in user. The OneSignal calls live in services/notificationService.js.
 
 import { getDb } from '../config/neon.js'
-import { toDateKey } from '../utils/dates.js'
+import { resolveToday } from '../utils/dates.js'
 import {
   isOneSignalConfigured,
   sendPushNotification,
@@ -26,13 +26,12 @@ function getTodayWeekdayShort() {
   return names[new Date().getDay()]
 }
 
-async function queryUnfinishedHabitsDueToday(userId, today) {
+async function queryUnfinishedHabitsDueToday(userId, today, todayWeekday = getTodayWeekdayShort()) {
   if (!process.env.DATABASE_URL) {
     return []
   }
   try {
     const sql = getDb()
-    const todayWeekday = getTodayWeekdayShort()
     const habits = await sql`
       SELECT h.id, h.name, h.frequency, h.target_amount, h.custom_days,
              COALESCE(c.count, 0) AS today_count
@@ -94,8 +93,9 @@ export async function sendTestNotification(req, res) {
 // POST /api/notifications/remind-habits
 export async function remindHabits(req, res) {
   try {
-    const today = toDateKey()
-    const incomplete = await queryUnfinishedHabitsDueToday(req.userId, today)
+    const today = resolveToday(req.body?.today ?? req.query?.today)
+    const todayWeekday = req.body?.todayWeekday || getTodayWeekdayShort()
+    const incomplete = await queryUnfinishedHabitsDueToday(req.userId, today, todayWeekday)
     const habitNames = incomplete.map((h) => h.name)
 
     const result = await sendHabitReminder(req.userId, {
@@ -119,15 +119,21 @@ export async function remindHabits(req, res) {
 // POST /api/notifications/day-ending
 export async function remindDayEnding(req, res) {
   try {
-    const today = toDateKey()
-    const incomplete = await queryUnfinishedHabitsDueToday(req.userId, today)
+    const today = resolveToday(req.body?.today ?? req.query?.today)
+    const todayWeekday = req.body?.todayWeekday || getTodayWeekdayShort()
+    const incomplete = await queryUnfinishedHabitsDueToday(req.userId, today, todayWeekday)
     const habitNames =
       Array.isArray(req.body?.habitNames) && req.body.habitNames.length > 0
         ? req.body.habitNames
         : incomplete.map((h) => h.name)
     const remainingCount = habitNames.length
-    const { hoursLeft, minutesLeft } = getTimeRemainingToday()
-    const todayWeekday = getTodayWeekdayShort()
+    const fallbackTime = getTimeRemainingToday()
+    const hoursLeft = Number.isFinite(Number(req.body?.hoursLeft))
+      ? Number(req.body.hoursLeft)
+      : fallbackTime.hoursLeft
+    const minutesLeft = Number.isFinite(Number(req.body?.minutesLeft))
+      ? Number(req.body.minutesLeft)
+      : fallbackTime.minutesLeft
 
     const result = await sendDayEndingNotification(req.userId, {
       habitNames,
